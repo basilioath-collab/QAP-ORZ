@@ -67,13 +67,16 @@
 
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .row.end{justify-content:flex-end}
-    .btn{border:1px solid var(--border);background:#fff;padding:9px 12px;border-radius:12px;font-weight:800;cursor:pointer}
-    .btn:hover{border-color:#cbd5e1}
+    .btn{border:1px solid var(--border);background:#fff;color:#0f172a;padding:9px 12px;border-radius:12px;font-weight:800;cursor:pointer;transition:background-color .14s ease,border-color .14s ease,color .14s ease,box-shadow .14s ease,transform .08s ease}
+    .btn:hover{border-color:#cbd5e1;background:#f8fafc}
+    .btn:active{transform:translateY(1px)}
+    .btn:focus-visible{outline:3px solid rgba(79,70,229,.20);outline-offset:2px}
     .btn.primary{background:var(--indigo);color:#fff;border-color:var(--indigo)}
-    .btn.primary:hover{background:var(--indigo2)}
+    .btn.primary:hover{background:var(--indigo2);border-color:var(--indigo2)}
     .btn.danger{background:#fff;border-color:#fecaca;color:#b91c1c}
-    .btn.danger:hover{border-color:#fca5a5}
+    .btn.danger:hover{border-color:#fca5a5;background:#fef2f2;color:#991b1b}
     .btn.ghost{background:transparent}
+    .btn.ghost:hover{background:#f8fafc}
 
     .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:11px;font-weight:800;color:var(--muted);background:#fff}
     .pill .dot{height:10px;width:10px;border-radius:999px;border:1px solid rgba(0,0,0,.15)}
@@ -140,7 +143,7 @@
     .monthCell.free-3{background:#dcfce7;border-color:#bbf7d0}
     .monthCell.free-4{background:#bbf7d0;border-color:#86efac}
 
-    /* Mantém leitura em dias “muted” sem perder a cor da janela */
+    /* Mantém leitura em dias “muted sem perder a cor da janela */
     .monthCell.mutedDay.free-0,
     .monthCell.mutedDay.free-1,
     .monthCell.mutedDay.free-2,
@@ -227,7 +230,29 @@
     .split{display:flex;gap:12px;flex-wrap:wrap}
     .split > *{flex:1 1 320px}
 
-    .toast{position:fixed;right:14px;bottom:14px;background:#0b1220;color:#fff;padding:10px 12px;border-radius:14px;box-shadow:var(--shadow);font-size:12px;opacity:0;transform:translateY(8px);transition:all .18s ease;max-width:360px}
+    .actionBtns{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+    .iconBtn{position:relative;width:34px;height:34px;padding:0;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
+    .iconBtn:not(.primary):not(.danger):hover{background:#eef2ff;border-color:#c7d2fe;color:#3730a3}
+    .iconBtn.danger{background:#fff;border-color:#fecaca;color:#b91c1c}
+    .iconBtn.danger:hover{background:#fef2f2;border-color:#fca5a5;color:#991b1b}
+    .iconBtn::after{content:attr(aria-label);position:absolute;left:50%;bottom:calc(100% + 8px);translate:-50% 0;white-space:nowrap;background:#0b1220;color:#fff;border-radius:10px;padding:6px 8px;font-size:11px;font-weight:900;box-shadow:var(--shadow);opacity:0;pointer-events:none;transform:translateY(4px);transition:opacity .12s ease, transform .12s ease;z-index:30}
+    .iconBtn::before{content:'';position:absolute;left:50%;bottom:calc(100% + 3px);translate:-50% 0;border:5px solid transparent;border-top-color:#0b1220;opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:30}
+    .iconBtn:hover::after,.iconBtn:focus-visible::after,.iconBtn:hover::before,.iconBtn:focus-visible::before{opacity:1;transform:translateY(0)}
+    .demandFilters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end}
+    .demandFilters .field{min-width:0}
+    .demandFilters .field input,.demandFilters .field select{width:100%;min-width:0}
+    .demandsTable{min-width:980px;table-layout:auto}
+    .demandsTable th,.demandsTable td{white-space:normal}
+    .demandsTable th:last-child,.demandsTable td:last-child{width:168px;min-width:168px}
+    .demandsTable .actionBtns{justify-content:flex-start}
+    @media(max-width:760px){
+      .demandsTable{min-width:900px}
+      .demandsTable th,.demandsTable td{padding:9px 8px}
+      .iconBtn{width:32px;height:32px}
+    }
+
+    .toast{position:fixed;right:14px;bottom:14px;z-index:9999;background:#0b1220;color:#fff;padding:10px 12px;border-radius:14px;box-shadow:var(--shadow);font-size:12px;opacity:0;transform:translateY(8px);transition:all .18s ease;max-width:360px}
+    dialog[open] .toast{z-index:2147483647}
     .toast.show{opacity:1;transform:translateY(0)}
 
     .hint{border:1px dashed #cbd5e1;border-radius:14px;padding:12px;background:#fff}
@@ -714,7 +739,7 @@ main{padding:14px;overflow-x:hidden}
     <div class="modalCard" style="max-width:560px">
       <div class="modalHd">
         <div>
-          <div class="modalTitle">⚠️ Conflito de Versão Detectado</div>
+          <div class="modalTitle">⚠ Conflito de Versão Detectado</div>
           <div class="modalSub" id="mergeModalSub">O BD foi alterado por outra sessão desde que você o abriu.</div>
         </div>
       </div>
@@ -736,7 +761,7 @@ main{padding:14px;overflow-x:hidden}
             </button>
             <button class="btn ghost" type="button" id="mergeModalCancel" style="margin-top:4px">Cancelar (não salvar agora)</button>
           </div>
-          <div id="mergeModalProgress" style="display:none" class="tiny muted">⏳ Processando mesclagem…</div>
+          <div id="mergeModalProgress" style="display:none" class="tiny muted"> Processando mesclagem…</div>
           <div id="mergeModalResult" style="display:none"></div>
         </div>
       </div>
@@ -853,7 +878,7 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const slugify = (s) => String(s||'')
-    .normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toLowerCase().trim()
     .replace(/[^a-z0-9]+/g,'-')
     .replace(/(^-|-$)/g,'')
@@ -1561,7 +1586,7 @@ main{padding:14px;overflow-x:hidden}
       resourceId: uiFilters.demandResourceId,
       dateStart: uiFilters.demandDateStart,
       dateEnd: uiFilters.demandDateEnd,
-      titleQuery: uiFilters.demandTitle
+      titleQuery: getDemandTitleFilter('demands')
     });
     // sempre começa na primeira página ao abrir o modal
     uiPagination.donutModalPage = 1;
@@ -1593,7 +1618,7 @@ main{padding:14px;overflow-x:hidden}
           uiFilters.demandResourceId = '';
           uiFilters.demandDateStart = '';
           uiFilters.demandDateEnd = '';
-          uiFilters.demandTitle = '';
+          setDemandTitleFilter('demands', '');
           toast('Filtro limpo.');
           render();
         })
@@ -1646,6 +1671,13 @@ main{padding:14px;overflow-x:hidden}
 
   const toast = (msg) => {
     const el = qs('#toast');
+    const openDialogs = qsa('dialog[open]');
+    const topDialog = openDialogs.length ? openDialogs[openDialogs.length - 1] : null;
+    if (topDialog && !topDialog.contains(el)) {
+      topDialog.appendChild(el);
+    } else if (!topDialog && el.parentElement !== document.body) {
+      document.body.appendChild(el);
+    }
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(toast._t);
@@ -1734,7 +1766,7 @@ main{padding:14px;overflow-x:hidden}
       data: String(item.data || todayISO()).trim(),
       etapa: normalizeProjectStep(item.etapa || item.tipo || 'Outro'),
       horas: Number.isFinite(horas) && horas > 0 ? horas : 0,
-      observacao: String(item.observacao || item.observações || item.obs || '').trim(),
+      observacao: String(item.observacao || item['observacoes'] || item.obs || '').trim(),
       usuario: String(item.usuario || item.user || item.created_by || userName || 'Sessão local').trim(),
       user_id: String(item.user_id || item.userId || userId || '').trim(),
       created_at: createdAt,
@@ -1948,7 +1980,9 @@ main{padding:14px;overflow-x:hidden}
     demandResourceId: '', // '', resourceId, '__NONE__'
     demandDateStart: '', // YYYY-MM-DD
     demandDateEnd: '',   // YYYY-MM-DD
-    demandTitle: '',     // pesquisa por título da demanda
+    dashboardDemandTitle: '',  // pesquisa por título no Dashboard Planilha
+    evaluationDemandTitle: '', // pesquisa por projeto no Dashboard de Avaliação
+    demandsDemandTitle: '',    // pesquisa por título na aba Demandas
     focusDemandsList: false,
     focusDemandsForm: false,
     prefillDemand: null, // { responsavel_id, data_inicio, data_fim }
@@ -1973,11 +2007,23 @@ main{padding:14px;overflow-x:hidden}
     } catch {}
   };
 
-  const bindDemandTitleSearch = (inputEl, inputId, pageKey = 'demandsPage', tabKey = null) => {
+  const demandTitleFilterKey = (scope = 'demands') => ({
+    dashboard: 'dashboardDemandTitle',
+    evaluation: 'evaluationDemandTitle',
+    demands: 'demandsDemandTitle'
+  }[scope] || 'demandsDemandTitle');
+
+  const getDemandTitleFilter = (scope = 'demands') => uiFilters[demandTitleFilterKey(scope)] || '';
+  const setDemandTitleFilter = (scope = 'demands', value = '') => {
+    uiFilters[demandTitleFilterKey(scope)] = value || '';
+  };
+
+  const bindDemandTitleSearch = (inputEl, inputId, pageKey = 'demandsPage', tabKey = null, scope = null) => {
+    const filterScope = scope || tabKey || 'demands';
     inputEl.id = inputId;
-    inputEl.value = uiFilters.demandTitle || '';
+    inputEl.value = getDemandTitleFilter(filterScope);
     inputEl.addEventListener('input', () => {
-      uiFilters.demandTitle = inputEl.value || '';
+      setDemandTitleFilter(filterScope, inputEl.value || '');
       if (pageKey && uiPagination[pageKey] !== undefined) uiPagination[pageKey] = 1;
       if (tabKey) activeTab = tabKey;
       demandTitleSearchFocus = {
@@ -2021,7 +2067,7 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const hasAnyDemandFilters = () => {
-    return !!(uiFilters.demandStatus || uiFilters.demandResourceId || uiFilters.demandDateStart || uiFilters.demandDateEnd || uiFilters.demandTitle);
+    return !!(uiFilters.demandStatus || uiFilters.demandResourceId || uiFilters.demandDateStart || uiFilters.demandDateEnd || getDemandTitleFilter('demands'));
   };
 
   const buildFilterPills = ({ includeClear=true } = {}) => {
@@ -2050,11 +2096,11 @@ main{padding:14px;overflow-x:hidden}
       ]));
     }
 
-    if (uiFilters.demandTitle) {
+    if (getDemandTitleFilter('demands')) {
       pills.push(el('span', { class:'pill' }, [
         el('span', { class:'dot', style:'background:var(--indigo)' }),
-        `Título: ${uiFilters.demandTitle}`,
-        el('button', { class:'xbtn', title:'Remover pesquisa por título', onclick: () => { uiFilters.demandTitle=''; uiPagination.demandsPage=1; render(); } }, ['×'])
+        `Título: ${getDemandTitleFilter('demands')}`,
+        el('button', { class:'xbtn', title:'Remover pesquisa por título', onclick: () => { setDemandTitleFilter('demands', ''); uiPagination.demandsPage=1; render(); } }, ['×'])
       ]));
     }
 
@@ -2081,7 +2127,7 @@ main{padding:14px;overflow-x:hidden}
       uiFilters.demandResourceId = '';
       uiFilters.demandDateStart = '';
       uiFilters.demandDateEnd = '';
-      uiFilters.demandTitle = '';
+      setDemandTitleFilter('demands', '');
       toast('Filtros limpos.');
       uiPagination.demandsPage=1;
       render();
@@ -3544,12 +3590,82 @@ main{padding:14px;overflow-x:hidden}
     const predio = el('input', { value: demand.predio || '', placeholder:'Ex: Prédio A' });
     const focal = el('input', { value: demand.focal || '', placeholder:'Ex: Fulano (Focal)' });
 
-    const responsavel = el('select');
-    responsavel.appendChild(el('option', { value:'' }, ['Sem responsável (Mapeada)']));
-    for (const r of state.resources) {
-      responsavel.appendChild(el('option', { value:r.id }, [`${r.nome}${r.tipo==='Terceiro' ? ' (Terceiro)' : ''}`]));
-    }
-    responsavel.value = demand.responsavel_id || '';
+    const selectedRespIds = new Set();
+    if (demand.responsavel_id) selectedRespIds.add(demand.responsavel_id);
+    const respSearch = el('input', { class:'multiSelectInput', placeholder:'Digite o nome do responsável...' });
+    const respChips = el('div', { style:'display:contents' });
+    const respMenu = el('div', { class:'multiSelectMenu' });
+    const respBox = el('div', { class:'multiSelectBox' }, [respChips, respSearch]);
+    const responsavel = el('div', { class:'multiSelect', title:'Digite para buscar e clique para adicionar responsáveis' }, [
+      respBox,
+      respMenu
+    ]);
+    const selectedResponsaveis = () => [...selectedRespIds].filter(Boolean);
+    const getRespName = (id) => (state.resources||[]).find(r => r.id === id)?.nome || id;
+    const closeRespMenu = () => responsavel.classList.remove('open');
+    const renderRespOptions = () => {
+      const q = (respSearch.value||'').trim().toLowerCase();
+      const available = (state.resources||[])
+        .filter(r => !selectedRespIds.has(r.id))
+        .filter(r => !q || String(r.nome||'').toLowerCase().includes(q) || String(r.tipo||'').toLowerCase().includes(q))
+        .slice(0, 12);
+      respMenu.innerHTML = '';
+      if (!available.length) {
+        respMenu.appendChild(el('div', { class:'multiSelectEmpty' }, [q ? 'Nenhum responsável encontrado.' : 'Todos os responsáveis já foram selecionados.']));
+        return;
+      }
+      for (const r of available) {
+        respMenu.appendChild(el('button', { type:'button', class:'multiSelectOption', 'data-rid': r.id }, [`${r.nome}${r.tipo==='Terceiro' ? ' (Terceiro)' : ''}`]));
+      }
+    };
+    const renderRespChips = () => {
+      respChips.innerHTML = '';
+      for (const rid of selectedRespIds) {
+        const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
+          el('span', {}, [getRespName(rid)]),
+          el('button', { type:'button', title:'Remover responsável', 'data-remove-rid': rid }, ['×'])
+        ]);
+        chip.querySelector('button').addEventListener('mousedown', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          selectedRespIds.delete(rid);
+          if (!selectedRespIds.size) status.value = 'Mapeada';
+          syncMapeada();
+        });
+        respChips.appendChild(chip);
+      }
+    };
+    const openRespMenu = () => { responsavel.classList.add('open'); renderRespOptions(); };
+    const addResponsavelChip = (rid) => {
+      if (!rid || selectedRespIds.has(rid)) return;
+      selectedRespIds.add(rid);
+      respSearch.value = '';
+      if (normalizeStatus(status.value) === 'Mapeada') status.value = 'Em andamento';
+      syncMapeada();
+      openRespMenu();
+    };
+    respMenu.addEventListener('mousedown', (ev) => {
+      const opt = ev.target.closest('.multiSelectOption');
+      if (!opt) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      addResponsavelChip(opt.getAttribute('data-rid'));
+    });
+    respSearch.addEventListener('input', openRespMenu);
+    respSearch.addEventListener('focus', openRespMenu);
+    respSearch.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Backspace' && !respSearch.value && selectedRespIds.size) {
+        selectedRespIds.delete([...selectedRespIds].at(-1));
+        if (!selectedRespIds.size) status.value = 'Mapeada';
+        syncMapeada();
+      }
+      if (ev.key === 'Escape') closeRespMenu();
+    });
+    responsavel.addEventListener('mousedown', (ev) => {
+      if (ev.target.closest('.multiSelectOption') || ev.target.closest('[data-remove-rid]')) return;
+      setTimeout(() => { try { respSearch.focus(); openRespMenu(); } catch {} }, 0);
+    });
+    document.addEventListener('mousedown', (ev) => { if (!responsavel.contains(ev.target)) closeRespMenu(); });
 
     const ini = el('input', { type:'date', value: demand.data_inicio || '' });
     const fim = el('input', { type:'date', value: demand.data_fim || '' });
@@ -3630,7 +3746,7 @@ main{padding:14px;overflow-x:hidden}
         data_inicio: String(ini.value || demand.data_inicio || '').trim(),
         data_fim: String(fim.value || demand.data_fim || '').trim(),
         percentual_diario: Number(perc.value || demand.percentual_diario || 0),
-        responsavel_id: normalizeStatus(status.value) === 'Mapeada' ? '' : String(responsavel.value || demand.responsavel_id || '').trim(),
+        responsavel_id: normalizeStatus(status.value) === 'Mapeada' ? '' : String(selectedResponsaveis()[0] || demand.responsavel_id || '').trim(),
         status: normalizeStatus(status.value || demand.status)
       };
       const execMetrics = demandExecutionMetrics(demandForMetrics, apontamentos);
@@ -3711,7 +3827,7 @@ main{padding:14px;overflow-x:hidden}
                 el('span', { class:'mono', style:'font-weight:950' }, [`${fmtHours(a.horas || 0)}h`])
               ]),
               el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
-                button('Editar', '', () => {
+                iconButton('Editar', '✎', '', () => {
                   editingAptId = String(a.id);
                   aptData.value = a.data || todayISO();
                   aptEtapa.value = normalizeProjectStep(a.etapa) || PROJECT_STEP_OPTIONS[0];
@@ -3720,7 +3836,7 @@ main{padding:14px;overflow-x:hidden}
                   if (saveAptBtn) saveAptBtn.textContent = 'Salvar etapa';
                   if (cancelAptBtn) cancelAptBtn.style.display = '';
                 }),
-                button('Excluir', 'danger', () => {
+                iconButton('Excluir', '🗑', 'danger', () => {
                   apontamentos = apontamentos.filter(x => String(x.id) !== String(a.id));
                   if (editingAptId === String(a.id)) resetApontamentoForm();
                   renderApontamentos();
@@ -3804,24 +3920,15 @@ main{padding:14px;overflow-x:hidden}
     const syncMapeada = () => {
       const st = normalizeStatus(status.value);
       if (st === 'Mapeada') {
-        responsavel.value = '';
-        responsavel.disabled = true;
+        selectedRespIds.clear();
+        respSearch.value = '';
       } else {
-        responsavel.disabled = false;
-        if (!responsavel.value) {
-          // tenta manter o antigo responsável se existir
-          responsavel.value = demand.responsavel_id || '';
-        }
+        if (!selectedRespIds.size && demand.responsavel_id) selectedRespIds.add(demand.responsavel_id);
       }
+      renderRespChips();
+      renderRespOptions();
     };
     status.addEventListener('change', () => { syncMapeada(); renderApontamentos(); });
-    responsavel.addEventListener('change', () => {
-      if (!responsavel.value) {
-        status.value = 'Mapeada';
-        syncMapeada();
-      }
-      renderApontamentos();
-    });
     [ini, fim, perc].forEach(field => field.addEventListener('input', renderApontamentos));
     syncMapeada();
 
@@ -3847,12 +3954,15 @@ main{padding:14px;overflow-x:hidden}
 
       const nextStatus = normalizeStatus(status.value);
       if (nextStatus === 'Atrasada') { toast('Status Atrasada é automático — selecione outro status.'); return; }
+      const respIds = (nextStatus === 'Mapeada') ? [] : selectedResponsaveis();
+      if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais responsáveis ou marque como Mapeada.'); return; }
+      const primaryResponsavelId = respIds.includes(demand.responsavel_id) ? demand.responsavel_id : (respIds[0] || '');
       const next = {
         ...demand,
         titulo: (titulo.value || '').trim() || demand.titulo,
         predio: (predio.value || '').trim(),
         focal: (focal.value || '').trim(),
-        responsavel_id: (nextStatus === 'Mapeada') ? '' : (responsavel.value || ''),
+        responsavel_id: (nextStatus === 'Mapeada') ? '' : primaryResponsavelId,
         data_inicio: (ini.value || '').trim() || demand.data_inicio,
         data_fim: (fim.value || '').trim() || demand.data_fim,
         percentual_diario: Number(perc.value || demand.percentual_diario || 0),
@@ -3882,8 +3992,18 @@ main{padding:14px;overflow-x:hidden}
       state.events = [...state.events, { id: generateId('event'), type:'EDIT_DEMAND', payload:{ demand_id: demand.id, before, after, justification }, timestamp: Date.now(), user: userName, user_id: userId || '' }];
 
       dispatch('UPDATE_DEMAND', next);
+      const extraRespIds = respIds.filter(rid => rid && rid !== primaryResponsavelId);
+      for (const rid of extraRespIds) {
+        dispatch('ADD_DEMAND', {
+          ...next,
+          id: generateId(),
+          responsavel_id: rid,
+          apontamentos: [],
+          last_edit_justification: 'Demanda criada a partir da edição com múltiplos responsáveis.',
+        });
+      }
       try { dlg.close(); } catch { dlg.removeAttribute('open'); }
-      toast('Demanda atualizada.');
+      toast(extraRespIds.length ? `Demanda atualizada e ${extraRespIds.length} responsável(is) adicionado(s).` : 'Demanda atualizada.');
     };
 
 	    saveBtn = button('Salvar alterações', 'primary', save);
@@ -3911,7 +4031,6 @@ main{padding:14px;overflow-x:hidden}
         el('div', { class:'field' }, [el('label', {}, ['Fim']), fim]),
       ]),
       el('div', { class:'field' }, [el('label', {}, ['Observações']), obs]),
-      apontamentosBox,
 	      el('div', { class:'field' }, [el('label', {}, ['Justificativa (opcional)']), just, justHint]),
       footer
     ]));
@@ -3922,6 +4041,177 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Reprogramar Demanda (modal: nova data de início + fim + justificativa obrigatória)
   // ----------------------
+
+  const openDemandStagesModal = (demand) => {
+    const dlg = qs('#demandStagesModal');
+    if (!dlg || !demand) return;
+
+    qs('#demandStagesModalTitle').textContent = `Apontamento - ${demand.titulo}`;
+    qs('#demandStagesModalSub').textContent = 'Cadastre a atividade realizada nesta demanda.';
+
+    const body = qs('#demandStagesModalBody');
+    body.innerHTML = '';
+
+    let apontamentos = normalizeDemandApontamentos(demand);
+    const data = el('input', { type:'date', value: todayISO() });
+    const etapa = el('select');
+    for (const step of PROJECT_STEP_OPTIONS) etapa.appendChild(el('option', { value:step }, [step]));
+    const horas = el('input', { type:'number', min:'0.25', max:'24', step:'0.25', placeholder:'Ex: 2.5' });
+    const obs = el('textarea', { placeholder:'Descreva rapidamente a atividade realizada...', style:'min-height:92px' });
+    const history = el('div');
+    const summary = el('div', { class:'tiny muted' });
+    let editingAptId = '';
+    let saveBtn = null;
+    let cancelBtn = null;
+
+    const resetForm = () => {
+      editingAptId = '';
+      data.value = todayISO();
+      etapa.value = PROJECT_STEP_OPTIONS[0];
+      horas.value = '';
+      obs.value = '';
+      if (saveBtn) saveBtn.textContent = 'Salvar apontamento';
+      if (cancelBtn) cancelBtn.style.display = 'none';
+    };
+
+    const renderHistory = () => {
+      apontamentos = normalizeDemandApontamentos({ apontamentos });
+      history.innerHTML = '';
+      const totalHoras = apontamentos.reduce((acc, a) => acc + Number(a.horas || 0), 0);
+      const ultimo = apontamentos.length ? apontamentos[apontamentos.length - 1] : null;
+      summary.textContent = `${apontamentos.length} apontamento(s) - ${fmtHours(totalHoras)}h realizadas - Ultimo: ${ultimo ? `${formatDateBR(ultimo.data)} / ${ultimo.etapa}` : '-'}.`;
+
+      if (!apontamentos.length) {
+        history.appendChild(el('div', { style:'padding:14px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:#fafafa' }, [
+          'Nenhum apontamento cadastrado para esta demanda.'
+        ]));
+        return;
+      }
+
+      const list = el('div', { style:'display:flex;flex-direction:column;gap:8px;margin-top:8px' });
+      for (const a of [...apontamentos].reverse().slice(0, 8)) {
+        list.appendChild(el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:#fff' }, [
+          el('div', { style:'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap' }, [
+            el('div', {}, [
+              el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa}`]),
+              el('div', { class:'mono', style:'font-weight:950;margin-top:2px' }, [`${fmtHours(a.horas || 0)}h`])
+            ]),
+            el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
+              iconButton('Editar', '✎', '', () => {
+                editingAptId = String(a.id);
+                data.value = a.data || todayISO();
+                etapa.value = normalizeProjectStep(a.etapa) || PROJECT_STEP_OPTIONS[0];
+                horas.value = String(a.horas || '');
+                obs.value = a.observacao || '';
+                if (saveBtn) saveBtn.textContent = 'Salvar edicao';
+                if (cancelBtn) cancelBtn.style.display = '';
+              }),
+              iconButton('Excluir', '🗑', 'danger', () => {
+                apontamentos = apontamentos.filter(x => String(x.id) !== String(a.id));
+                if (editingAptId === String(a.id)) resetForm();
+                persistApontamentos('Apontamento removido.');
+              })
+            ])
+          ]),
+          el('div', { class:'tiny muted', style:'margin-top:6px' }, [a.observacao || 'Sem observacao.']),
+          el('div', { class:'tiny muted', style:'margin-top:6px' }, [a.usuario || 'Sessao local'])
+        ]));
+      }
+      history.appendChild(list);
+    };
+
+    const persistApontamentos = (message) => {
+      apontamentos = normalizeDemandApontamentos({ apontamentos });
+      dispatch('UPDATE_DEMAND', {
+        ...demand,
+        apontamentos,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: 'Apontamento registrado pela aba Demandas.',
+      });
+      renderHistory();
+      toast(message);
+      render();
+    };
+
+    const save = () => {
+      const nextData = String(data.value || '').trim();
+      const nextEtapa = normalizeProjectStep(etapa.value);
+      const nextHoras = parseApontamentoHours(horas.value);
+      const validation = validateApontamentoInput({ data: nextData, etapa: nextEtapa, horas: nextHoras }, demand);
+      if (validation) { toast(validation); return; }
+
+      if (editingAptId) {
+        const idx = apontamentos.findIndex(a => String(a.id) === String(editingAptId));
+        if (idx < 0) { toast('Apontamento em edicao nao encontrado.'); resetForm(); return; }
+        apontamentos[idx] = normalizeApontamento({
+          ...apontamentos[idx],
+          data: nextData,
+          etapa: nextEtapa,
+          horas: nextHoras,
+          observacao: String(obs.value || '').trim(),
+          updated_at: Date.now(),
+          updated_by: userName || 'Sessao local',
+          updated_by_id: userId || '',
+        });
+        resetForm();
+        persistApontamentos('Apontamento atualizado.');
+        return;
+      }
+
+      apontamentos.push(normalizeApontamento({
+        id: generateId('apt'),
+        data: nextData,
+        etapa: nextEtapa,
+        horas: nextHoras,
+        observacao: String(obs.value || '').trim(),
+        usuario: userName || 'Sessao local',
+        user_id: userId || '',
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        updated_by: userName || 'Sessao local',
+        updated_by_id: userId || '',
+      }));
+      resetForm();
+      persistApontamentos('Apontamento cadastrado.');
+    };
+
+    saveBtn = button('Salvar apontamento', 'primary', save);
+    cancelBtn = button('Cancelar edicao', '', () => { resetForm(); });
+    cancelBtn.style.display = 'none';
+
+    const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:10px' }, [
+      button('Fechar', '', () => closeDialog(dlg)),
+      cancelBtn,
+      saveBtn,
+    ]);
+
+    body.appendChild(el('div', { class:'grid' }, [
+      el('div', { class:'hint' }, [
+        el('b', {}, [demand.titulo || 'Demanda']),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, [
+          `${formatDateBR(demand.data_inicio)} -> ${formatDateBR(demand.data_fim)} - ${demand.prioridade || 'Media'} - ${effectiveStatus(demand)}`
+        ])
+      ]),
+      el('div', { class:'field', style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff' }, [
+        el('label', {}, ['Etapas do projeto / apontamento real']),
+        el('div', { class:'tiny muted' }, ['Registre horas reais gastas por documento/atividade. Nao altera a capacidade planejada.'])
+      ]),
+      el('div', { class:'row' }, [
+        el('div', { class:'field', style:'min-width:150px;flex:0 0 150px' }, [el('label', {}, ['Data']), data]),
+        el('div', { class:'field', style:'min-width:180px;flex:0 0 180px' }, [el('label', {}, ['Etapa / atividade']), etapa]),
+        el('div', { class:'field', style:'min-width:130px;flex:0 0 130px' }, [el('label', {}, ['Horas gastas']), horas]),
+      ]),
+      el('div', { class:'field' }, [el('label', {}, ['Observacao']), obs]),
+      summary,
+      history,
+      footer
+    ]));
+
+    renderHistory();
+    openDialog(dlg);
+    setTimeout(() => { try { horas.focus(); } catch {} }, 0);
+  };
 
   const openDemandReprogramModal = (demand) => {
     const dlg = qs('#demandReprogramModal');
@@ -4263,13 +4553,20 @@ main{padding:14px;overflow-x:hidden}
       el('span', { class:'sDot' }, []),
     ];
     if (s === 'Atrasada') {
-      children.push(el('span', { class:'statusIcon', title: title || 'Atrasada (automático)' }, ['⏰']));
+      children.push(el('span', { class:'statusIcon', title: title || 'Atrasada (automático)' }, ['']));
     }
     children.push(s || 'Mapeada');
     return el('span', { class:`statusPill s-${key}`, title: title || undefined }, children);
   };
 
   const button = (label, cls, onClick) => el('button', { class:'btn '+(cls||''), onclick:onClick }, [label]);
+  const iconButton = (label, icon, cls, onClick) => el('button', {
+    class:'btn iconBtn '+(cls||''),
+    type:'button',
+    title:label,
+    'aria-label':label,
+    onclick:onClick
+  }, [icon]);
 
   const sortTimestampValue = (item) => {
     if (!item || typeof item !== 'object') return 0;
@@ -4471,20 +4768,18 @@ function buildConsolidatedYearSeries(year) {
   }
   function buildCapacityVsPlannedSvg({ title, series }) {
     const W = 1200;
-    const H = 520;
-    const pad = { l: 70, r: 70, t: 70, b: 70 };
+    const H = 500;
+    const pad = { l: 70, r: 40, t: 78, b: 92 };
     const cw = W - pad.l - pad.r;
     const ch = H - pad.t - pad.b;
 
-    const maxHH = Math.max(1, ...series.map(p => Math.max(p.cap || 0, p.alloc || 0)));
-    const rawMaxPct = Math.max(0, ...series.map(p => (p.usagePct || 0)));
-    const maxPct = Math.max(120, 100, Math.ceil(rawMaxPct/10)*10);
-    const yHH = (v) => pad.t + (ch - (v / maxHH) * ch);
+    const visualMaxPct = 150;
+    const maxPct = visualMaxPct;
     const yPct = (pct) => pad.t + (ch - (pct / maxPct) * ch);
 
     const xStep = cw / series.length;
-    const barW = Math.min(36, Math.max(18, xStep * 0.32));
-    const barGap = 8;
+    const barW = Math.min(54, Math.max(34, xStep * 0.54));
+    const currentM0 = (new Date()).getMonth();
 
     const ns = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(ns, 'svg');
@@ -4526,87 +4821,100 @@ function buildConsolidatedYearSeries(year) {
       t.textContent = s;
       return t;
   }
+    const pctColor = (pct) => {
+      const v = Number(pct || 0);
+      if (v > 100) return '#dc2626';
+      if (v >= 86) return '#ca8a04';
+      if (v > 0) return '#16a34a';
+      return '#cbd5e1';
+    };
+    const pctBg = (pct) => {
+      const v = Number(pct || 0);
+      if (v > 100) return '#fee2e2';
+      if (v >= 86) return '#fef9c3';
+      if (v > 0) return '#dcfce7';
+      return '#f1f5f9';
+    };
+
     // background
     svg.appendChild(rect(0, 0, W, H, '#ffffff', 0));
 
     // title
-    svg.appendChild(text(pad.l, 36, title || 'Capacidade vs Planejado (Consolidado)', 'var(--orange)', 28, 900, 'start'));
+    svg.appendChild(text(pad.l, 34, title || 'Ocupação Consolidada - Ano', '#0f172a', 26, 950, 'start'));
+    svg.appendChild(text(pad.l, 58, 'Planejado / capacidade disponível. Escala visual limitada a 150%; estouros maiores aparecem no rótulo.', '#64748b', 13, 750, 'start'));
 
-    // grid (HH)
+    // grid (%)
     const gridN = 5;
     for (let i=0;i<=gridN;i++){
-      const v = (maxHH/gridN)*i;
-      const y = yHH(v);
+      const v = (maxPct/gridN)*i;
+      const y = yPct(v);
       svg.appendChild(line(pad.l, y, W-pad.r, y, '#e5e7eb', 1));
-      svg.appendChild(text(pad.l-10, y+4, fmtHours(v).replace('h',''), '#64748b', 11, 700, 'end'));
+      svg.appendChild(text(pad.l-10, y+4, `${Math.round(v)}%`, '#64748b', 11, 750, 'end'));
     }
 
-    // axis right (%)
-    const ticksPct = (maxPct <= 100)
-      ? [0,20,40,60,80,100]
-      : (maxPct <= 150)
-        ? [0,25,50,75,100, maxPct]
-        : (maxPct <= 250)
-          ? [0,50,100,150,200, maxPct]
-          : [0,50,100,150,200,250, maxPct];
-
-    for (const pct of ticksPct) {
-      const y = yPct(pct);
-      svg.appendChild(text(W-pad.r+10, y+4, `${Math.round(pct)}%`, '#64748b', 11, 700, 'start'));
-    }
-
-    // 100% reference line (uso)
+    // 100% reference line
     const y100 = yPct(100);
     svg.appendChild(line(pad.l, y100, W-pad.r, y100, '#ef4444', 2, '6 6'));
+    svg.appendChild(text(W-pad.r-4, y100-8, 'limite 100%', '#b91c1c', 12, 900, 'end'));
 
-    // bars + % line
-    let pathD = '';
     series.forEach((p, i) => {
       const cx = pad.l + xStep*i + xStep/2;
-      const xCap = cx - barGap/2 - barW;
-      const xAlloc = cx + barGap/2;
+      const pct = Number(p.usagePct || 0);
+      const isClipped = pct > visualMaxPct;
+      const shownPct = Math.min(visualMaxPct, Math.max(0, pct));
+      const h = (shownPct / maxPct) * ch;
+      const x = cx - barW/2;
+      const y = pad.t + (ch - h);
+      const fill = pctColor(pct);
 
-      const capH = (p.cap || 0) / maxHH * ch;
-      const allocH = (p.alloc || 0) / maxHH * ch;
+      const bg = rect(x, pad.t, barW, ch, pctBg(pct), 12);
+      bg.setAttribute('opacity', '0.72');
+      svg.appendChild(bg);
 
-      svg.appendChild(rect(xCap, pad.t + (ch - capH), barW, capH, '#c2410c')); // laranja
-      svg.appendChild(rect(xAlloc, pad.t + (ch - allocH), barW, allocH, '#3b82f6')); // azul
+      const bar = rect(x, y, barW, h, fill, 12);
+      bar.setAttribute('data-month', p.label);
+      const tip = document.createElementNS(ns, 'title');
+      tip.textContent = `${p.label}: ${Math.round(pct)}% de ocupação | Planejado ${fmtHours(p.alloc||0)}h | Capacidade ${fmtHours(p.cap||0)}h | Livre ${fmtHours(p.free||0)}h | Overcap ${fmtHours(p.overHH||0)}h`;
+      bar.appendChild(tip);
+      svg.appendChild(bar);
 
-      // label month
+      if (p.m0 === currentM0) {
+        svg.appendChild(rect(x-5, pad.t-5, barW+10, ch+10, 'none', 14));
+        svg.lastChild.setAttribute('stroke', '#4f46e5');
+        svg.lastChild.setAttribute('stroke-width', '2');
+        svg.lastChild.setAttribute('stroke-dasharray', '5 5');
+        svg.appendChild(text(cx, pad.t-14, 'mês atual', '#4338ca', 10, 900, 'middle'));
+      }
+
       svg.appendChild(text(cx, pad.t + ch + 26, p.label, '#334155', 12, 800, 'middle'));
 
-      // label % no topo
-      const pct = Math.round(p.usagePct || 0);
-      svg.appendChild(text(cx, pad.t + 20, `${pct}%`, '#111827', 13, 900, 'middle'));
+      const pctLabel = `${Math.round(pct)}%`;
+      const labelY = Math.max(pad.t + 18, y - 8);
+      svg.appendChild(text(cx, labelY, pctLabel, pct > 100 ? '#991b1b' : '#111827', 13, 950, 'middle'));
 
-      // path point
-      const px = cx;
-      const py = yPct(p.usagePct || 0);
-      pathD += (i===0 ? `M ${px} ${py}` : ` L ${px} ${py}`);
-      // dot
-      const c = document.createElementNS(ns, 'circle');
-      c.setAttribute('cx', px); c.setAttribute('cy', py);
-      c.setAttribute('r', 3.5);
-      c.setAttribute('fill', '#ef4444');
-      svg.appendChild(c);
+      const hhLabel = `${fmtHours(p.alloc || 0)}/${fmtHours(p.cap || 0)}`;
+      svg.appendChild(text(cx, pad.t + ch + 48, hhLabel, '#64748b', 10, 750, 'middle'));
+
+      if ((p.overHH || 0) > 0) {
+        svg.appendChild(text(cx, pad.t + ch + 66, `+${fmtHours(p.overHH)}h`, '#b91c1c', 10, 900, 'middle'));
+      }
+
+      if (isClipped) {
+        svg.appendChild(line(x + 8, pad.t + 10, x + barW - 8, pad.t + 10, '#991b1b', 3));
+        svg.appendChild(line(x + 8, pad.t + 18, x + barW - 8, pad.t + 18, '#991b1b', 3));
+      }
     });
-
-    const path = document.createElementNS(ns, 'path');
-    path.setAttribute('d', pathD);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', '#ef4444');
-    path.setAttribute('stroke-width', 2.5);
-    svg.appendChild(path);
 
     // legend
     const lx = pad.l;
-    const ly = H - 24;
-    svg.appendChild(rect(lx, ly-10, 14, 10, '#c2410c', 2));
-    svg.appendChild(text(lx+20, ly-1, 'Capacidade (HH)', '#334155', 12, 800, 'start'));
-    svg.appendChild(rect(lx+170, ly-10, 14, 10, '#3b82f6', 2));
-    svg.appendChild(text(lx+190, ly-1, 'Planejado (HH)', '#334155', 12, 800, 'start'));
-    svg.appendChild(line(lx+340, ly-5, lx+370, ly-5, '#ef4444', 2.5));
-    svg.appendChild(text(lx+380, ly-1, '% Uso', '#334155', 12, 800, 'start'));
+    const ly = H - 18;
+    svg.appendChild(rect(lx, ly-10, 14, 10, '#16a34a', 2));
+    svg.appendChild(text(lx+20, ly-1, 'Saudável', '#334155', 12, 800, 'start'));
+    svg.appendChild(rect(lx+130, ly-10, 14, 10, '#ca8a04', 2));
+    svg.appendChild(text(lx+150, ly-1, 'Atenção', '#334155', 12, 800, 'start'));
+    svg.appendChild(rect(lx+250, ly-10, 14, 10, '#dc2626', 2));
+    svg.appendChild(text(lx+270, ly-1, 'Acima da capacidade', '#334155', 12, 800, 'start'));
+    svg.appendChild(text(W-pad.r, ly-1, 'rótulo inferior: planejado/capacidade (Horas)', '#64748b', 11, 750, 'end'));
 
     return svg;
   }
@@ -4617,7 +4925,7 @@ function buildConsolidatedYearSeries(year) {
       resourceId: uiFilters.demandResourceId,
       dateStart: uiFilters.demandDateStart,
       dateEnd: uiFilters.demandDateEnd,
-      titleQuery: uiFilters.demandTitle
+      titleQuery: getDemandTitleFilter('dashboard')
     });
 
     const { totalResources, activeResources, totalDemands, openDemands } = kpis(dashboardFilteredDemands);
@@ -4766,7 +5074,7 @@ function buildConsolidatedYearSeries(year) {
       resSel.addEventListener('change', () => { uiFilters.demandResourceId = resSel.value; uiPagination.demandsPage=1; render(); });
 
       const titleSearch = el('input', { type:'search', placeholder:'Digite parte do título...' });
-      bindDemandTitleSearch(titleSearch, 'dashboardDemandTitleSearch');
+      bindDemandTitleSearch(titleSearch, 'dashboardDemandTitleSearch', 'dashboardSheetPage', 'dashboard', 'dashboard');
 
       const ds = el('input', { type:'date' });
       const de = el('input', { type:'date' });
@@ -5011,8 +5319,25 @@ function buildConsolidatedYearSeries(year) {
 
       (() => {
         const series = buildConsolidatedYearSeries(year);
-const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', series });
+const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', series });
         const totalsMonth = buildConsolidatedMonthTotals(year, (new Date()).getMonth());
+        const validMonths = series.filter(m => Number(m.cap || 0) > 0);
+        const avgUsage = validMonths.length
+          ? validMonths.reduce((acc, m) => acc + Number(m.usagePct || 0), 0) / validMonths.length
+          : 0;
+        const peakMonth = series.reduce((best, m) => Number(m.usagePct || 0) > Number(best.usagePct || 0) ? m : best, series[0] || {});
+        const overMonths = series.filter(m => Number(m.usagePct || 0) > 100).length;
+        const totalOverHH = series.reduce((acc, m) => acc + Number(m.overHH || 0), 0);
+        const criticalMonths = series
+          .filter(m => Number(m.usagePct || 0) > 150)
+          .sort((a,b) => Number(b.usagePct || 0) - Number(a.usagePct || 0));
+        const summaryCard = (label, value, hint='', tone='') => el('div', {
+          style:`border:1px solid var(--border);border-radius:14px;padding:10px;background:${tone==='danger'?'#fef2f2':tone==='warn'?'#fffbeb':tone==='ok'?'#ecfdf5':'#f8fafc'}`
+        }, [
+          el('div', { class:'tiny muted' }, [label]),
+          el('div', { class:'mono', style:'font-weight:950;font-size:18px;line-height:1.15' }, [value]),
+          el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint])
+        ]);
         const rightNode = el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end' }, [
           el('div', { class:'tag', title:'Uso do mês atual (Planejado/Capacidade)' }, [
             `Mês: ${Math.round(totalsMonth.usagePct||0)}% • Overcap: ${fmtHours(totalsMonth.overHH||0)}h • Estourados: ${totalsMonth.overResources||0}/${totalsMonth.totalResources||0}`
@@ -5022,10 +5347,25 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         ]);
 
         const bodyNode = el('div', { class:'grid', style:'gap:10px' }, [
+          el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px' }, [
+            summaryCard('Ocupação média', `${Math.round(avgUsage)}%`, 'média dos meses com capacidade', avgUsage > 100 ? 'danger' : (avgUsage >= 86 ? 'warn' : 'ok')),
+            summaryCard('Maior pico', `${Math.round(peakMonth.usagePct || 0)}%`, peakMonth.label ? `em ${peakMonth.label}` : 'sem dados', Number(peakMonth.usagePct || 0) > 100 ? 'danger' : (Number(peakMonth.usagePct || 0) >= 86 ? 'warn' : 'ok')),
+            summaryCard('Meses estourados', String(overMonths), 'acima de 100%', overMonths ? 'danger' : 'ok'),
+            summaryCard('Horas acima da capacidade', `${fmtHours(totalOverHH)}h`, 'soma anual de overcap', totalOverHH > 0 ? 'danger' : 'ok'),
+          ]),
+          criticalMonths.length ? el('div', { class:'warn', style:'background:#fef2f2;border-color:#fecaca;color:#991b1b' }, [
+            el('div', { style:'font-weight:950;margin-bottom:6px' }, ['Meses críticos acima da escala visual (150%)']),
+            el('div', { class:'row', style:'gap:8px' }, criticalMonths.slice(0, 6).map(m =>
+              el('span', { class:'tag', style:'background:#fff;color:#991b1b;border-color:#fecaca' }, [
+                `${m.label}: ${Math.round(m.usagePct || 0)}% • +${fmtHours(m.overHH || 0)}h`
+              ])
+            )),
+            criticalMonths.length > 6 ? el('div', { class:'tiny', style:'margin-top:6px;color:#7f1d1d' }, [`+${criticalMonths.length - 6} mês(es) crítico(s) ocultos nesta lista.`]) : null
+          ].filter(Boolean)) : null,
           el('div', { style:'max-width:100%;overflow:auto' }, [svg])
-        ]);
+        ].filter(Boolean));
 
-        return card('Capacidade VSC — Consolidado (Ano)', rightNode, bodyNode);
+        return card('Ocupação Consolidada — Ano', rightNode, bodyNode);
       })(),
       card('Dashboard Planilha', el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center' }, [right, badgeLegend()]), tableBlock)
     ]);
@@ -5040,7 +5380,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
       resourceId: uiFilters.demandResourceId,
       dateStart: uiFilters.demandDateStart,
       dateEnd: uiFilters.demandDateEnd,
-      titleQuery: uiFilters.demandTitle
+      titleQuery: getDemandTitleFilter('evaluation')
     });
 
     const now = todayISO();
@@ -5154,7 +5494,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
           miniMetric('Horas planejadas', hoursText(m.plannedHours), `${m.plannedDays || 0} dia(s) úteis`),
           miniMetric('Horas realizadas', hoursText(m.realHours), `${m.apontamentosCount || 0} apontamento(s)`),
           miniMetric('Saldo de horas', balanceText, balanceHint, balanceTone),
-          miniMetric('Eficiência', pctText(m.progressPct), 'realizado ÷ planejado'),
           miniMetric('Progresso real', pctText(m.progressPct), 'realizado ÷ planejado'),
           miniMetric('Tendência', p.health.label, 'baseado nas horas realizadas', p.health.tone === 'danger' ? 'danger' : (p.health.tone === 'warn' ? 'warn' : (p.health.tone === 'ok' ? 'ok' : ''))),
           miniMetric('Etapas', String(p.etapasUnicas || 0), 'tipos documentais'),
@@ -5175,8 +5514,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
     };
 
     const filtersBar = (() => {
-      const title = el('input', { type:'search', placeholder:'Filtrar por projeto...', value: uiFilters.demandTitle || '' });
-      bindDemandTitleSearch(title, 'evaluationProjectSearch', 'evaluationPage', 'evaluation');
+      const title = el('input', { type:'search', placeholder:'Filtrar por projeto...', value: getDemandTitleFilter('evaluation') });
+      bindDemandTitleSearch(title, 'evaluationProjectSearch', 'evaluationPage', 'evaluation', 'evaluation');
       const status = el('select', {}, [
         el('option', { value:'' }, ['Todos os status']),
         ...STATUS.map(s => el('option', { value:s, selected: uiFilters.demandStatus === s }, [s]))
@@ -5333,9 +5672,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         };
 
         tr.appendChild(el('td', {}, [
-          el('div', { class:'row' }, [
-            button('Editar', '', edit),
-            button('Excluir', 'danger', del),
+          el('div', { class:'actionBtns' }, [
+            iconButton('Editar', '✎', '', edit),
+            iconButton('Excluir', '🗑', 'danger', del),
           ])
         ]));
 
@@ -5380,7 +5719,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         resourceId: uiFilters.demandResourceId,
         dateStart: uiFilters.demandDateStart,
         dateEnd: uiFilters.demandDateEnd,
-        titleQuery: uiFilters.demandTitle
+        titleQuery: getDemandTitleFilter('demands')
       });
     })();
 
@@ -5641,7 +5980,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
       resSel.addEventListener('change', () => { uiFilters.demandResourceId = resSel.value; uiPagination.demandsPage=1; render(); });
 
       const titleSearch = el('input', { type:'search', placeholder:'Digite parte do título...' });
-      bindDemandTitleSearch(titleSearch, 'dashboardDemandTitleSearch');
+      bindDemandTitleSearch(titleSearch, 'demandsDemandTitleSearch', 'demandsPage', 'demands', 'demands');
 
       const ds = el('input', { type:'date' });
       const de = el('input', { type:'date' });
@@ -5655,21 +5994,21 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         uiFilters.demandResourceId = '';
         uiFilters.demandDateStart = '';
         uiFilters.demandDateEnd = '';
-        uiFilters.demandTitle = '';
+        setDemandTitleFilter('demands', '');
         toast('Filtros limpos.');
         uiPagination.demandsPage=1;
         render();
       };
 
-      const filtersBar = el('div', { class:'row' }, [
+      const filtersBar = el('div', { class:'demandFilters' }, [
         el('div', { class:'field' }, [el('label', {}, ['Status']), statusSel]),
         el('div', { class:'field' }, [el('label', {}, ['Recurso']), resSel]),
-        el('div', { class:'field', style:'flex:1;min-width:240px' }, [el('label', {}, ['Pesquisar título']), titleSearch]),
+        el('div', { class:'field', style:'grid-column:span 2' }, [el('label', {}, ['Pesquisar título']), titleSearch]),
         el('div', { class:'field' }, [el('label', {}, ['Data início (filtro)']), ds]),
         el('div', { class:'field' }, [el('label', {}, ['Data fim (filtro)']), de]),
       ]);
 
-      const t = el('table');
+      const t = el('table', { class:'demandsTable' });
       t.appendChild(el('thead', {}, [el('tr', {}, [
         el('th', {}, ['Título']),
         el('th', {}, ['Prédio']),
@@ -5710,6 +6049,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
 	        openDemandReprogramModal(d);
         };
 
+        const apontamento = () => {
+          openDemandStagesModal(d);
+        };
+
         const del = () => {
           if (!confirm(`Excluir demanda "${d.titulo}"?`)) return;
           dispatch('DELETE_DEMAND', d.id);
@@ -5717,10 +6060,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         };
 
         tr.appendChild(el('td', {}, [
-          el('div', { class:'row' }, [
-            button('Editar', '', edit),
-            button('Reprogramar', '', reprogram),
-            button('Excluir', 'danger', del),
+          el('div', { class:'actionBtns' }, [
+            iconButton('Editar', '✎', '', edit),
+            iconButton('Reprogramar', '↻', '', reprogram),
+            iconButton('Apontamento', '✓', 'primary', apontamento),
+            iconButton('Excluir', '🗑', 'danger', del),
           ])
         ]));
         tb.appendChild(tr);
@@ -5748,7 +6092,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         onLast: () => { uiPagination.demandsPage = totalPages; render(); },
       });
 
-      const bodyWrap = el('div', { class:'grid', style:'gap:10px' }, [filtersBar, t, (totalPages>1 ? pager : null)].filter(Boolean));
+      const tableWrap = el('div', { class:'scrollX', style:'padding-bottom:4px' }, [t]);
+      const bodyWrap = el('div', { class:'grid', style:'gap:10px' }, [filtersBar, tableWrap, (totalPages>1 ? pager : null)].filter(Boolean));
       const c = card('Demandas', right, bodyWrap);
       c.id = 'demandsListCard';
       return c;
@@ -5786,7 +6131,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
       const res = el('select');
       res.appendChild(el('option', { value:'' }, ['Selecione...']));
       for (const r of state.resources) res.appendChild(el('option', { value:r.id }, [r.nome]));
-      const date = el('input', { type:'date' });
+      const dateStart = el('input', { type:'date' });
+      const dateEnd = el('input', { type:'date' });
       const tipo = el('select', {}, [
         el('option', { value:'Férias' }, ['Férias']),
         el('option', { value:'Reunião' }, ['Reunião']),
@@ -5798,11 +6144,24 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
 
       const addBlocking = () => {
         if (!res.value) return toast('Selecione um recurso.');
-        if (!date.value) return toast('Selecione a data.');
-        dispatch('ADD_BLOCKING', { id: generateId(), recurso_id: res.value, data: date.value, tipo: tipo.value });
+        if (!dateStart.value) return toast('Selecione a data de início.');
+        const start = dateStart.value;
+        const end = dateEnd.value || dateStart.value;
+        if (end < start) return toast('A data fim não pode ser anterior à data de início.');
+
+        const startDate = isoToLocalMidnight(start);
+        const endDate = isoToLocalMidnight(end);
+        if (!startDate || !endDate) return toast('Informe datas válidas para o bloqueio.');
+
+        let count = 0;
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+          dispatch('ADD_BLOCKING', { id: generateId('block'), recurso_id: res.value, data: formatDate(d), tipo: tipo.value });
+          count += 1;
+        }
         uiPagination.blockingsPage = 1;
-        date.value='';
-        toast('Bloqueio adicionado.');
+        dateStart.value='';
+        dateEnd.value='';
+        toast(count > 1 ? `${count} bloqueios adicionados.` : 'Bloqueio adicionado.');
       };
       const addHoliday = () => {
         if (!hDate.value) return toast('Selecione a data do feriado.');
@@ -5816,7 +6175,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         card('Adicionar Bloqueio', el('div', { class:'row' }, [button('Adicionar', 'primary', addBlocking)]),
           el('div', { class:'row' }, [
             el('div', { class:'field' }, [el('label', {}, ['Recurso']), res]),
-            el('div', { class:'field' }, [el('label', {}, ['Data']), date]),
+            el('div', { class:'field' }, [el('label', {}, ['Data início']), dateStart]),
+            el('div', { class:'field' }, [el('label', {}, ['Data fim']), dateEnd]),
             el('div', { class:'field' }, [el('label', {}, ['Tipo']), tipo]),
           ])
         ),
@@ -5863,10 +6223,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         tr.appendChild(el('td', {}, [resMap[b.recurso_id]?.nome || '—']));
         tr.appendChild(el('td', { class:'mono tiny' }, [formatDateBR(b.data)]));
         tr.appendChild(el('td', {}, [b.tipo]));
-        tr.appendChild(el('td', {}, [button('Excluir', 'danger', () => {
-          dispatch('DELETE_BLOCKING', b.id);
-          toast('Bloqueio removido.');
-        })]));
+        tr.appendChild(el('td', {}, [
+          el('div', { class:'actionBtns' }, [
+            iconButton('Excluir', '🗑', 'danger', () => {
+              dispatch('DELETE_BLOCKING', b.id);
+              toast('Bloqueio removido.');
+            })
+          ])
+        ]));
         btb.appendChild(tr);
       }
       if (bTotal === 0) {
@@ -5914,10 +6278,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Capacidade VSC - Consolidado', s
         const tr = el('tr');
         tr.appendChild(el('td', { class:'mono tiny' }, [formatDateBR(h.data)]));
         tr.appendChild(el('td', {}, [h.descricao]));
-        tr.appendChild(el('td', {}, [button('Excluir', 'danger', () => {
-          dispatch('DELETE_HOLIDAY', h.id);
-          toast('Feriado removido.');
-        })]));
+        tr.appendChild(el('td', {}, [
+          el('div', { class:'actionBtns' }, [
+            iconButton('Excluir', '🗑', 'danger', () => {
+              dispatch('DELETE_HOLIDAY', h.id);
+              toast('Feriado removido.');
+            })
+          ])
+        ]));
         htb.appendChild(tr);
       }
       if (hTotal === 0) {
@@ -5972,7 +6340,7 @@ const viewWindows = () => {
       months: 6,
       metric: 'occupation', // 'occupation' | 'freePct' | 'freeHH'
       view: 'occupation', // 'occupation' | 'capacity_free' | 'bottleneck' | 'idleness'
-      // Padrão: mostrar TODOS e usar paginação (evita confusão de “sumiu recurso”).
+      // Padrão: mostrar TODOS e usar paginação (evita confusão de “sumiu recurso).
       show: 'all',  // 'top' | 'all'
       topN: 10,
       dynamicOrder: true,
@@ -6265,7 +6633,7 @@ const viewWindows = () => {
     if (!modal.open) openDialog(modal);
   };
 
-  // Drilldown mensal: dias do mês (HH + % por dia) para um recurso
+  // Drilldown mensal: dias do mês (Horas + % por dia) para um recurso
   const openMonthModal = ({ resourceId, y, m0 } = {}) => {
     const modal = qs('#monthModal');
     const title = qs('#monthModalTitle');
@@ -6275,7 +6643,7 @@ const viewWindows = () => {
     const res = state.resources.find(r => r.id === resourceId);
     const label = fmtMonthLabel(y, m0);
     title.textContent = `Janelas livres — ${label}`;
-    sub.textContent = `${res ? res.nome : 'Recurso'} • HH + % por dia`;
+    sub.textContent = `${res ? res.nome : 'Recurso'} • Horas + % por dia`;
     body.innerHTML = '';
 
     const monthInfo = monthlyWindow(resourceId, y, m0);
@@ -6437,7 +6805,7 @@ const viewWindows = () => {
 
   const hint = el('div', { class:'hint tiny' }, [
     el('b', {}, ['Modo rápido: ']),
-    'matriz por janelas deslizantes (sem limite) + “Próxima janela livre”. ',
+    'matriz por janelas deslizantes (sem limite) + “Próxima janela livre. ',
     el('b', {}, ['Janelas = capacidade remanescente diária. ']),
     'Feriado/Bloqueio/Férias/OFF zeram o dia. Excedente (negativo) é permitido.'
   ]);
@@ -6693,7 +7061,7 @@ Dias 0h: ${m.daysZero} • Dias excedidos: ${m.daysOver}`;
       const t = el('table', { class:'calTable' });
       const thead = el('thead');
       const trh = el('tr');
-      trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso / Dia (HH livres)']));
+      trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso / Dia (Horas livres)']));
 
       for (const d of days) {
         const wd = d.toLocaleString('pt-BR', { weekday:'short' }).slice(0,3);
@@ -6844,7 +7212,11 @@ Dias 0h: ${m.daysZero} • Dias excedidos: ${m.daysOver}`;
           el('td', {}, [rname]),
           el('td', { class:'mono' }, [`${Number(ot.horas||0).toFixed(1)}h`]),
           el('td', { class:'tiny muted' }, [String(ot.motivo||'')]),
-          el('td', {}, [button('Excluir', 'ghost', () => { dispatch('DELETE_OVERTIME', { id: ot.id }); render(); toast('HE removida.'); })])
+          el('td', {}, [
+            el('div', { class:'actionBtns' }, [
+              iconButton('Excluir', '🗑', 'danger', () => { dispatch('DELETE_OVERTIME', { id: ot.id }); render(); toast('HE removida.'); })
+            ])
+          ])
         ]);
         tbody.appendChild(tr);
       }
@@ -6934,7 +7306,9 @@ Dias 0h: ${m.daysZero} • Dias excedidos: ${m.daysOver}`;
               el('div', { class:'tiny muted', style:'margin-top:6px' }, [[ot.predio ? `Prédio: ${ot.predio}` : '', ot.focal ? `Focal: ${ot.focal}` : '', ot.prioridade ? `Prioridade: ${ot.prioridade}` : '', ot.motivo ? `Motivo: ${ot.motivo}` : ''].filter(Boolean).join(' • ')]),
             ]),
             el('td', {}, [
-              el('button', { class:'btn ghost', type:'button', 'data-action':'he-delete', 'data-id': String(ot.id||'') }, ['Excluir'])
+              el('div', { class:'actionBtns' }, [
+                el('button', { class:'btn iconBtn danger', type:'button', title:'Excluir', 'aria-label':'Excluir', 'data-action':'he-delete', 'data-id': String(ot.id||'') }, ['🗑'])
+              ])
             ])
           ]);
           tbody.appendChild(tr);
@@ -7435,7 +7809,7 @@ return el('div', { class:'grid' }, [
       const setLoading = (msg) => {
         actionsEl.style.display  = 'none';
         progressEl.style.display = '';
-        progressEl.textContent   = msg || '⏳ Processando…';
+        progressEl.textContent   = msg || ' Processando…';
         [btnMerge, btnReload, btnCopy, btnCancel].forEach(b => { if (b) b.disabled = true; });
       };
 
@@ -7449,7 +7823,7 @@ return el('div', { class:'grid' }, [
       };
 
       btnMerge.onclick = async () => {
-        setLoading('⏳ Mesclando versões…');
+        setLoading(' Mesclando versões…');
         try {
           const mergedResult = mergeStatesThreeWay(baseObj, localObj, remoteObj);
           if (mergedResult.conflictCount > 0) {
@@ -7463,11 +7837,11 @@ return el('div', { class:'grid' }, [
               return `<li><b>${c.collection}</b> • <span class="mono">${c.id}</span> • ${reason}<br><span class="tiny muted">Campos: ${keys}</span></li>`;
             }).join('');
             const more = mergedResult.conflictCount > 8 ? `<div class="tiny muted" style="margin-top:8px">+ ${mergedResult.conflictCount - 8} conflito(s) adicional(is).</div>` : '';
-            showResult(`⚠️ Mesclagem bloqueada para evitar sobrescrita.<br><span class="tiny">${mergedResult.autoMergedCount} item(ns) foram preparados para mesclagem automática, mas ${mergedResult.conflictCount} conflito(s) exigem revisão manual.</span><div style="margin-top:10px;text-align:left"><ol style="padding-left:18px;margin:0">${detailLines}</ol>${more}</div>`, true);
+            showResult(`⚠ Mesclagem bloqueada para evitar sobrescrita.<br><span class="tiny">${mergedResult.autoMergedCount} item(ns) foram preparados para mesclagem automática, mas ${mergedResult.conflictCount} conflito(s) exigem revisão manual.</span><div style="margin-top:10px;text-align:left"><ol style="padding-left:18px;margin:0">${detailLines}</ol>${more}</div>`, true);
             toast(`Mesclagem bloqueada: ${mergedResult.conflictCount} conflito(s) real(is) detectado(s).`);
             return;
           }
-          setLoading('⏳ Gravando no arquivo…');
+          setLoading(' Gravando no arquivo…');
           await writeStateToSelectedDb(mergedResult.merged, { backupReason:'merge' });
           // Atualiza explicitamente o baseline pós-merge para que o próximo salvamento
           // compare contra a versão mesclada, não contra uma base antiga/local.
@@ -7487,19 +7861,19 @@ return el('div', { class:'grid' }, [
             : 'BD mesclado e salvo com sucesso.');
         } catch (e) {
           console.error('[Merge] Erro ao mesclar:', e);
-          showResult(`❌ Falha na mesclagem: ${e?.message || e}. Tente novamente ou salve uma cópia.`, true);
+          showResult(` Falha na mesclagem: ${e?.message || e}. Tente novamente ou salve uma cópia.`, true);
         }
       };
 
       btnReload.onclick = () => {
-        setLoading('⏳ Recarregando BD…');
+        setLoading(' Recarregando BD…');
         try {
           loadStateFromText(remoteTxt, 'rw', remoteFile?.name || dbBinding.name || 'BD selecionado', dbFileHandle, getDbFileMeta(remoteFile, remoteTxt));
           toast('BD recarregado com a versão mais nova do arquivo.');
           closeAndResolve();
         } catch (e) {
           console.error('[Reload] Erro:', e);
-          showResult(`❌ Falha ao recarregar: ${e?.message || e}`, true);
+          showResult(` Falha ao recarregar: ${e?.message || e}`, true);
         }
       };
 
@@ -7618,7 +7992,7 @@ return el('div', { class:'grid' }, [
           ? `Último carregamento: ${new Date(dbBinding.lastLoadedAt).toLocaleString('pt-BR')} • Schema: ${APP_SCHEMA_VERSION} • Base comparativa: ${dbBinding.baselineHash ? dbBinding.baselineHash.slice(0,8) : '—'}`
           : 'Nesta arquitetura, o vínculo ler/gravar vale para a sessão atual do navegador.'
       ]),
-      el('div', { class:'tiny muted' }, [`Autosync: ${dbAutoSyncEnabled ? 'ligado' : (dbAutoSyncPauseReason ? 'pausado' : 'desligado')}${dbAutoSyncPauseReason ? ' • Motivo: ' + dbAutoSyncPauseReason : ''}${dbLastSyncLabel ? ' • Último sync: ' + dbLastSyncLabel : ''}. O app monitora o JSON a cada 3s. Se houver alteração externa enquanto você edita, ele pausa para evitar sobrescrita; ao religar, mescla em cima do BD mais atual.`])
+      el('div', { class:'tiny muted' }, [`Autosync: ${dbAutoSyncEnabled ? 'ligado' : (dbAutoSyncPauseReason ? 'pausado' : 'desligado')}${dbAutoSyncPauseReason ? ' • Motivo: ' + dbAutoSyncPauseReason : ''}${dbLastSyncLabel ? ' • Último sync: ' + dbLastSyncLabel : ''}. O salvamento e a leitura de alterações externas rodam automaticamente quando o BD está selecionado.`])
     ]);
 
     if (dbAutoSyncEnabled && dbFileHandle && dbBinding.mode === 'rw') startDbWatcher();
@@ -7634,23 +8008,17 @@ return el('div', { class:'grid' }, [
           el('div', { class:'field' }, [
             el('label', {}, ['Banco JSON oficial']),
             el('div', { class:'row' }, [
-              button('Selecionar arquivo JSON', 'primary', selectDbReadWrite),
-              button('Salvar no BD selecionado', '', saveToSelectedDb),
-              button(dbAutoSyncEnabled ? 'Autosync ligado' : (dbAutoSyncPauseReason ? 'Religar e mesclar' : 'Autosync desligado'), dbAutoSyncEnabled ? 'primary' : '', () => {
-                dbAutoSyncEnabled = !dbAutoSyncEnabled;
-                localStorage.setItem('capview_db_autosync_enabled', dbAutoSyncEnabled ? '1' : '0');
-                if (dbAutoSyncEnabled) {
-                  const wasPaused = !!dbAutoSyncPauseReason;
-                  clearDbAutoSyncPause();
-                  startDbWatcher();
-                  scheduleDbAutoSave(wasPaused ? 'resume-merge' : 'toggle-on');
-                  toast(wasPaused ? 'Autosync religado: mesclando com o BD mais atual.' : 'Autosync ligado.');
-                }
-                else { stopDbWatcher(); clearDbAutoSyncPause(); toast('Autosync desligado.'); }
+              button(dbBinding.mode === 'rw' ? 'Trocar arquivo JSON' : 'Selecionar arquivo JSON', 'primary', selectDbReadWrite),
+              dbAutoSyncPauseReason ? button('Religar autosync', 'primary', () => {
+                dbAutoSyncEnabled = true;
+                localStorage.setItem('capview_db_autosync_enabled', '1');
+                clearDbAutoSyncPause();
+                startDbWatcher();
+                scheduleDbAutoSave('resume-merge');
+                toast('Autosync religado: mesclando com o BD mais atual.');
                 render();
-              }),
-              button('Recarregar BD selecionado', '', reloadSelectedDb),
-            ])
+              }) : null,
+            ].filter(Boolean))
           ])
         ]),
         el('div', { class:'row' }, [
@@ -7658,11 +8026,34 @@ return el('div', { class:'grid' }, [
           el('div', { class:'field' }, [el('label', {}, ['Ações']), el('div', { class:'row' }, [
             button('Salvar caminho', '', () => { setDbPathValue(dbPathInput.value); toast('Caminho salvo localmente.'); }),
             button('Copiar', '', copyDbPath),
-            button('Limpar dados do sistema', 'danger', confirmClearAllData),
           ])])
         ]),
         el('div', { class:'tiny muted' }, [
           'Fluxo esperado: selecione o JSON oficial pelo botão. O caminho salvo é apenas referência visual/cópia; por segurança do navegador, o app não tenta abrir file:// automaticamente. Ao carregar o BD, feriados já cadastrados são preservados/mesclados e não somem.'
+        ]),
+        el('details', { class:'hint tiny' }, [
+          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenção do BD']),
+          el('div', { class:'row', style:'margin-top:10px' }, [
+            button('Salvar agora no BD', '', saveToSelectedDb),
+            button('Recarregar do BD', '', reloadSelectedDb),
+            button(dbAutoSyncEnabled ? 'Desligar autosync' : 'Ligar autosync', '', () => {
+              dbAutoSyncEnabled = !dbAutoSyncEnabled;
+              localStorage.setItem('capview_db_autosync_enabled', dbAutoSyncEnabled ? '1' : '0');
+              if (dbAutoSyncEnabled) {
+                const wasPaused = !!dbAutoSyncPauseReason;
+                clearDbAutoSyncPause();
+                startDbWatcher();
+                scheduleDbAutoSave(wasPaused ? 'resume-merge' : 'toggle-on');
+                toast(wasPaused ? 'Autosync religado: mesclando com o BD mais atual.' : 'Autosync ligado.');
+              }
+              else { stopDbWatcher(); clearDbAutoSyncPause(); toast('Autosync desligado.'); }
+              render();
+            }),
+            button('Limpar dados do sistema', 'danger', confirmClearAllData),
+          ]),
+          el('div', { class:'tiny muted', style:'margin-top:8px' }, [
+            'Use estes controles só para recuperação, teste ou manutenção. No uso normal, o autosync salva e recarrega automaticamente.'
+          ])
         ])
       ])),
       card('Eventos por usuário — anti-sobrescrita', null, el('div', { class:'grid' }, [
@@ -7681,15 +8072,24 @@ return el('div', { class:'grid' }, [
           (capviewEventMode.lastReadAt ? 'Última leitura: ' + new Date(capviewEventMode.lastReadAt).toLocaleString('pt-BR') : 'Última leitura: —') + ' • ' + (capviewEventMode.lastWriteAt ? 'Última gravação de evento: ' + new Date(capviewEventMode.lastWriteAt).toLocaleString('pt-BR') : 'Última gravação de evento: —') + ' • ' + (capviewEventMode.autoSyncLastTickAt ? 'Último autosync: ' + new Date(capviewEventMode.autoSyncLastTickAt).toLocaleTimeString('pt-BR') : 'Último autosync: —') + (capviewEventMode.lastStatus ? ' • Status: ' + capviewEventMode.lastStatus : '') + (capviewEventMode.autoSyncError ? ' • Erro: ' + capviewEventMode.autoSyncError : '')
         ]),
         el('div', { class:'row' }, [
-          button('Selecionar pasta CapViewData', 'primary', selectCapViewDataFolder),
-          button('Enviar outbox para /events', '', async () => { const n = await flushLocalEventOutbox(); toast(n + ' evento(s) enviado(s) do outbox.'); render(); }),
-          button(capviewEventMode.autoSyncEnabled !== false ? 'Desligar autosync eventos' : 'Ligar autosync eventos', '', toggleEventAutoSync),
-          button('Ler / aplicar eventos pendentes', '', () => syncEventsFromFolder()),
-          button('Consolidar eventos no snapshot', '', consolidateEventsToSnapshot),
-          button('Desligar modo eventos', 'danger', disableEventMode),
-        ]),
+          button(capviewEventMode.folderName ? 'Trocar pasta CapViewData' : 'Selecionar pasta CapViewData', 'primary', selectCapViewDataFolder),
+          loadLocalEventOutbox().length ? button('Enviar pendências locais', '', async () => { const n = await flushLocalEventOutbox(); toast(n + ' evento(s) enviado(s) do outbox.'); render(); }) : null,
+        ].filter(Boolean)),
         el('div', { class:'tiny muted' }, [
-          'Uso recomendado: todos apontam para a mesma pasta CapViewData. Ao selecionar, o app cria snapshot.json, cria events/ e inicializa events/seu-usuario.json. Com modo eventos ligado, as alterações NÃO gravam direto no snapshot; primeiro viram evento no arquivo do usuário. O autosync lê /events a cada 4s enquanto a aba está ativa; o botão manual continua como fallback.'
+          'Uso recomendado: todos apontam para a mesma pasta CapViewData. Depois de selecionada, o app grava eventos e lê alterações automaticamente enquanto a aba está ativa.'
+        ]),
+        el('details', { class:'hint tiny' }, [
+          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenção de eventos']),
+          el('div', { class:'row', style:'margin-top:10px' }, [
+            button('Enviar outbox para /events', '', async () => { const n = await flushLocalEventOutbox(); toast(n + ' evento(s) enviado(s) do outbox.'); render(); }),
+            button(capviewEventMode.autoSyncEnabled !== false ? 'Desligar autosync eventos' : 'Ligar autosync eventos', '', toggleEventAutoSync),
+            button('Ler / aplicar eventos pendentes', '', () => syncEventsFromFolder()),
+            button('Consolidar eventos no snapshot', '', consolidateEventsToSnapshot),
+            button('Desligar modo eventos', 'danger', disableEventMode),
+          ]),
+          el('div', { class:'tiny muted', style:'margin-top:8px' }, [
+            'Use estes controles só se o autosync estiver parado, se houver pendências locais ou para manutenção do snapshot.'
+          ])
         ])
       ])),
       card('Exportar', null, el('div', { class:'row' }, [
@@ -7740,12 +8140,12 @@ return el('div', { class:'grid' }, [
   // App shell
   // ----------------------
   const TABS = [
-    { id:'dashboard', label:'Dashboard Planilha', icon:'🗓️' },
+    { id:'dashboard', label:'Dashboard Planilha', icon:'🗓' },
     { id:'evaluation', label:'Dashboard de Avaliação', icon:'📈' },
     { id:'demands', label:'Demandas', icon:'📋' },
     { id:'resources', label:'Recursos', icon:'👥' },
     { id:'calendar', label:'Bloqueios/Feriados', icon:'📅' },
-    { id:'he', label:'Horas Extras (HE)', icon:'⏱️' },
+    { id:'he', label:'Horas Extras (HE)', icon:'⏱' },
     { id:'windows', label:'Janelas Livres', icon:'🔎' },
     { id:'consolidation', label:'Consolidação', icon:'📦' },
   ];
@@ -7824,6 +8224,14 @@ return el('div', { class:'grid' }, [
 	    rpd.addEventListener('close', syncModalBlur);
 	    rpd.addEventListener('cancel', (e) => { e.preventDefault(); try{ rpd.close(); }catch{ rpd.removeAttribute('open'); } syncModalBlur(); });
 	  }
+
+  const sdlg = qs('#demandStagesModal');
+  if (sdlg) {
+    qs('#demandStagesModalClose').addEventListener('click', () => closeDialog(sdlg));
+    sdlg.addEventListener('click', (e) => { if (e.target === sdlg) closeDialog(sdlg); });
+    sdlg.addEventListener('close', syncModalBlur);
+    sdlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(sdlg); });
+  }
 
   const rdlg = qs('#resourceEditModal');
   if (rdlg) {
@@ -7958,6 +8366,7 @@ return el('div', { class:'grid' }, [
       el('button', { class:'ddItem', type:'button', 'data-export':'he' }, ['Exportar HE']),
       el('div', { class:'ddSep' }, []),
       el('button', { class:'ddItem', type:'button', 'data-export':'janelas' }, ['Exportar Janelas Livres por recurso (meses)']),
+      el('button', { class:'ddItem', type:'button', 'data-export':'excel_all' }, ['Exportar Tudo (Excel .xls)']),
     ]);
 
     const close = () => { root.classList.remove('open'); btn.setAttribute('aria-expanded','false'); };
@@ -7983,6 +8392,7 @@ return el('div', { class:'grid' }, [
         case 'feriados': exportFeriadosCSV(); break;
         case 'he': exportHECSV(); break;
         case 'janelas': exportJanelasPorRecursoMesCSV(); break;
+        case 'excel_all': exportAllExcelWorkbook(); break;
       }
     });
 
@@ -8036,6 +8446,134 @@ return el('div', { class:'grid' }, [
       console.error(e);
       toast('Falha ao exportar CSV.');
     }
+  };
+
+  const excelXmlEscape = (v) => String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  const excelSheetName = (name) => excelXmlEscape(String(name || 'Aba').replace(/[\[\]\*\/\\\?:]/g, ' ').slice(0, 31));
+
+  const excelCellXml = (value) => {
+    if (value === null || value === undefined || value === '') return '<Cell><Data ss:Type="String"></Data></Cell>';
+    const n = Number(value);
+    const isNumber = typeof value === 'number' || (String(value).trim() !== '' && isFinite(n) && !/^0\d+/.test(String(value).trim()));
+    if (isNumber) return `<Cell><Data ss:Type="Number">${excelXmlEscape(String(n))}</Data></Cell>`;
+    return `<Cell><Data ss:Type="String">${excelXmlEscape(value)}</Data></Cell>`;
+  };
+
+  const worksheetXml = (name, headers, rows) => {
+    const headerRow = `<Row>${headers.map(h => `<Cell ss:StyleID="header"><Data ss:Type="String">${excelXmlEscape(h)}</Data></Cell>`).join('')}</Row>`;
+    const bodyRows = (rows || []).map(r =>
+      `<Row>${headers.map(h => excelCellXml(r[h])).join('')}</Row>`
+    ).join('');
+    return `<Worksheet ss:Name="${excelSheetName(name)}"><Table>${headerRow}${bodyRows}</Table></Worksheet>`;
+  };
+
+  const downloadExcelWorkbook = (filename, sheets) => {
+    try {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#EEF2FF" ss:Pattern="Solid"/></Style>
+ </Styles>
+ ${sheets.map(s => worksheetXml(s.name, s.headers, s.rows)).join('')}
+</Workbook>`;
+      downloadText(filename, xml, 'application/vnd.ms-excel;charset=utf-8');
+    } catch (e) {
+      console.error(e);
+      toast('Falha ao exportar Excel.');
+    }
+  };
+
+  const buildDemandasExportData = () => {
+    const headers = [
+      'id','titulo','responsavel','data_inicio','data_fim','status_base','status_atual',
+      'percentual_diario','horas_dia','prioridade','predio','focal','observacoes'
+    ];
+    const resMap = resourceById();
+    const rows = (state.demands||[]).map(d => {
+      const pct = Number(d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
+      return {
+        id: d.id || '',
+        titulo: d.titulo || d.nome || '',
+        responsavel: resMap[d.responsavel_id]?.nome || d.resourceId || d.responsavel || d.responsavel_id || '',
+        data_inicio: d.start || d.data_inicio || '',
+        data_fim: d.end || d.data_fim || '',
+        status_base: d.status || '',
+        status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
+        percentual_diario: isFinite(pct) ? pct : '',
+        horas_dia: isFinite(pct) ? Number((pct / 100 * HOURS_PER_DAY).toFixed(2)) : '',
+        prioridade: d.prioridade || '',
+        predio: d.predio || '',
+        focal: d.focal || '',
+        observacoes: d.obs || d.observacoes || ''
+      };
+    });
+    return { headers, rows };
+  };
+
+  const buildRecursosExportData = () => ({
+    headers: ['id','nome','tipo','ativo','inicio','fim'],
+    rows: (state.resources||[]).map(r => ({
+      id: r.id || '',
+      nome: r.nome || '',
+      tipo: r.tipo || '',
+      ativo: (r.ativo === false) ? 'false' : 'true',
+      inicio: r.inicio || r.vigencia_inicio || '',
+      fim: r.fim || r.vigencia_fim || ''
+    }))
+  });
+
+  const buildBloqueiosExportData = () => {
+    const resMap = resourceById();
+    return {
+      headers: ['id','recurso','data','tipo','observacao'],
+      rows: (state.blockings||[]).map(b => ({
+        id: b.id || '',
+        recurso: resMap[b.recurso_id]?.nome || b.resourceId || b.recurso_id || '',
+        data: b.data || b.date || '',
+        tipo: b.tipo || '',
+        observacao: b.obs || b.observacao || ''
+      }))
+    };
+  };
+
+  const buildFeriadosExportData = () => ({
+    headers: ['id','data','descricao'],
+    rows: (state.holidays||[]).map(h => ({
+      id: (typeof h === 'string') ? '' : (h.id || ''),
+      data: (typeof h === 'string') ? h : (h.data || h.date || ''),
+      descricao: (typeof h === 'string') ? '' : (h.descricao || h.desc || '')
+    }))
+  });
+
+  const buildHEExportData = () => {
+    const resMap = resourceById();
+    return {
+      headers: ['id','recurso','data','horas','titulo','motivo','predio','focal','prioridade','observacoes'],
+      rows: (state.overtimes||[]).map(o => {
+        const rid = o.resourceId || o.recurso_id || o.recurso || '';
+        return {
+          id: o.id || '',
+          recurso: rid === '__ALL__' ? 'Todos os recursos' : (resMap[rid]?.nome || rid),
+          data: o.date || o.data || '',
+          horas: (o.horas ?? o.hours ?? ''),
+          titulo: o.titulo || o.atividade || '',
+          motivo: o.motivo || o.obs || '',
+          predio: o.predio || '',
+          focal: o.focal || '',
+          prioridade: o.prioridade || '',
+          observacoes: o.observacoes || ''
+        };
+      })
+    };
   };
 
   const exportDemandasCSV = () => {
@@ -8285,7 +8823,7 @@ return el('div', { class:'grid' }, [
 
 	      const allRows = (whLocal.show === 'top') ? perRes.slice(0, Math.max(1, Number(whLocal.topN||10))) : perRes;
 
-      const headers = ['recurso','mes','hh_total','hh_livre','pct_livre','dias_uteis_contados','dias_com_bloqueio','dias_com_feriado','dias_com_HE'];
+      const headers = ['recurso','mes','horas_total','horas_livre','pct_livre','dias_uteis_contados','dias_com_bloqueio','dias_com_feriado','dias_com_HE'];
       const rows = [];
 
       for (const rr of allRows) {
@@ -8294,8 +8832,8 @@ return el('div', { class:'grid' }, [
           rows.push({
             recurso: rr.r.nome,
             mes: m.key,
-            hh_total: Number(m.cap||0).toFixed(1),
-            hh_livre: Number(m.free||0).toFixed(1),
+            horas_total: Number(m.cap||0).toFixed(1),
+            horas_livre: Number(m.free||0).toFixed(1),
             pct_livre: Number(Math.max(0,m.pct)||0).toFixed(1),
             dias_uteis_contados: stats.dias_uteis_contados,
             dias_com_bloqueio: stats.dias_com_bloqueio,
@@ -8311,6 +8849,132 @@ return el('div', { class:'grid' }, [
       console.error(e);
       toast('Falha ao exportar Janelas Livres. Veja o console (F12) para detalhes.');
     }
+  };
+
+  const buildJanelasExportData = () => {
+    const whLocal = (typeof wh !== 'undefined' && wh) ? wh : {
+      startMonth: '',
+      months: 6,
+      metric: 'pct',
+      dynamicOrder: true,
+      sortDir: 'desc',
+      fixedOrderIds: [],
+      show: 'all',
+      topN: 10,
+    };
+    const clampMonthsLocal = (n) => {
+      const v = Math.max(1, Math.min(36, Number(n || 6)));
+      return isFinite(v) ? v : 6;
+    };
+    const parseStartMonthLocal = (ym) => {
+      const m = String(ym || '').match(/^(\d{4})-(\d{2})$/);
+      if (!m) {
+        const now = new Date();
+        return { y: now.getFullYear(), m0: now.getMonth() };
+      }
+      return { y: Number(m[1]), m0: Number(m[2]) - 1 };
+    };
+    const fmtMonthLabelLocal = (y, m0) => new Date(y, m0, 1)
+      .toLocaleString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
+    const monthKeyLocal = (y, m0) => `${y}-${String(m0 + 1).padStart(2, '0')}`;
+    const addMonthsLocal = (y, m0, delta) => {
+      const d = new Date(y, m0 + delta, 1);
+      return { y: d.getFullYear(), m0: d.getMonth() };
+    };
+    const buildMonthsLocal = () => {
+      const { y, m0 } = parseStartMonthLocal(whLocal.startMonth || '');
+      const count = clampMonthsLocal(whLocal.months);
+      const list = [];
+      for (let i = 0; i < count; i++) {
+        const mm = addMonthsLocal(y, m0, i);
+        list.push({ y: mm.y, m0: mm.m0, key: monthKeyLocal(mm.y, mm.m0), label: fmtMonthLabelLocal(mm.y, mm.m0) });
+      }
+      return list;
+    };
+    const monthlyWindowLocal = (resourceId, y, m0) => {
+      const freeHoursInfoLocal = (typeof freeHoursInfo === 'function') ? freeHoursInfo : ((rid, dObj) => {
+        const dateStr = formatDate(dObj);
+        const ot = (typeof overtimeInfo === 'function') ? overtimeInfo(rid, dateStr) : { total: 0, items: [] };
+        const otHours = Math.max(0, Number(ot.total || 0));
+        const res = (state.resources || []).find(r => r.id === rid);
+        const blk0 = blockingFor(rid, dateStr);
+        const blockedNoHe = isWeekend(dObj) || isHoliday(dateStr) || !!blk0 || isThirdPartyOff(res, dateStr);
+        if (blockedNoHe && otHours <= 0) return { dateStr, capacity: 0, allocated: 0, free: 0, eligible: false, overtime: ot };
+        const base = blockedNoHe ? 0 : HOURS_PER_DAY;
+        const capacity = Math.max(0, Number(base || 0)) + otHours;
+        const perc = dailyPercentAllocated(rid, dObj);
+        const allocated = Math.max(0, Number(perc || 0)) / 100 * HOURS_PER_DAY;
+        const free = capacity - allocated;
+        return { dateStr, capacity, allocated, free, eligible: true, overtime: ot };
+      });
+      const days = getDaysInMonth(y, m0);
+      let cap = 0, alloc = 0, free = 0, daysZero = 0, daysOver = 0;
+      for (const d of days) {
+        const info = freeHoursInfoLocal(resourceId, d);
+        if (info.eligible === false) continue;
+        cap += info.capacity;
+        alloc += info.allocated;
+        free += info.free;
+        if (info.free <= 0) daysZero += 1;
+        if (info.free < 0) daysOver += 1;
+      }
+      const pct = cap > 0 ? (free / cap) * 100 : 0;
+      return { y, m0, key: monthKeyLocal(y, m0), label: fmtMonthLabelLocal(y, m0), cap, alloc, free, pct, days: days.length, daysZero, daysOver };
+    };
+
+    const months = buildMonthsLocal();
+    const perRes = (state.resources||[]).map(r => {
+      const ms = months.map(mm => monthlyWindowLocal(r.id, mm.y, mm.m0));
+      const score = (whLocal.metric === 'pct')
+        ? (ms.reduce((a,b)=>a + b.pct, 0) / Math.max(1, ms.length))
+        : ms.reduce((a,b)=>a + b.free, 0);
+      return { r, ms, score };
+    });
+    if (whLocal.dynamicOrder) {
+      const dir = whLocal.sortDir === 'desc' ? -1 : 1;
+      perRes.sort((a,b) => (a.score - b.score) * dir);
+    } else if (Array.isArray(whLocal.fixedOrderIds)) {
+      const idx = new Map(whLocal.fixedOrderIds.map((id,i)=>[id,i]));
+      perRes.sort((a,b) => (idx.get(a.r.id) ?? 1e9) - (idx.get(b.r.id) ?? 1e9));
+    }
+    const allRows = (whLocal.show === 'top') ? perRes.slice(0, Math.max(1, Number(whLocal.topN||10))) : perRes;
+    const headers = ['recurso','mes','horas_total','horas_livre','pct_livre','dias_uteis_contados','dias_com_bloqueio','dias_com_feriado','dias_com_HE'];
+    const rows = [];
+    for (const rr of allRows) {
+      for (const m of rr.ms) {
+        const stats = monthStatsForExport(rr.r.id, m.y, m.m0);
+        rows.push({
+          recurso: rr.r.nome,
+          mes: m.key,
+          horas_total: Number(m.cap||0).toFixed(1),
+          horas_livre: Number(m.free||0).toFixed(1),
+          pct_livre: Number(Math.max(0,m.pct)||0).toFixed(1),
+          dias_uteis_contados: stats.dias_uteis_contados,
+          dias_com_bloqueio: stats.dias_com_bloqueio,
+          dias_com_feriado: stats.dias_com_feriado,
+          dias_com_HE: stats.dias_com_HE,
+        });
+      }
+    }
+    return { headers, rows };
+  };
+
+  const exportAllExcelWorkbook = () => {
+    const demandas = buildDemandasExportData();
+    const recursos = buildRecursosExportData();
+    const bloqueios = buildBloqueiosExportData();
+    const feriados = buildFeriadosExportData();
+    const he = buildHEExportData();
+    const janelas = buildJanelasExportData();
+    downloadExcelWorkbook('capview_export_completo.xls', [
+      { name:'Demandas', ...demandas },
+      { name:'Recursos', ...recursos },
+      { name:'Bloqueios', ...bloqueios },
+      { name:'Feriados', ...feriados },
+      { name:'HE', ...he },
+      { name:'Janelas Livres', ...janelas },
+    ]);
+    toast('Excel completo exportado.');
   };
   // ----------------------
   // User modal wiring + onboarding
