@@ -1,10 +1,9 @@
 <!doctype html>
-<html lang="pt-BR">
-<head>
+<html lang="pt-BR"><head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ORIZON - Planning &amp; Capacity Platform</title>
-    <!-- ORIZON PWA / Instal?vel -->
+    <!-- ORIZON PWA / Instalável -->
   <meta name="theme-color" content="#B85C12">
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="mobile-web-app-capable" content="yes">
@@ -61,9 +60,9 @@
     body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;letter-spacing:0}
     .sticky{position:sticky;top:0;z-index:50}
     header{background:var(--header);border-bottom:1px solid rgba(255,255,255,.18);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;color:#fff;box-shadow:0 10px 28px rgba(35,18,82,.22)}
-    header h1{margin:0;font-size:22px;line-height:1.05;letter-spacing:.12em;font-weight:950}
-    header h1 .brandSub{display:block;margin-left:4px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.78);font-weight:750}
-    header p{margin:6px 0 0 0;font-size:11px;color:rgba(255,255,255,.78);letter-spacing:.12em;text-transform:uppercase;font-weight:800}
+    .brandMark{display:flex;flex-direction:column;align-items:flex-start;gap:5px;min-width:0}
+    .brandLogo{display:block;height:40px;width:auto;max-width:220px;object-fit:contain}
+    .brandTagline{margin:0 0 0 2px;font-size:11px;color:#A6B86A;letter-spacing:.16em;text-transform:uppercase;font-weight:900}
     .userBox{display:flex;gap:12px;align-items:center}
     .userBox .meta{display:none;text-align:right}
     @media (min-width:640px){.userBox .meta{display:block}}
@@ -170,7 +169,7 @@
     .monthCell.free-3{background:var(--success-soft);border-color:var(--success)}
     .monthCell.free-4{background:var(--primary-soft);border-color:var(--primary-light)}
 
-    /* Mant?m leitura em dias ?muted sem perder a cor da janela */
+    /* Mantém leitura em dias ?muted sem perder a cor da janela */
     .monthCell.mutedDay.free-0,
     .monthCell.mutedDay.free-1,
     .monthCell.mutedDay.free-2,
@@ -194,7 +193,7 @@
 
 
 
-    /* Multi-sele??o premium de respons?veis (chips + busca) */
+    /* Multi-seleção premium de responsáveis (chips + busca) */
     .multiSelect{position:relative;min-width:260px;width:100%}
     .multiSelectBox{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-height:42px;height:42px;border:1px solid var(--border);border-radius:12px;background:#fff;padding:6px 8px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}
     .multiSelectBox:focus-within{border-color:var(--primary-light);box-shadow:0 0 0 3px rgba(18,129,120,.10)}
@@ -250,7 +249,7 @@
     .heDot{height:10px;width:10px;border-radius:999px;background:var(--primary);border:1px solid var(--primary-light);display:inline-block;flex:0 0 auto}
 
 
-    /* Evid?ncia de atraso (status autom?tico) */
+    /* Evidência de atraso (status automático) */
     tr.overdueRow td{background:var(--danger-soft);}
     tr.overdueRow td:first-child{box-shadow:inset 3px 0 0 var(--danger);}
     .statusIcon{font-size:12px;line-height:1;}
@@ -460,7 +459,7 @@ main{padding:14px;overflow-x:hidden}
 
 
 
-/* --- Patch UI Demandas: evita sobreposi??o Responsável(is) x % di?rio --- */
+/* --- Patch UI Demandas: evita sobreposição Responsável(is) x % diário --- */
 #demandsFormCard .bd .row{
   align-items:flex-start;
 }
@@ -496,113 +495,35 @@ main{padding:14px;overflow-x:hidden}
   }
 }
 
-
-.brandWrap{
-    display:flex;
-    align-items:center;
-    gap:18px;
-}
-
-.headerLogo{
-    height: 100px;
-    width:auto;
-    object-fit:contain;
-    filter:drop-shadow(0 2px 10px rgba(166,226,46,.18));
-}
-
-.brandText h1{
-    margin:0;
-    color:#FFFFFF;
-    font-size:32px;
-    font-weight:800;
-    letter-spacing:1px;
-}
-
-.brandText p{
-    margin:2px 0 0;
-    color:rgba(255,255,255,.84);
-    font-size:13px;
-    font-weight:700;
-    letter-spacing:1.8px;
-    text-transform:uppercase;
-}
-
-
-/* ORIZON header logo fix */
-.brandWrap{
-  display:flex;
-  align-items:center;
-  gap:0;
-}
-
-.brandLogoBlock{
-  display:flex;
-  flex-direction:column;
-  align-items:flex-start;
-  justify-content:center;
-  gap:1px;
-}
-
-.headerLogo{
-  height:70px;
-  width:auto;
-  max-width:180px;
-  object-fit:contain;
-  display:block;
-  filter:drop-shadow(0 2px 8px rgba(166,226,46,.18));
-}
-
-.brandSub{
-  margin-left:4px;
-  margin-top:-3px;
-  display:block;
-  font-size:10px;
-  line-height:1;
-  font-weight:800;
-  letter-spacing:3px;
-  color:#A6E22E;
-  text-transform:uppercase;
-}
-
-.brandText{
-  display:none !important;
-}
-
 </style>
 </head>
 <body>
 
   <div class="sticky">
+    <header>
+      <div class="brandMark">
+        <img class="brandLogo" src="icons/orizon-logo.png" alt="ORIZON">
+        <p class="brandTagline">enterprise planning</p>
+      </div>
+
+      <div class="userBox">
+        <div class="meta">
+          <label>Usuário Ativo</label>
+          <input id="userName" value="">
+        </div>
+        <div class="avatar" id="avatar" role="button" tabindex="0" title="ID: arthur-basilio__01b50f3d">A</div>
+      </div>
     
-<header>
-  <div class="brandWrap">
-    <div class="brandLogoBlock">
-      <img src="./icons/orizon-logo.png"
-           alt="ORIZON"
-           class="headerLogo">
-      <div class="brandSub">PLANEJAMENTO</div>
-    </div>
-  </div>
-
-  <div class="userBox">
-    <div class="meta">
-      <label>Usuário Ativo</label>
-      <input id="userName" value="">
-    </div>
-    <div class="avatar" id="avatar" role="button" tabindex="0">A</div>
-  </div>
-
-  <div class="userReqBanner" id="userReqBanner">
-    <span class="pill">!</span>
-    <div><strong>Defina seu usuário</strong> para registrar autoria e evitar conflitos.</div>
-    <button class="btn small" type="button" id="btnOpenUserModal">Definir agora</button>
-  </div>
+      <div class="userReqBanner" id="userReqBanner">
+        <span class="pill">!</span>
+        <div><strong>Defina seu usuário</strong> para registrar autoria e evitar conflitos.</div>
+        <button class="btn small" type="button" id="btnOpenUserModal">Definir agora</button>
+      </div>
 </header>
-
-    <nav id="tabs"><button class="active"><span>📊</span>Visão Geral</button><button class=""><span>📈</span>Apontamentos</button><button class=""><span>📋</span>Demandas</button><button class=""><span>👥</span>Recursos</button><button class=""><span>📅</span>Bloqueio de Janela</button><button class=""><span>⏱</span>Horas Extras (HE)</button><button class=""><span>🔎</span>Janelas Livres</button><button class=""><span>📦</span>Sincronização de BD</button></nav>
+    <nav id="tabs"><button class=""><span>📊</span>Visão Geral</button><button class=""><span>📈</span>Apontamentos</button><button class="active"><span>📋</span>Demandas</button><button class=""><span>👥</span>Recursos</button><button class=""><span>📅</span>Bloqueio de Janela</button><button class=""><span>⏱</span>Horas Extras (HE)</button><button class=""><span>🔎</span>Janelas Livres</button><button class=""><span>📦</span>Sincronização de BD</button></nav>
   </div>
 
-  <main id="app"><div class="globalDbWarn" style="margin-bottom:14px">Nenhum BD Vinculado<span class="tiny" style="display:block;margin-top:4px">Vá em <b>Sincronização de BD</b> &gt; <b>Banco de Dados</b> e selecione o arquivo da pasta de rede.</span></div><div class="grid"><div class="kpi"><div class="k"><div class="lbl">Recursos (total)</div><div class="val">0</div></div><div class="k"><div class="lbl">Recursos (ativos)</div><div class="val">0</div></div><div class="k"><div class="lbl">Demandas (total)</div><div class="val">0</div></div><div class="k"><div class="lbl">Demandas (abertas)</div><div class="val">0</div></div></div><div class="split"><div class="card"><div class="hd"><h2>Demandas (Geral)</h2><div></div></div><div class="bd"><div class="grid"><div class="grid" style="gap:10px"><div class="row"><div class="field"><label>Status</label><select><option value="">Todos os status</option><option value="Em andamento">Em andamento</option><option value="Atrasada">Atrasada</option><option value="Concluída">Concluída</option><option value="Mapeada">Mapeada</option><option value="Congelada">Congelada</option></select></div><div class="field"><label>Recurso</label><select><option value="">Todos os recursos</option><option value="__NONE__">Sem responsável (Mapeada)</option></select></div><div class="field" style="flex:1;min-width:240px"><label>Pesquisar título</label><input type="search" placeholder="Digite parte do título..." id="dashboardDemandTitleSearch"></div><div class="field"><label>De</label><input type="date"></div><div class="field"><label>Até</label><input type="date"></div></div><div style="display:none"></div></div><div class="donutWrap"><div class="donut empty" style="background:conic-gradient(var(--border) 0 100%);"></div><div class="legend"><div class="item" title="Filtrar demandas: Em andamento"><span class="sw" style="background:var(--indigo)"></span>Em andamento: 0</div><div class="item" title="Filtrar demandas: Atrasada"><span class="sw" style="background:var(--red)"></span>Atrasada: 0</div><div class="item" title="Filtrar demandas: Concluída"><span class="sw" style="background:var(--green)"></span>Concluída: 0</div><div class="item" title="Filtrar demandas: Mapeada"><span class="sw" style="background:var(--slate)"></span>Mapeada: 0</div><div class="item" title="Filtrar demandas: Congelada"><span class="sw" style="background:var(--yellow)"></span>Congelada: 0</div></div></div></div></div></div><div class="card"><div class="hd"><h2>Por Recurso (mês)</h2><div></div></div><div class="bd"><div><div class="scrollX"><table><thead><tr><th>Recurso</th><th>Demandas ativas (mês)</th><th>% médio alocado (mês)</th><th>Pico</th><th>Barra</th></tr></thead><tbody><tr><td colspan="5" style="padding:16px;text-align:center;color:var(--muted)">Cadastre recursos para ver o gráfico por recurso.</td></tr></tbody></table></div><div class="pager"><div class="info">Nenhum item - Página 1 de 1</div><div class="controls"><button class="btn " disabled="">« Início</button><button class="btn " disabled="">‹ Anterior</button><button class="btn " disabled="">Próxima ›</button><button class="btn " disabled="">Final »</button></div></div></div></div></div></div><div class="card"><div class="hd"><h2>Ocupação Consolidada - Ano</h2><div class="row" style="gap:10px;flex-wrap:wrap;justify-content:flex-end"><div class="tag" title="Uso do mês atual (Planejado/Capacidade)">Mês: 0% - Overcap: 0h - Estourados: 0/0</div><button class="btn ghost">Exportar SVG</button><button class="btn ghost">Exportar PNG</button></div></div><div class="bd"><div class="grid" style="gap:10px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px"><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Ocupação média</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0%</div><div class="tiny muted" style="margin-top:3px">média dos meses com capacidade</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Maior pico</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0%</div><div class="tiny muted" style="margin-top:3px">em jan</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Meses estourados</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0</div><div class="tiny muted" style="margin-top:3px">acima de 100%</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Horas acima da capacidade</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0h</div><div class="tiny muted" style="margin-top:3px">soma anual de overcap</div></div></div><div style="max-width:100%;overflow:auto"><svg viewBox="0 0 1200 440" width="1200" height="440" style="max-width:100%;height:auto;display:block;" role="img"><rect x="0" y="0" width="1200" height="440" rx="0" fill="#ffffff"></rect><rect x="70" y="34" width="1094" height="98.66666666666669" rx="0" fill="var(--danger-soft)" opacity=".42"></rect><rect x="70" y="132.66666666666669" width="1094" height="197.33333333333331" rx="0" fill="#ffffff"></rect><text x="70" y="20" fill="var(--text)" font-size="16" font-weight="950" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Ocupação Consolidada - Ano</text><text x="1164" y="20" fill="var(--muted)" font-size="11" font-weight="800" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">escala visual 0-150%</text><line x1="70" y1="330" x2="1164" y2="330" stroke="var(--border)" stroke-width="1"></line><text x="60" y="334" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><line x1="70" y1="270.8" x2="1164" y2="270.8" stroke="var(--border)" stroke-width="1"></line><text x="60" y="274.8" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">30%</text><line x1="70" y1="211.6" x2="1164" y2="211.6" stroke="var(--border)" stroke-width="1"></line><text x="60" y="215.6" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">60%</text><line x1="70" y1="152.4" x2="1164" y2="152.4" stroke="var(--border)" stroke-width="1"></line><text x="60" y="156.4" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">90%</text><line x1="70" y1="93.19999999999999" x2="1164" y2="93.19999999999999" stroke="var(--border)" stroke-width="1"></line><text x="60" y="97.19999999999999" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">120%</text><line x1="70" y1="34" x2="1164" y2="34" stroke="var(--border)" stroke-width="1"></line><text x="60" y="38" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">150%</text><line x1="70" y1="132.66666666666669" x2="1164" y2="132.66666666666669" stroke="var(--danger)" stroke-width="2" stroke-dasharray="6 6"></line><text x="1160" y="124.66666666666669" fill="var(--danger)" font-size="12" font-weight="900" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">limite 100%</text><rect x="90.96833333333333" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="90.96833333333333" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jan"><title>jan: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="115.58333333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jan</text><text x="115.58333333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="115.58333333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="182.13500000000002" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="182.13500000000002" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="fev"><title>fev: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="206.75000000000003" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">fev</text><text x="206.75000000000003" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="206.75000000000003" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="273.3016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="273.3016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="mar"><title>mar: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="297.9166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">mar</text><text x="297.9166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="297.9166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="364.4683333333333" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="364.4683333333333" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="abr"><title>abr: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="389.0833333333333" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">abr</text><text x="389.0833333333333" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="389.0833333333333" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="455.635" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="455.635" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="mai"><title>mai: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><rect x="450.635" y="29" width="59.230000000000004" height="306" rx="14" fill="none" stroke="var(--primary)" stroke-width="2" stroke-dasharray="5 5"></rect><text x="480.25" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">mai</text><text x="480.25" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="480.25" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="546.8016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="546.8016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jun"><title>jun: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="571.4166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jun</text><text x="571.4166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="571.4166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="637.9683333333334" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="637.9683333333334" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jul"><title>jul: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="662.5833333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jul</text><text x="662.5833333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="662.5833333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="729.1350000000001" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="729.1350000000001" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="ago"><title>ago: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="753.7500000000001" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">ago</text><text x="753.7500000000001" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="753.7500000000001" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="820.3016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="820.3016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="set"><title>set: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="844.9166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">set</text><text x="844.9166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="844.9166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="911.4683333333334" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="911.4683333333334" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="out"><title>out: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="936.0833333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">out</text><text x="936.0833333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="936.0833333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="1002.635" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="1002.635" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="nov"><title>nov: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="1027.25" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">nov</text><text x="1027.25" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="1027.25" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="1093.8016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="1093.8016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="dez"><title>dez: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="1118.4166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">dez</text><text x="1118.4166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="1118.4166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="70" y="412" width="14" height="10" rx="2" fill="var(--success)"></rect><text x="90" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Saudável</text><rect x="200" y="412" width="14" height="10" rx="2" fill="var(--warning)"></rect><text x="220" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Atenção</text><rect x="320" y="412" width="14" height="10" rx="2" fill="var(--danger)"></rect><text x="340" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Acima da capacidade</text><text x="1164" y="421" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">rótulo inferior: planejado/capacidade (Horas)</text></svg></div></div></div></div><div class="card"><div class="hd"><h2>Visão Geral</h2><div class="row" style="gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center"><div class="row"><button class="btn ghost">◀</button><div class="tag">maio de 2026</div><button class="btn ghost">▶</button></div><div class="legendDropdown"><button class="legendBtn" type="button" title="Abrir menu de legendas" aria-haspopup="true" aria-expanded="false">☰ Legendas<span class="chev">▾</span></button><div class="legendMenu" role="menu"><div class="legendGroup"><div class="legendGroupTitle">Capacidade</div><div class="legendItem"><span class="legendDot ok"></span><span>≤ 80%<small>Alocação confortável</small></span></div><div class="legendItem"><span class="legendDot mid"></span><span>81?100%<small>Próximo do limite</small></span></div><div class="legendItem"><span class="legendDot over"></span><span>&gt; 100%<small>Capacidade excedida</small></span></div></div><div class="legendGroup"><div class="legendGroupTitle">Bloqueios</div><div class="legendItem"><span class="legendDot block"></span><span>Bloqueio<small>Dia sem capacidade</small></span></div><div class="legendItem"><span class="legendDot vac"></span><span>Férias<small>Recurso indisponível</small></span></div><div class="legendItem"><span class="legendDot off"></span><span>Fora vig?ncia<small>Terceiro fora do período</small></span></div></div><div class="legendGroup"><div class="legendGroupTitle">Eventos especiais</div><div class="legendItem"><span class="legendDot holiday"></span><span>Feriado<small>Capacidade zerada</small></span></div><div class="legendItem"><span class="legendDot vac"></span><span>HE<small>Hora extra registrada</small></span></div></div></div></div></div></div><div class="bd"><div><div class="scrollX"><table class="calTable"><thead><tr><th class="stickyCol" style="min-width:220px">Recurso / Dia</th><th class="dayHead " title="01/05/2026"><div class="mono" style="font-weight:900">1</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="02/05/2026"><div class="mono" style="font-weight:900">2</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="03/05/2026"><div class="mono" style="font-weight:900">3</div><div class="tiny">dom</div></th><th class="dayHead " title="04/05/2026"><div class="mono" style="font-weight:900">4</div><div class="tiny">seg</div></th><th class="dayHead " title="05/05/2026"><div class="mono" style="font-weight:900">5</div><div class="tiny">ter</div></th><th class="dayHead " title="06/05/2026"><div class="mono" style="font-weight:900">6</div><div class="tiny">qua</div></th><th class="dayHead " title="07/05/2026"><div class="mono" style="font-weight:900">7</div><div class="tiny">qui</div></th><th class="dayHead " title="08/05/2026"><div class="mono" style="font-weight:900">8</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="09/05/2026"><div class="mono" style="font-weight:900">9</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="10/05/2026"><div class="mono" style="font-weight:900">10</div><div class="tiny">dom</div></th><th class="dayHead " title="11/05/2026"><div class="mono" style="font-weight:900">11</div><div class="tiny">seg</div></th><th class="dayHead " title="12/05/2026"><div class="mono" style="font-weight:900">12</div><div class="tiny">ter</div></th><th class="dayHead " title="13/05/2026"><div class="mono" style="font-weight:900">13</div><div class="tiny">qua</div></th><th class="dayHead " title="14/05/2026"><div class="mono" style="font-weight:900">14</div><div class="tiny">qui</div></th><th class="dayHead " title="15/05/2026"><div class="mono" style="font-weight:900">15</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="16/05/2026"><div class="mono" style="font-weight:900">16</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="17/05/2026"><div class="mono" style="font-weight:900">17</div><div class="tiny">dom</div></th><th class="dayHead " title="18/05/2026"><div class="mono" style="font-weight:900">18</div><div class="tiny">seg</div></th><th class="dayHead " title="19/05/2026"><div class="mono" style="font-weight:900">19</div><div class="tiny">ter</div></th><th class="dayHead " title="20/05/2026"><div class="mono" style="font-weight:900">20</div><div class="tiny">qua</div></th><th class="dayHead " title="21/05/2026"><div class="mono" style="font-weight:900">21</div><div class="tiny">qui</div></th><th class="dayHead " title="22/05/2026"><div class="mono" style="font-weight:900">22</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="23/05/2026"><div class="mono" style="font-weight:900">23</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="24/05/2026"><div class="mono" style="font-weight:900">24</div><div class="tiny">dom</div></th><th class="dayHead " title="25/05/2026"><div class="mono" style="font-weight:900">25</div><div class="tiny">seg</div></th><th class="dayHead " title="26/05/2026"><div class="mono" style="font-weight:900">26</div><div class="tiny">ter</div></th><th class="dayHead " title="27/05/2026"><div class="mono" style="font-weight:900">27</div><div class="tiny">qua</div></th><th class="dayHead " title="28/05/2026"><div class="mono" style="font-weight:900">28</div><div class="tiny">qui</div></th><th class="dayHead " title="29/05/2026"><div class="mono" style="font-weight:900">29</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="30/05/2026"><div class="mono" style="font-weight:900">30</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="31/05/2026"><div class="mono" style="font-weight:900">31</div><div class="tiny">dom</div></th></tr></thead><tbody><tr><td colspan="32" style="padding:34px;text-align:center;color:var(--muted)">Nenhum recurso cadastrado. Vá em "Recursos" para começar.</td></tr></tbody></table></div><div class="pager"><div class="info">Nenhum item - Página 1 de 1</div><div class="controls"><button class="btn " disabled="">« Início</button><button class="btn " disabled="">‹ Anterior</button><button class="btn " disabled="">Próxima ›</button><button class="btn " disabled="">Final »</button></div></div></div></div></div></div></main>
+  <main id="app"><div class="globalDbWarn" style="margin-bottom:14px">Nenhum BD Vinculado<span class="tiny" style="display:block;margin-top:4px">Vá em <b>Sincronização de BD</b> &gt; <b>Banco de Dados</b> e selecione o arquivo da pasta de rede.</span></div><div class="grid"><div class="warn">Cadastre pelo menos 1 recurso antes de criar demandas.</div><div class="card" id="demandsFormCard"><div class="hd"><h2>Cadastrar Demanda</h2><div class="row"><button class="btn primary">Adicionar</button></div></div><div class="bd"><div class="split"><div><div class="row"><div class="field"><label>Título</label><input placeholder="Ex: PQ Sistema X"></div><div class="field"><label>Prédio</label><input placeholder="Ex: Prédio A"></div><div class="field"><label>Focal</label><input placeholder="Ex: Fulano (Focal)"></div><div class="field demandRespField"><label>Responsável(is)</label><div class="multiSelect" title="Digite para buscar e clique para adicionar responsáveis"><div class="multiSelectBox"><div style="display:contents"></div><input class="multiSelectInput" placeholder="Digite o nome do responsável..."></div><div class="multiSelectMenu"><div class="multiSelectEmpty">Todos os responsáveis já foram selecionados.</div></div></div></div><div class="field demandPercField"><label>% diário</label><input type="number" min="0" step="5" value="100"></div><div class="field"><label>Prioridade</label><select><option value="Baixa">Baixa</option><option value="Média">Média</option><option value="Alta">Alta</option><option value="Crítica">Crítica</option></select></div><div class="field"><label>Status</label><select><option value="Em andamento">Em andamento</option><option value="Concluída">Concluída</option><option value="Mapeada">Mapeada (sem responsável)</option><option value="Congelada">Congelada</option></select></div></div><div class="row"><div class="field"><label>Início</label><input type="date"></div><div class="field"><label>Fim</label><input type="date"></div></div><div class="field"><label>Observações</label><textarea placeholder="Observações..."></textarea></div></div></div></div></div><div class="card" id="demandsListCard"><div class="hd"><h2>Demandas</h2><div></div></div><div class="bd"><div class="grid" style="gap:10px"><div class="demandFilters"><div class="field"><label>Status</label><select><option value="">Todos os status</option><option value="Em andamento">Em andamento</option><option value="Atrasada">Atrasada</option><option value="Concluída">Concluída</option><option value="Mapeada">Mapeada</option><option value="Congelada">Congelada</option></select></div><div class="field"><label>Recurso</label><select><option value="">Todos os recursos</option><option value="__NONE__">Sem responsável (Mapeada)</option></select></div><div class="field" style="grid-column:span 2"><label>Pesquisar título</label><input type="search" placeholder="Digite parte do título..." id="demandsDemandTitleSearch"></div><div class="field"><label>Data início (filtro)</label><input type="date"></div><div class="field"><label>Data fim (filtro)</label><input type="date"></div></div><div class="scrollX" style="padding-bottom:4px"><table class="demandsTable"><thead><tr><th>Título</th><th>Prédio</th><th>Focal</th><th>Responsável</th><th>Período</th><th>%/dia</th><th>Prioridade</th><th>Status</th><th>Ações</th></tr></thead><tbody><tr><td colspan="9" style="padding:20px;text-align:center;color:var(--muted)">Nenhuma demanda ainda.</td></tr></tbody></table></div></div></div></div></div></main>
   <div class="toast" id="toast"></div>
 
   <dialog id="dayModal" class="modal">
@@ -814,13 +735,13 @@ main{padding:14px;overflow-x:hidden}
 
       <div class="userWarningBox userWarningCompact" id="userWarningBox">
         <span class="pill">Obrigatório</span>
-        <div>Defina seu nome para habilitar criação/edi??o e <strong>Importar (Adicionar)</strong>.</div>
+        <div>Defina seu nome para habilitar criação/edição e <strong>Importar (Adicionar)</strong>.</div>
       </div>
 
       <div class="formStack">
         <div>
           <label class="lbl">Nome completo</label>
-          <input id="userModalName" placeholder="Ex.: Arthur Bas?lio">
+          <input id="userModalName" placeholder="Ex.: Arthur Basílio">
           <div class="hint tiny">Use seu nome como no crachá.</div>
         </div>
 
@@ -884,7 +805,7 @@ main{padding:14px;overflow-x:hidden}
 
 <script>
 
-  // ORIZON Core Clean v0.2.3 ? M?tricas planejado x executado por demanda.
+  // ORIZON Core Clean v0.2.3 ? Métricas planejado x executado por demanda.
 
 (() => {
   // ----------------------
@@ -1071,7 +992,7 @@ main{padding:14px;overflow-x:hidden}
 
   const idPrefix = () => (userId && userName) ? userId : 'unknown';
 
-  // IDs prefixados por userId (com fallback) ? evita colis?es na consolidação
+  // IDs prefixados por userId (com fallback) ? evita colisões na consolidação
   const generateId = (kind='id') => {
     const u = safeUUID() || uid();
     return `${idPrefix()}::${kind}::${u}`;
@@ -1130,14 +1051,14 @@ main{padding:14px;overflow-x:hidden}
   const normalizeImportedState = (obj) => ({
     ...defaultState(),
     ...(obj && typeof obj === 'object' ? obj : {}),
-    schemaVersion: String(obj?.schemaVersion || obj?.meta?.schemaVersion || APP_SCHEMA_VERSION),
-    resources: Array.isArray(obj?.resources) ? obj.resources : [],
-    demands: Array.isArray(obj?.demands) ? obj.demands : [],
-    blockings: Array.isArray(obj?.blockings) ? obj.blockings : [],
-    holidays: Array.isArray(obj?.holidays) ? obj.holidays : [],
-    reprogrammings: Array.isArray(obj?.reprogrammings) ? obj.reprogrammings : [],
-    overtimes: Array.isArray(obj?.overtimes) ? obj.overtimes : [],
-    events: Array.isArray(obj?.events) ? obj.events : [],
+    schemaVersion: String(objá.schemaVersion || objá.meta?.schemaVersion || APP_SCHEMA_VERSION),
+    resources: Array.isArray(objá.resources) ? obj.resources : [],
+    demands: Array.isArray(objá.demands) ? obj.demands : [],
+    blockings: Array.isArray(objá.blockings) ? obj.blockings : [],
+    holidays: Array.isArray(objá.holidays) ? obj.holidays : [],
+    reprogrammings: Array.isArray(objá.reprogrammings) ? obj.reprogrammings : [],
+    overtimes: Array.isArray(objá.overtimes) ? obj.overtimes : [],
+    events: Array.isArray(objá.events) ? obj.events : [],
   });
 
   const parseSnapshotText = (txt) => {
@@ -1433,7 +1354,7 @@ main{padding:14px;overflow-x:hidden}
       localStorage.setItem(DB_BASELINE_KEY, JSON.stringify(normalizeDbStateOnly(snapshot)));
     } catch (e) {
       // Bancos grandes podem ultrapassar a cota do localStorage.
-      // O snapshot continua v?lido em mem?ria e/ou no arquivo JSON selecionado;
+      // O snapshot continua válido em memória e/ou no arquivo JSON selecionado;
       // apenas deixamos de duplicar o BD inteiro dentro do navegador.
       try { localStorage.removeItem(DB_BASELINE_KEY); } catch {}
       console.warn('[ORIZON Storage] Baseline grande demais para localStorage. Mantido fora do cache local.', e);
@@ -1476,7 +1397,7 @@ main{padding:14px;overflow-x:hidden}
     const pwd = prompt('Informe a senha para limpar os dados locais do sistema:');
     if (pwd === null) return false;
     if (String(pwd) !== 'CAPVIEW') {
-      alert('Senha inv?lida.');
+      alert('Senha inválida.');
       return false;
     }
     if (!confirm('Isso limpar? todos os dados locais do sistema, incluindo localStorage, vínculo com BD e usuário salvo neste navegador. Continuar?')) return false;
@@ -1553,7 +1474,7 @@ main{padding:14px;overflow-x:hidden}
       seen.add(key);
       out.push({ ...h });
     };
-    // Prioriza o que veio do BD, mas preserva feriados j? cadastrados localmente.
+    // Prioriza o que veio do BD, mas preserva feriados já cadastrados localmente.
     for (const h of (Array.isArray(incomingHolidays) ? incomingHolidays : [])) add(h);
     for (const h of (Array.isArray(currentHolidays) ? currentHolidays : [])) add(h);
     return out;
@@ -1658,7 +1579,7 @@ main{padding:14px;overflow-x:hidden}
     t.appendChild(el('thead', {}, [el('tr', {}, [
       el('th', {}, ['Título']),
       el('th', {}, ['Responsável']),
-      el('th', {}, ['Per?odo']),
+      el('th', {}, ['Período']),
       el('th', {}, ['%/dia']),
       el('th', {}, ['Prioridade']),
       el('th', {}, ['Status']),
@@ -1703,7 +1624,7 @@ main{padding:14px;overflow-x:hidden}
       dateEnd: uiFilters.demandDateEnd,
       titleQuery: getDemandTitleFilter('demands')
     });
-    // sempre come?a na primeira página ao abrir o modal
+    // sempre começa na primeira página ao abrir o modal
     uiPagination.donutModalPage = 1;
 
     const renderModal = () => {
@@ -1810,7 +1731,7 @@ main{padding:14px;overflow-x:hidden}
   });
 
   // ----------------------
-  // Status (padr?o)
+  // Status (padrão)
   // ----------------------
   const STATUS = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada'];
   const STATUS_COUNTS_IN_ALLOCATION = new Set(['Em andamento','Atrasada']);
@@ -1818,7 +1739,7 @@ main{padding:14px;overflow-x:hidden}
   const normalizeStatus = (s) => {
     const v = String(s||'').trim();
     if (!v) return 'Mapeada';
-    // compatibilidade com vers?es anteriores
+    // compatibilidade com versões anteriores
     if (v.toLowerCase() === 'planejada') return 'Mapeada';
     if (v.toLowerCase() === 'em andamento') return 'Em andamento';
     if (v.toLowerCase() === 'concluída' || v.toLowerCase() === 'concluida') return 'Concluída';
@@ -1830,9 +1751,9 @@ main{padding:14px;overflow-x:hidden}
   };
 
   // ----------------------
-  // Status derivado: Atrasada (autom?tico por prazo)
+  // Status derivado: Atrasada (automático por prazo)
   // Regra: se HOJE > data_fim e status base não ? Concluída/Congelada, então fica Atrasada.
-  // Importante: HOJE ? calculado em DATA LOCAL (não UTC) para evitar virar "amanh?" antes da hora no Brasil.
+  // Importante: HOJE ? calculado em DATA LOCAL (não UTC) para evitar virar "amanhã" antes da hora no Brasil.
   // ----------------------
   const todayISO = () => {
     const now = new Date();
@@ -1844,11 +1765,11 @@ main{padding:14px;overflow-x:hidden}
 
 
   // ----------------------
-  // Execution Layer ? Apontamentos de Atividades e M?tricas (v0.2.3)
+  // Execution Layer ? Apontamentos de Atividades e Métricas (v0.2.3)
   // ----------------------
   const PROJECT_STEP_OPTIONS = [
     'ARI', 'PV', 'ANR', 'QI', 'QO', 'QP', 'RP', 'ERU', 'URS', 'RTM',
-    'Revisão', 'Reuni?o', 'Execu??o de Teste', 'Corre??o', 'Evid?ncia', 'Outro'
+    'Revisão', 'Reunião', 'Execução de Teste', 'Correção', 'Evidência', 'Outro'
   ];
 
   const normalizeProjectStep = (value) => {
@@ -1949,7 +1870,7 @@ main{padding:14px;overflow-x:hidden}
 
 
   // Dashboard Operacional (v0.3.0) ? leitura gerencial das horas reais apontadas.
-  // Não altera capacidade planejada; apenas consolida apontamentos j? registrados nas demandas.
+  // Não altera capacidade planejada; apenas consolida apontamentos já registrados nas demandas.
   const buildOperationalDashboardModel = (demands=[], periodStart='', periodEnd='') => {
     const inPeriod = (dateStr) => {
       const d = String(dateStr || '').trim();
@@ -2038,10 +1959,10 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const validateApontamentoInput = ({ data, etapa, horas }, demand={}) => {
-    if (!isISODateString(data)) return 'Informe uma data v?lida para o apontamento.';
+    if (!isISODateString(data)) return 'Informe uma data válida para o apontamento.';
     if (!normalizeProjectStep(etapa)) return 'Informe a etapa do projeto.';
     if (!Number.isFinite(horas) || horas <= 0) return 'Informe horas gastas maior que zero.';
-    if (horas > 24) return 'Horas gastas não pode ser maior que 24h em um ?nico apontamento.';
+    if (horas > 24) return 'Horas gastas não pode ser maior que 24h em um único apontamento.';
     if (demand.data_inicio && data < demand.data_inicio) return 'A data do apontamento não pode ser anterior ao início planejado da demanda.';
     if (demand.data_fim && data > demand.data_fim) return 'A data do apontamento não pode ser posterior ao fim planejado da demanda.';
     return '';
@@ -2071,7 +1992,7 @@ main{padding:14px;overflow-x:hidden}
     // Concluída e Congelada nunca viram atrasadas automaticamente
     if (base === 'Concluída' || base === 'Congelada') return base;
     const prazo = (demand?.data_fim||'').trim();
-    // Atrasada come?a no DIA SEGUINTE ao prazo (HOJE > data_fim)
+    // Atrasada começa no DIA SEGUINTE ao prazo (HOJE > data_fim)
     if (prazo && todayISO() > prazo) return 'Atrasada';
     return base;
   };
@@ -2080,7 +2001,7 @@ main{padding:14px;overflow-x:hidden}
     const dl = daysLate(demand);
     if (!dl) return '';
     const prazo = formatDateBR(demand.data_fim);
-    return `Atrasada h? ${dl} dia(s). Prazo: ${prazo}. (Status autom?tico)`;
+    return `Atrasada há ${dl} dia(s). Prazo: ${prazo}. (Status automático)`;
   };
 
 
@@ -2316,7 +2237,7 @@ main{padding:14px;overflow-x:hidden}
   const EVENT_OUTBOX_MAX = 500;
   let capviewEventWriteInFlight = false;
 
-  // V5.8 ? Controle local de eventos j? vistos/aplicados.
+  // V5.8 ? Controle local de eventos já vistos/aplicados.
   // O snapshot pode ainda não estar consolidado; por isso o app continua
   // aplicando todos os eventos pendentes para montar a tela, mas s? notifica
   // como "novo" o que ainda não foi visto nesta estação.
@@ -2460,10 +2381,10 @@ main{padding:14px;overflow-x:hidden}
     }
   };
 
-  // V5.8.1 ? Prote??o de edi??o ativa.
+  // V5.8.1 ? Proteção de edição ativa.
   // Quando o autosync recebe eventos enquanto o usuário est? digitando, o app
-  // atualiza o estado em mem?ria, mas adia o render() para não apagar campos
-  // ainda não salvos no formul?rio aberto.
+  // atualiza o estado em memória, mas adia o render() para não apagar campos
+  // ainda não salvos no formulário aberto.
   let capviewDeferredRenderPending = false;
   let capviewDeferredRenderReason = '';
   let capviewDeferredRenderToastAt = 0;
@@ -2495,9 +2416,9 @@ main{padding:14px;overflow-x:hidden}
       const now = Date.now();
       if (now - capviewDeferredRenderToastAt > 12000) {
         capviewDeferredRenderToastAt = now;
-        toast('Atualização recebida. A tela ser? atualizada ao finalizar a edi??o.');
+        toast('Atualização recebida. A tela ser? atualizada ao finalizar a edição.');
       }
-      setEventModeStatus('Atualização recebida, render adiado para preservar campos em edi??o.');
+      setEventModeStatus('Atualização recebida, render adiado para preservar campos em edição.');
       return false;
     }
     capviewDeferredRenderPending = false;
@@ -2569,7 +2490,7 @@ main{padding:14px;overflow-x:hidden}
 
   // V5.4.5 ? Fila operacional local para autosync sem backend.
   // O navegador/File System Access API não entrega lock atémico entre usuários,
-  // então a prote??o realista ?: registrar alteração local como pendente, reler
+  // então a proteção realista ?: registrar alteração local como pendente, reler
   // o JSON compartilhado, rebater a alteração local em cima da versão mais nova,
   // reler novamente antes de gravar e repetir em caso de corrida.
   const DB_OP_QUEUE_KEY = 'capview_db_operation_queue_v2';
@@ -2591,9 +2512,9 @@ main{padding:14px;overflow-x:hidden}
       localStorage.setItem(DB_OP_QUEUE_KEY, payload);
     } catch (e) {
       // Em BD grande, não insistimos em persistir snapshots enormes na fila local.
-      // A fila em mem?ria continua v?lida durante a sessão e evita travar a UI/carregamento.
+      // A fila em memória continua válida durante a sessão e evita travar a UI/carregamento.
       try { localStorage.removeItem(DB_OP_QUEUE_KEY); } catch {}
-      console.warn('[ORIZON Queue] Fila grande demais para localStorage. Mantida apenas em mem?ria nesta sessão.', e);
+      console.warn('[ORIZON Queue] Fila grande demais para localStorage. Mantida apenas em memória nesta sessão.', e);
     }
   };
 
@@ -2618,7 +2539,7 @@ main{padding:14px;overflow-x:hidden}
       markDbSync(`aguardando para salvar (${dbOperationQueue.length})`);
       return true;
     } catch (e) {
-      console.warn('[ORIZON Queue] Falha ao enfileirar operação. UI liberada; persist?ncia local mantida.', e);
+      console.warn('[ORIZON Queue] Falha ao enfileirar operação. UI liberada; persistência local mantida.', e);
       markDbSync('fila local indisponível; dados mantidos localmente');
       return false;
     }
@@ -2682,7 +2603,7 @@ main{padding:14px;overflow-x:hidden}
   const persistStateLocallySafe = () => {
     try {
       const payload = JSON.stringify(state);
-      // Evita bater na cota t?pica do localStorage em bases grandes.
+      // Evita bater na cota típica do localStorage em bases grandes.
       if (payload.length > LOCAL_STORAGE_LIMIT_HINT_BYTES) throw new DOMException('Estado local muito grande para localStorage', 'QuotaExceededError');
       localStorage.setItem(STORAGE_KEY, payload);
       localStorage.removeItem(LOCAL_LIGHT_STATE_KEY);
@@ -2690,7 +2611,7 @@ main{padding:14px;overflow-x:hidden}
     } catch (e) {
       try { localStorage.removeItem(STORAGE_KEY); } catch {}
       try { localStorage.setItem(LOCAL_LIGHT_STATE_KEY, JSON.stringify(buildLightweightLocalState())); } catch {}
-      console.warn('[ORIZON Storage] Estado grande demais para localStorage. O BD ser? mantido no JSON selecionado e em mem?ria durante a sessão.', e);
+      console.warn('[ORIZON Storage] Estado grande demais para localStorage. O BD ser? mantido no JSON selecionado e em memória durante a sessão.', e);
       return false;
     }
   };
@@ -2770,8 +2691,8 @@ main{padding:14px;overflow-x:hidden}
 
   // V5.4.6 ? guard não-bloqueante para CRUD local.
   // A fila/autosync não pode impedir o usuário de criar/editar dados.
-  // Se a identidade não estiver definida em uma segunda inst?ncia/navegador,
-  // criamos uma identidade t?cnica local e mantemos o aviso para o usuário
+  // Se a identidade não estiver definida em uma segunda instância/navegador,
+  // criamos uma identidade técnica local e mantemos o aviso para o usuário
   // informar o nome depois. Isso evita o sintoma de botão/ação parecer
   // "travado" enquanto preserva autoria mínima nos IDs/metadados.
   const ensureNonBlockingUser = () => {
@@ -2792,7 +2713,7 @@ main{padding:14px;overflow-x:hidden}
       return false;
     }
     ensureNonBlockingUser();
-    toast('Identidade t?cnica criada para não bloquear a edi??o. Depois, clique no avatar e informe seu nome.');
+    toast('Identidade técnica criada para não bloquear a edição. Depois, clique no avatar e informe seu nome.');
     return true;
   };
 
@@ -2910,7 +2831,7 @@ main{padding:14px;overflow-x:hidden}
       if (capviewEventMode.enabled) rememberLocalEventForSharedFile(event);
       recordSharedEvent(event);
     } catch(e) {
-      console.warn('[ORIZON Eventos] Registro ass?ncrono não iniciado:', e);
+      console.warn('[ORIZON Eventos] Registro assíncrono não iniciado:', e);
       if (capviewEventMode.enabled) setEventModeStatus('Evento mantido no outbox local. Selecione a pasta ORIZONData para gravar em /events.');
     }
 
@@ -3014,7 +2935,7 @@ main{padding:14px;overflow-x:hidden}
       capviewSnapshotFileHandle = await dir.getFileHandle('snapshot.json', { create:true });
       capviewEventMode.enabled = true;
       capviewEventMode.folderName = dir.name || 'ORIZONData';
-      capviewEventMode.lastStatus = 'Pasta vinculada. Alterações ser?o registradas em /events por usuário.';
+      capviewEventMode.lastStatus = 'Pasta vinculada. Alterações serão registradas em /events por usuário.';
       persistEventFolderMeta();
       await ensureEventFolderReady({ createSnapshotIfMissing:true });
       await ensureUserEventFileInitialized();
@@ -3120,7 +3041,7 @@ main{padding:14px;overflow-x:hidden}
         const arr = await readEventArrayFromHandle(handle);
         for (const ev of arr) all.push({ ...ev, sourceFile: ev.sourceFile || name });
       }
-    } catch (e) { console.warn('[ORIZON Eventos] Falha ao ler diret?rio de eventos:', e); }
+    } catch (e) { console.warn('[ORIZON Eventos] Falha ao ler diretório de eventos:', e); }
     const seen = new Set();
     return all.filter(e => e && e.id && !seen.has(String(e.id)) && seen.add(String(e.id))).sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
   };
@@ -3163,12 +3084,12 @@ main{padding:14px;overflow-x:hidden}
   const buildStateFromSnapshotAndEvents = (snapshot, events) => {
     const merged = normalizeImportedState(deepClone(snapshot || defaultState()));
 
-    // FIX V6.0.4 ? Feriados são base de calend?rio, não apenas eventos.
+    // FIX V6.0.4 ? Feriados são base de calendário, não apenas eventos.
     // Quando o snapshot.json da pasta ainda não tem holidays, o sync de eventos
     // não pode reconstruir o estado zerando os feriados cadastrados/localmente.
     // Por isso, antes de aplicar eventos, mescla os feriados do snapshot com os
-    // feriados j? existentes na sessão/localStorage. Eventos DELETE_HOLIDAY
-    // continuam respeitados logo abaixo, porque são aplicados depois desta uni?o.
+    // feriados já existentes na sessão/localStorage. Eventos DELETE_HOLIDAY
+    // continuam respeitados logo abaixo, porque são aplicados depois desta união.
     try {
       const localHolidays = Array.isArray(state?.holidays) ? state.holidays : [];
       merged.holidays = mergeHolidaysNonDestructive(merged.holidays, localHolidays);
@@ -3176,7 +3097,7 @@ main{padding:14px;overflow-x:hidden}
       console.warn('[ORIZON Feriados] Falha ao preservar feriados locais durante sync de eventos:', e);
     }
 
-    // Eventos j? incorporados no snapshot consolidado. Esses não precisam ser
+    // Eventos já incorporados no snapshot consolidado. Esses não precisam ser
     // reaplicados na tela.
     const snapshotEventIds = new Set((merged.events||[]).map(e => String(e.id)));
 
@@ -3273,8 +3194,8 @@ main{padding:14px;overflow-x:hidden}
 
   // ----------------------
   // Import snapshot (Adicionar / Mesclar)
-  // - Mant?m tudo LOCAL (file://)
-  // - Não sobrescreve: concatena cole??es e resolve colis?es de ID
+  // - Mantém tudo LOCAL (file://)
+  // - Não sobrescreve: concatena coleções e resolve colisões de ID
   // - Une resources/holidays de forma não destrutiva (base oficial)
   const mergeSnapshotAdd = (incoming) => {
     if (!incoming || typeof incoming !== 'object') throw new Error('Snapshot inválido.');
@@ -3304,7 +3225,7 @@ main{padding:14px;overflow-x:hidden}
       return arrT;
     };
 
-    // Base: resources / holidays -> uni?o não destrutiva
+    // Base: resources / holidays -> união não destrutiva
     if (Array.isArray(incoming.resources)) {
       const existing = new Set((state.resources||[]).map(r=>String(r.id)));
       for (const r of incoming.resources) {
@@ -3322,13 +3243,13 @@ main{padding:14px;overflow-x:hidden}
       }
     }
 
-    // Propostas: concatena + resolve colis?es
+    // Propostas: concatena + resolve colisões
     state.demands = mergeUnionById(state.demands, incoming.demands, 'demand');
     state.blockings = mergeUnionById(state.blockings, incoming.blockings, 'blocking');
     state.overtimes = mergeUnionById(state.overtimes, incoming.overtimes, 'he');
     state.reprogrammings = mergeUnionById(state.reprogrammings, incoming.reprogrammings, 'reprogram');
 
-    // Events: concatena, mas garante IDs ?nicos
+    // Events: concatena, mas garante IDs únicos
     const evT = Array.isArray(state.events) ? state.events : [];
     const evA = Array.isArray(incoming.events) ? incoming.events : [];
     const seenEv = new Set(evT.map(e => String(e && e.id)));
@@ -3356,8 +3277,8 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Capacity Engine v0.1.2
   // ----------------------
-  // N?cleo ?nico para regras de capacidade, HE, feriados, bloqueios, férias/OFF e alocação.
-  // Mant?m wrappers legados abaixo para não alterar chamadas existentes nem visual.
+  // Núcleo único para regras de capacidade, HE, feriados, bloqueios, férias/OFF e alocação.
+  // Mantém wrappers legados abaixo para não alterar chamadas existentes nem visual.
   const CapacityEngine = {
     isHoliday(dateStr) {
       return (state.holidays || []).some(h => h.data === dateStr);
@@ -3438,7 +3359,7 @@ main{padding:14px;overflow-x:hidden}
       const reason = this.nonWorkingReasonForDay(resourceId, dateObj);
 
       // Regra conservadora HE/FDS:
-      // HE adiciona capacidade extra, mas NÃO libera demanda normal em dia não ?til.
+      // HE adiciona capacidade extra, mas NÃO libera demanda normal em dia não útil.
       // Assim, FDS/feriado/bloqueio/férias/OFF com HE aparece como HE azul, sem somar demandas do intervalo.
       if (reason) return reason.code;
 
@@ -3535,7 +3456,7 @@ main{padding:14px;overflow-x:hidden}
     if (isHoliday(dateStr)) meta.push('feriado');
     const blk = blockingFor(resourceId, dateStr);
     if (blk) meta.push((String(blk.tipo||'').trim().toLowerCase() === 'férias') ? 'férias' : 'bloqueio');
-    if (isThirdPartyOff(res, dateStr)) meta.push('fora de vig?ncia');
+    if (isThirdPartyOff(res, dateStr)) meta.push('fora de vigência');
     qs('#dayModalSub').textContent = `${weekday}${meta.length ? ' ? ' + meta.join(' ? ') : ''}`;
 
     const demands = demandsForResourceOnDate(resourceId, dateStr);
@@ -3543,12 +3464,12 @@ main{padding:14px;overflow-x:hidden}
     const nonWorkingReason = nonWorkingReasonForDay(resourceId, dateObj);
 
     // Patch conservador HE/FDS no modal:
-    // em dia não ?til (FDS/feriado/bloqueio/férias/OFF), HE NÃO libera as demandas normais do intervalo.
+    // em dia não útil (FDS/feriado/bloqueio/férias/OFF), HE NÃO libera as demandas normais do intervalo.
     // O modal deve refletir a mesma regra do card: mostra apenas HE quando houver HE.
     const visibleDemands = nonWorkingReason ? [] : demands;
     const totalDemands = visibleDemands.length;
 
-    // sempre come?a na primeira página ao abrir o modal
+    // sempre começa na primeira página ao abrir o modal
     uiPagination.dayModalPage = 1;
 
     let allocPerc = 0;
@@ -3573,14 +3494,14 @@ main{padding:14px;overflow-x:hidden}
         nonWorkingReason?.label === 'FÉR' ? 'bg-vac' :
         nonWorkingReason?.label === 'BLOQ' ? 'bg-block' :
         nonWorkingReason?.label === 'OFF' ? 'bg-off' : 'bg-wknd';
-      summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:`dot ${reasonDotClass}` }), `${nonWorkingReason.label || 'Dia não ?til'}`]));
+      summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:`dot ${reasonDotClass}` }), `${nonWorkingReason.label || 'Dia não útil'}`]));
     }
 
     const summary = el('div', { class:'grid' }, [
       el('div', { class:'row' }, summaryBadges),
       el('div', { class:'tiny muted' }, [
         nonWorkingReason
-          ? 'Dia não ?til: demandas normais do intervalo não são contabilizadas nem listadas neste card. Quando existir HE, apenas a HE aparece.'
+          ? 'Dia não útil: demandas normais do intervalo não são contabilizadas nem listadas neste card. Quando existir HE, apenas a HE aparece.'
           : 'Obs: para a capacidade do dashboard, s? contam status: ',
         !nonWorkingReason ? el('b', {}, ['Em andamento']) : null,
         !nonWorkingReason ? ' e ' : null,
@@ -3594,12 +3515,12 @@ main{padding:14px;overflow-x:hidden}
     const renderDayModal = () => {
       body.innerHTML = '';
 
-      // Ação r?pida: cadastrar demanda j? com recurso e data preenchidos
+      // Ação rápida: cadastrar demanda já com recurso e data preenchidos
       body.appendChild(el('div', { class:'row', style:'justify-content:flex-end;margin-bottom:10px' }, [
         button('Cadastrar demanda', 'primary', () => {
           const dateStr2 = dateStr;
           uiFilters.prefillDemand = { responsavel_id: resourceId, data_inicio: dateStr2, data_fim: dateStr2 };
-          // opcional: j? aplicar filtro por recurso na lista
+          // opcional: já aplicar filtro por recurso na lista
           uiFilters.demandResourceId = resourceId;
           // levar o usuário direto para o cadastro
           activeTab = 'demands';
@@ -3626,7 +3547,7 @@ main{padding:14px;overflow-x:hidden}
         el('th', {}, ['Prédio']),
         el('th', {}, ['Focal']),
         el('th', {}, ['Responsável']),
-        el('th', {}, ['Per?odo']),
+        el('th', {}, ['Período']),
       ])]));
       const tb = el('tbody');
       if (pageItems.length === 0 && heInfo.items.length === 0) {
@@ -3711,7 +3632,7 @@ main{padding:14px;overflow-x:hidden}
     const respChips = el('div', { style:'display:contents' });
     const respMenu = el('div', { class:'multiSelectMenu' });
     const respBox = el('div', { class:'multiSelectBox' }, [respChips, respSearch]);
-    const responsavel = el('div', { class:'multiSelect', title:'Digite para buscar e clique para adicionar respons?veis' }, [
+    const responsavel = el('div', { class:'multiSelect', title:'Digite para buscar e clique para adicionar responsáveis' }, [
       respBox,
       respMenu
     ]);
@@ -3726,7 +3647,7 @@ main{padding:14px;overflow-x:hidden}
         .slice(0, 12);
       respMenu.innerHTML = '';
       if (!available.length) {
-        respMenu.appendChild(el('div', { class:'multiSelectEmpty' }, [q ? 'Nenhum responsável encontrado.' : 'Todos os respons?veis j? foram selecionados.']));
+        respMenu.appendChild(el('div', { class:'multiSelectEmpty' }, [q ? 'Nenhum responsável encontrado.' : 'Todos os responsáveis já foram selecionados.']));
         return;
       }
       for (const r of available) {
@@ -3795,7 +3716,7 @@ main{padding:14px;overflow-x:hidden}
 
     const status = el('select', {}, [
         el('option', { value:'Em andamento' }, ['Em andamento']),
-        el('option', { value:'Atrasada', disabled:'' }, ['Atrasada (autom?tico)']),
+        el('option', { value:'Atrasada', disabled:'' }, ['Atrasada (automático)']),
         el('option', { value:'Concluída' }, ['Concluída']),
       el('option', { value:'Mapeada' }, ['Mapeada (sem responsável)']),
       el('option', { value:'Congelada' }, ['Congelada']),
@@ -3845,9 +3766,9 @@ main{padding:14px;overflow-x:hidden}
         const key = normalizeProjectStep(etapa).toLowerCase();
         if (['ari','pv','anr','qi','qo','qp','rp'].includes(key)) return { bg:'var(--primary-soft)', fg:'var(--accent)', border:'var(--primary-light)' };
         if (['eru','urs','rtm'].includes(key)) return { bg:'var(--success-soft)', fg:'var(--success)', border:'var(--success)' };
-        if (['revisão','reuniao','reuni?o'].includes(key)) return { bg:'var(--warning-soft)', fg:'var(--alert)', border:'var(--warning)' };
-        if (['execu??o de teste','execucao de teste','evid?ncia','evidencia'].includes(key)) return { bg:'var(--primary-soft)', fg:'var(--primary)', border:'var(--primary-light)' };
-        if (['corre??o','correcao'].includes(key)) return { bg:'var(--danger-soft)', fg:'var(--danger)', border:'var(--danger-border)' };
+        if (['revisão','reuniao','reunião'].includes(key)) return { bg:'var(--warning-soft)', fg:'var(--alert)', border:'var(--warning)' };
+        if (['execução de teste','execucao de teste','evidência','evidencia'].includes(key)) return { bg:'var(--primary-soft)', fg:'var(--primary)', border:'var(--primary-light)' };
+        if (['correção','correcao'].includes(key)) return { bg:'var(--danger-soft)', fg:'var(--danger)', border:'var(--danger-border)' };
         return { bg:'var(--surface)', fg:'var(--text)', border:'var(--border)' };
       };
 
@@ -3893,7 +3814,7 @@ main{padding:14px;overflow-x:hidden}
         metricCard('Eficiência', efficiencyLabel, 'realizado ÷ planejado'),
         metricCard('Progresso real', progressLabel, 'realizado ÷ planejado'),
         el('div', { style:`border:1px solid var(--border);border-radius:14px;padding:10px;background:${trendBg}` }, [
-          el('div', { class:'tiny muted' }, ['Tend?ncia']),
+          el('div', { class:'tiny muted' }, ['Tendência']),
           el('div', { style:`font-weight:950;font-size:16px;color:${trendColor}` }, [execMetrics.trend]),
           el('div', { class:'tiny muted', style:'margin-top:2px' }, ['baseado nas horas realizadas'])
         ]),
@@ -3951,7 +3872,7 @@ main{padding:14px;overflow-x:hidden}
                   if (saveAptBtn) saveAptBtn.textContent = 'Salvar etapa';
                   if (cancelAptBtn) cancelAptBtn.style.display = '';
                 }),
-                iconButton('Excluir', 'ðŸ—‘', 'danger', () => {
+                iconButton('Excluir', '🗑', 'danger', () => {
                   apontamentos = apontamentos.filter(x => String(x.id) !== String(a.id));
                   if (editingAptId === String(a.id)) resetApontamentoForm();
                   renderApontamentos();
@@ -3980,7 +3901,7 @@ main{padding:14px;overflow-x:hidden}
 
       if (editingAptId) {
         const idx = apontamentos.findIndex(a => String(a.id) === String(editingAptId));
-        if (idx < 0) { toast('Apontamento em edi??o não encontrado.'); resetApontamentoForm(); return; }
+        if (idx < 0) { toast('Apontamento em edição não encontrado.'); resetApontamentoForm(); return; }
         apontamentos[idx] = normalizeApontamento({
           ...apontamentos[idx],
           data,
@@ -4014,7 +3935,7 @@ main{padding:14px;overflow-x:hidden}
     renderApontamentos();
 
     saveAptBtn = button('Adicionar etapa', 'primary', upsertApontamento);
-    cancelAptBtn = button('Cancelar edi??o', '', () => { resetApontamentoForm(); });
+    cancelAptBtn = button('Cancelar edição', '', () => { resetApontamentoForm(); });
     cancelAptBtn.style.display = 'none';
 
     const apontamentosBox = el('div', { class:'field', style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff' }, [
@@ -4061,16 +3982,16 @@ main{padding:14px;overflow-x:hidden}
       apontamentos: normalizeDemandApontamentos(demand)
     };
 
-    // Bot?o de salvar ser? criado mais abaixo
+    // Botão de salvar ser? criado mais abaixo
     let saveBtn = null;
 
 	    const save = () => {
       const justification = (just.value || '').trim();
 
       const nextStatus = normalizeStatus(status.value);
-      if (nextStatus === 'Atrasada') { toast('Status Atrasada ? autom?tico ? selecione outro status.'); return; }
+      if (nextStatus === 'Atrasada') { toast('Status Atrasada ? automático ? selecione outro status.'); return; }
       const respIds = (nextStatus === 'Mapeada') ? [] : selectedResponsaveis();
-      if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais respons?veis ou marque como Mapeada.'); return; }
+      if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais responsáveis ou marque como Mapeada.'); return; }
       const primaryResponsavelId = respIds.includes(demand.responsavel_id) ? demand.responsavel_id : (respIds[0] || '');
       const next = {
         ...demand,
@@ -4090,7 +4011,7 @@ main{padding:14px;overflow-x:hidden}
         last_edit_justification: justification,
       };
 
-      // registra um evento extra com diff para auditoria (além do UPDATE_DEMAND padr?o)
+      // registra um evento extra com diff para auditoria (além do UPDATE_DEMAND padrão)
       const after = {
         titulo: next.titulo,
         predio: next.predio,
@@ -4114,7 +4035,7 @@ main{padding:14px;overflow-x:hidden}
           id: generateId(),
           responsavel_id: rid,
           apontamentos: [],
-          last_edit_justification: 'Demanda criada a partir da edi??o com m?ltiplos respons?veis.',
+          last_edit_justification: 'Demanda criada a partir da edição com múltiplos responsáveis.',
         });
       }
       try { dlg.close(); } catch { dlg.removeAttribute('open'); }
@@ -4221,7 +4142,7 @@ main{padding:14px;overflow-x:hidden}
                 if (saveBtn) saveBtn.textContent = 'Salvar edicao';
                 if (cancelBtn) cancelBtn.style.display = '';
               }),
-              iconButton('Excluir', 'ðŸ—‘', 'danger', () => {
+              iconButton('Excluir', '🗑', 'danger', () => {
                 apontamentos = apontamentos.filter(x => String(x.id) !== String(a.id));
                 if (editingAptId === String(a.id)) resetForm();
                 persistApontamentos('Apontamento removido.');
@@ -4403,7 +4324,7 @@ main{padding:14px;overflow-x:hidden}
       toast('Demanda reprogramada.');
     });
 
-    // Come?a bloqueado ate preencher justificativa + datas validas
+    // Começa bloqueado ate preencher justificativa + datas validas
     confirmBtn.disabled = true;
 
     const refreshConfirmState = () => {
@@ -4485,12 +4406,12 @@ main{padding:14px;overflow-x:hidden}
     const vigFim = el('input', { type:'date', value: (resource.vigencia_fim || '') });
 
     const vigRow = el('div', { class:'row' }, [
-      el('div', { class:'field' }, [el('label', {}, ['Vig?ncia início']), vigIni]),
-      el('div', { class:'field' }, [el('label', {}, ['Vig?ncia fim']), vigFim]),
+      el('div', { class:'field' }, [el('label', {}, ['Vigência início']), vigIni]),
+      el('div', { class:'field' }, [el('label', {}, ['Vigência fim']), vigFim]),
     ]);
 
     const vigHint = el('div', { class:'warn', style:'margin-top:10px;display:none' }, [
-      'Dica: Para Terceiro, fora da vig?ncia o recurso aparece como OFF e não conta capacidade.'
+      'Dica: Para Terceiro, fora da vigência o recurso aparece como OFF e não conta capacidade.'
     ]);
 
     const syncVig = () => {
@@ -4625,7 +4546,7 @@ main{padding:14px;overflow-x:hidden}
       group('Bloqueios', [
         item('block', 'Bloqueio', 'Dia sem capacidade'),
         item('vac', 'Férias', 'Recurso indisponível'),
-        item('off', 'Fora vig?ncia', 'Terceiro fora do período'),
+        item('off', 'Fora vigência', 'Terceiro fora do período'),
       ]),
       group('Eventos especiais', [
         item('holiday', 'Feriado', 'Capacidade zerada'),
@@ -4668,7 +4589,7 @@ main{padding:14px;overflow-x:hidden}
       el('span', { class:'sDot' }, []),
     ];
     if (s === 'Atrasada') {
-      children.push(el('span', { class:'statusIcon', title: title || 'Atrasada (autom?tico)' }, ['']));
+      children.push(el('span', { class:'statusIcon', title: title || 'Atrasada (automático)' }, ['']));
     }
     children.push(s || 'Mapeada');
     return el('span', { class:`statusPill s-${key}`, title: title || undefined }, children);
@@ -5134,11 +5055,11 @@ function buildConsolidatedYearSeries(year) {
                 else if (p > 0) cls += ' bg-ok';
               }
 
-              // Mant?m destaque visual para fim de semana; s? contabiliza se houver HE.
+              // Mantém destaque visual para fim de semana; só contabiliza se houver HE.
               if (isWeekend(d)) cls += ' bg-wknd';
               if (heTotal > 0) {
                 cls += ' has-he';
-                // Feriado mant?m roxo: HE vira informação/badge, não troca a identidade do dia.
+                // Feriado mantém roxo: HE vira informação/badge, não troca a identidade do dia.
                 if (Number(val||0) <= 0 && !holidayDay) cls += ' bg-he';
               }
 
@@ -5230,7 +5151,7 @@ function buildConsolidatedYearSeries(year) {
       };
       const realTotal = order.reduce((a,k)=>a+(statusCounts[k]||0),0);
 
-      // Quando não h? nenhuma demanda (ou filtros zeraram), não deixar o donut
+      // Quando não há nenhuma demanda (ou filtros zeraram), não deixar o donut
       // parecer "Congelada" (amarelo). Usamos um estado vazio: cinza + borda tracejada.
       let donut;
       if (!realTotal) {
@@ -5295,7 +5216,7 @@ function buildConsolidatedYearSeries(year) {
           return !(end < monthStart || start > monthEnd);
         }).length;
 
-        // % medio/pico alocado considerando apenas dias ?teis dispon?veis; FDS/feriado s? entram com HE
+        // % medio/pico alocado considerando apenas dias úteis disponíveis; FDS/feriado só entram com HE
         let sum = 0;
         let n = 0;
         let peak = 0;
@@ -5411,7 +5332,7 @@ function buildConsolidatedYearSeries(year) {
 
       return el('div', { class:'grid', style:'gap:12px' }, [
         el('div', { class:'tiny muted' }, [
-          `Per?odo operacional: ${formatDateBR(periodStart)} até ${formatDateBR(periodEnd)}. `,
+          `Período operacional: ${formatDateBR(periodStart)} até ${formatDateBR(periodEnd)}. `,
           'Considera somente apontamentos reais cadastrados nas demandas filtradas. Não altera a capacidade planejada.'
         ]),
         el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px' }, [
@@ -5476,13 +5397,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
             summaryCard('Horas acima da capacidade', `${fmtHours(totalOverHH)}h`, 'soma anual de overcap', totalOverHH > 0 ? 'danger' : 'ok'),
           ]),
           criticalMonths.length ? el('div', { class:'warn', style:'background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger)' }, [
-            el('div', { style:'font-weight:950;margin-bottom:6px' }, ['Meses cr?ticos acima da escala visual (150%)']),
+            el('div', { style:'font-weight:950;margin-bottom:6px' }, ['Meses críticos acima da escala visual (150%)']),
             el('div', { class:'row', style:'gap:8px' }, criticalMonths.slice(0, 6).map(m =>
               el('span', { class:'tag', style:'background:#fff;color:var(--danger);border-color:var(--danger-border)' }, [
                 `${m.label}: ${Math.round(m.usagePct || 0)}% ? +${fmtHours(m.overHH || 0)}h`
               ])
             )),
-            criticalMonths.length > 6 ? el('div', { class:'tiny', style:'margin-top:6px;color:var(--danger)' }, [`+${criticalMonths.length - 6} mês(es) cr?tico(s) ocultos nesta lista.`]) : null
+            criticalMonths.length > 6 ? el('div', { class:'tiny', style:'margin-top:6px;color:var(--danger)' }, [`+${criticalMonths.length - 6} mês(es) crítico(s) ocultos nesta lista.`]) : null
           ].filter(Boolean)) : null,
           el('div', { style:'max-width:100%;overflow:auto' }, [svg])
         ].filter(Boolean));
@@ -5495,7 +5416,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
 
   // Apontamentos (v0.3.1.3) ? cards em estilo kanban com paginação.
-  // Objetivo: comparar janela planejada x execu??o real apontada, mantendo foco no projeto.
+  // Objetivo: comparar janela planejada x execução real apontada, mantendo foco no projeto.
   const viewEvaluationDashboard = () => {
     const dashboardFilteredDemands = filterDemands({
       status: uiFilters.demandStatus,
@@ -5540,13 +5461,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const realPct = Number(metrics.progressPct || 0);
       const remainingText = remainingDaysLabel(demand);
       const isExpired = remainingText.includes('após o prazo');
-      if (!metrics.plannedHours) return { label:'Sem base planejada', tone:'neutral', hint:'Demanda sem horas planejadas calcul?veis.' };
-      if (metrics.realHours > metrics.plannedHours) return { label:'Acima do planejado', tone:'danger', hint:'Horas realizadas j? superaram as horas planejadas.' };
-      if (isExpired && realPct < 100) return { label:'Prazo vencido', tone:'danger', hint:'Janela encerrada com execu??o real abaixo do planejado.' };
-      if (windowPct >= 70 && realPct < 40) return { label:'Atenção ao andamento', tone:'warn', hint:'A janela avanãou mais que a execu??o real apontada.' };
-      if (realPct >= 90) return { label:'Próximo do limite', tone:'warn', hint:'Consumo de horas j? est? próximo do planejado.' };
-      if (realPct > windowPct + 25) return { label:'Consumo acelerado', tone:'warn', hint:'Execu??o real est? consumindo horas mais r?pido que a janela.' };
-      if (realPct > 0) return { label:'Dentro do planejado', tone:'ok', hint:'Execu??o real compatével com a janela planejada.' };
+      if (!metrics.plannedHours) return { label:'Sem base planejada', tone:'neutral', hint:'Demanda sem horas planejadas calculáveis.' };
+      if (metrics.realHours > metrics.plannedHours) return { label:'Acima do planejado', tone:'danger', hint:'Horas realizadas já superaram as horas planejadas.' };
+      if (isExpired && realPct < 100) return { label:'Prazo vencido', tone:'danger', hint:'Janela encerrada com execução real abaixo do planejado.' };
+      if (windowPct >= 70 && realPct < 40) return { label:'Atenção ao andamento', tone:'warn', hint:'A janela avanãou mais que a execução real apontada.' };
+      if (realPct >= 90) return { label:'Próximo do limite', tone:'warn', hint:'Consumo de horas já est? próximo do planejado.' };
+      if (realPct > windowPct + 25) return { label:'Consumo acelerado', tone:'warn', hint:'Execução real est? consumindo horas mais rápido que a janela.' };
+      if (realPct > 0) return { label:'Dentro do planejado', tone:'ok', hint:'Execução real compatével com a janela planejada.' };
       return { label:'Não iniciado', tone:'neutral', hint:'Sem apontamentos reais registrados para a demanda.' };
     };
 
@@ -5617,16 +5538,16 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           miniMetric('Horas realizadas', hoursText(m.realHours), `${m.apontamentosCount || 0} apontamento(s)`),
           miniMetric('Saldo de horas', balanceText, balanceHint, balanceTone),
           miniMetric('Progresso real', pctText(m.progressPct), 'realizado ÷ planejado'),
-          miniMetric('Tend?ncia', p.health.label, 'baseado nas horas realizadas', p.health.tone === 'danger' ? 'danger' : (p.health.tone === 'warn' ? 'warn' : (p.health.tone === 'ok' ? 'ok' : ''))),
+          miniMetric('Tendência', p.health.label, 'baseado nas horas realizadas', p.health.tone === 'danger' ? 'danger' : (p.health.tone === 'warn' ? 'warn' : (p.health.tone === 'ok' ? 'ok' : ''))),
           miniMetric('Etapas', String(p.etapasUnicas || 0), 'tipos documentais'),
           miniMetric('Último apontamento', lastText, 'histórico operacional')
         ]),
 
         el('div', { class:'grid', style:'gap:8px;margin-top:auto' }, [
           el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Avanão da janela']), el('div', { class:'tiny mono' }, [pctText(p.windowPct)])]),
-          progressBar(p.windowPct, 'Percentual da janela planejada j? consumido'),
-          el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Execu??o real apontada']), el('div', { class:'tiny mono' }, [pctText(m.progressPct)])]),
-          progressBar(m.progressPct, 'Percentual das horas planejadas j? apontado como realizado')
+          progressBar(p.windowPct, 'Percentual da janela planejada já consumido'),
+          el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Execução real apontada']), el('div', { class:'tiny mono' }, [pctText(m.progressPct)])]),
+          progressBar(m.progressPct, 'Percentual das horas planejadas já apontado como realizado')
         ]),
 
         p.stepBadges.length
@@ -5705,8 +5626,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const vigFim = el('input', { type:'date' });
 
       const thirdWrap = el('div', { class:'row', style:'width:100%' }, [
-        el('div', { class:'field' }, [el('label', {}, ['Vig?ncia Início (Terceiro)']), vigIni]),
-        el('div', { class:'field' }, [el('label', {}, ['Vig?ncia Fim (Terceiro)']), vigFim]),
+        el('div', { class:'field' }, [el('label', {}, ['Vigência Início (Terceiro)']), vigIni]),
+        el('div', { class:'field' }, [el('label', {}, ['Vigência Fim (Terceiro)']), vigFim]),
       ]);
       const updateThirdVisibility = () => {
         thirdWrap.style.display = (type.value === 'Terceiro') ? '' : 'none';
@@ -5745,7 +5666,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
             thirdWrap,
             el('div', { class:'hint tiny' }, [
               el('b', {}, ['Dica: ']),
-              'Para Terceiro, fora da vig?ncia o dia aparece como OFF e não conta capacidade.'
+              'Para Terceiro, fora da vigência o dia aparece como OFF e não conta capacidade.'
             ])
           ]),
         ])
@@ -5759,7 +5680,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('th', {}, ['Tipo']),
         el('th', {}, ['Horas/dia']),
         el('th', {}, ['Ativo']),
-        el('th', {}, ['Vig?ncia']),
+        el('th', {}, ['Vigência']),
         el('th', {}, ['Ações']),
       ])]));
 
@@ -5777,7 +5698,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         tr.appendChild(el('td', {}, [r.tipo]));
         tr.appendChild(el('td', {}, [String(HOURS_PER_DAY)]));
         tr.appendChild(el('td', {}, [r.ativo === false ? 'Não' : 'Sim']));
-        const vig = (r.tipo === 'Terceiro') ? `${r.vigencia_inicio?formatDateBR(r.vigencia_inicio):'?'} ? ${r.vigencia_fim?formatDateBR(r.vigencia_fim):'?'}` : '?';
+        const vig = (r.tipo === 'Terceiro') ? `${r.vigencia_inicio?formatDateBR(r.vigencia_inicio):'?'} - ${r.vigencia_fim?formatDateBR(r.vigencia_fim):'?'}` : '?';
         tr.appendChild(el('td', { class:'mono tiny' }, [vig]));
 
         const edit = () => {
@@ -5790,13 +5711,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           state.demands = state.demands.filter(d => d.responsavel_id !== r.id);
           state.blockings = state.blockings.filter(b => b.recurso_id !== r.id);
           dispatch('DELETE_RESOURCE', r.id);
-          toast('Recurso exclu?do.');
+          toast('Recurso excluído.');
         };
 
         tr.appendChild(el('td', {}, [
           el('div', { class:'actionBtns' }, [
             iconButton('Editar', '✎', '', edit),
-            iconButton('Excluir', 'ðŸ—‘', 'danger', del),
+            iconButton('Excluir', '🗑', 'danger', del),
           ])
         ]));
 
@@ -5850,13 +5771,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const predio = el('input', { placeholder:'Ex: Prédio A' });
       const focal = el('input', { placeholder:'Ex: Fulano (Focal)' });
 
-      // Respons?veis: busca + chips (mais intuitivo que select multiple/Ctrl)
+      // Responsáveis: busca + chips (mais intuitivo que select multiple/Ctrl)
       const selectedRespIds = new Set();
       const respSearch = el('input', { class:'multiSelectInput', placeholder:'Digite o nome do responsável...' });
       const respChips = el('div', { style:'display:contents' });
       const respMenu = el('div', { class:'multiSelectMenu' });
       const respBox = el('div', { class:'multiSelectBox' }, [respChips, respSearch]);
-      const responsavel = el('div', { class:'multiSelect', title:'Digite para buscar e clique para adicionar respons?veis' }, [
+      const responsavel = el('div', { class:'multiSelect', title:'Digite para buscar e clique para adicionar responsáveis' }, [
         respBox,
         respMenu
       ]);
@@ -5927,7 +5848,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           .slice(0, 12);
         respMenu.innerHTML = '';
         if (!available.length) {
-          respMenu.appendChild(el('div', { class:'multiSelectEmpty' }, [q ? 'Nenhum responsável encontrado.' : 'Todos os respons?veis j? foram selecionados.']));
+          respMenu.appendChild(el('div', { class:'multiSelectEmpty' }, [q ? 'Nenhum responsável encontrado.' : 'Todos os responsáveis já foram selecionados.']));
           return;
         }
         for (const r of available) {
@@ -5984,7 +5905,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         if (st === 'Mapeada') {
           selectedRespIds.clear();
           respSearch.value = '';
-          // Mant?m o campo habilitado: se o usuário clicar em um responsável,
+          // Mantém o campo habilitado: se o usuário clicar em um responsável,
           // o status muda automaticamente para Em andamento. Isso evita depender
           // de Ctrl e evita o bloqueio visual do campo.
           respSearch.disabled = false;
@@ -6019,15 +5940,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const submit = () => {
         if (!titulo.value.trim()) return toast('Informe o título.');
 
-        // Regras: Mapeada = sempre sem responsável; demais status permitem 1 ou mais respons?veis
+        // Regras: Mapeada = sempre sem responsável; demais status permitem 1 ou mais responsáveis
         let st = normalizeStatus(status.value);
         const respIds = selectedResponsaveis();
         const hasResp = respIds.length > 0;
         if (!hasResp) st = 'Mapeada';
-        if (st !== 'Mapeada' && !hasResp) return toast('Selecione um ou mais respons?veis ou marque como Mapeada.');
+        if (st !== 'Mapeada' && !hasResp) return toast('Selecione um ou mais responsáveis ou marque como Mapeada.');
 
-        // Regra: não ? permitido CADASTRAR como Atrasada (status ? autom?tico, quando aplic?vel)
-        if (st === 'Atrasada') return toast('Status Atrasada ? autom?tico ? selecione outro status para cadastrar.');
+        // Regra: não ? permitido CADASTRAR como Atrasada (status ? automático, quando aplicável)
+        if (st === 'Atrasada') return toast('Status Atrasada ? automático ? selecione outro status para cadastrar.');
 
         // Datas: s? são opcionais quando for Mapeada (sem responsável)
         const iniVal = (ini.value || '').trim();
@@ -6070,7 +5991,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
             el('div', { class:'field' }, [el('label', {}, ['Prédio']), predio]),
             el('div', { class:'field' }, [el('label', {}, ['Focal']), focal]),
             el('div', { class:'field demandRespField' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandPercField' }, [el('label', {}, ['% di?rio']), perc]),
+            el('div', { class:'field demandPercField' }, [el('label', {}, ['% diário']), perc]),
             el('div', { class:'field' }, [el('label', {}, ['Prioridade']), prioridade]),
             el('div', { class:'field' }, [el('label', {}, ['Status']), status]),
           ]),
@@ -6136,7 +6057,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('th', {}, ['Prédio']),
         el('th', {}, ['Focal']),
         el('th', {}, ['Responsável']),
-        el('th', {}, ['Per?odo']),
+        el('th', {}, ['Período']),
         el('th', {}, ['%/dia']),
         el('th', {}, ['Prioridade']),
         el('th', {}, ['Status']),
@@ -6178,7 +6099,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const del = () => {
           if (!confirm(`Excluir demanda "${d.titulo}"?`)) return;
           dispatch('DELETE_DEMAND', d.id);
-          toast('Demanda exclu?da.');
+          toast('Demanda excluída.');
         };
 
         tr.appendChild(el('td', {}, [
@@ -6186,7 +6107,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
             iconButton('Editar', '✎', '', edit),
             iconButton('Reprogramar', '↻', '', reprogram),
             iconButton('Apontamento', '?', 'primary', apontamento),
-            iconButton('Excluir', 'ðŸ—‘', 'danger', del),
+            iconButton('Excluir', '🗑', 'danger', del),
           ])
         ]));
         tb.appendChild(tr);
@@ -6235,7 +6156,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       }, 0);
     }
 
-    // se veio de um atalho de cadastro (ex.: modal do dia), faz scroll para o formul?rio
+    // se veio de um atalho de cadastro (ex.: modal do dia), faz scroll para o formulário
     if (uiFilters.focusDemandsForm) {
       uiFilters.focusDemandsForm = false;
       setTimeout(() => {
@@ -6257,8 +6178,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const dateEnd = el('input', { type:'date' });
       const tipo = el('select', {}, [
         el('option', { value:'Férias' }, ['Férias']),
-        el('option', { value:'Reuni?o' }, ['Reuni?o']),
-        el('option', { value:'Indispon?vel' }, ['Indispon?vel']),
+        el('option', { value:'Reunião' }, ['Reunião']),
+        el('option', { value:'Indisponível' }, ['Indisponível']),
       ]);
 
       const hDate = el('input', { type:'date' });
@@ -6273,7 +6194,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
         const startDate = isoToLocalMidnight(start);
         const endDate = isoToLocalMidnight(end);
-        if (!startDate || !endDate) return toast('Informe datas v?lidas para o bloqueio.');
+        if (!startDate || !endDate) return toast('Informe datas válidas para o bloqueio.');
 
         let count = 0;
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
@@ -6305,7 +6226,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         card('Adicionar Feriado', el('div', { class:'row' }, [button('Adicionar', 'primary', addHoliday)]),
           el('div', { class:'row' }, [
             el('div', { class:'field' }, [el('label', {}, ['Data']), hDate]),
-            el('div', { class:'field' }, [el('label', {}, ['Descri??o']), hDesc]),
+            el('div', { class:'field' }, [el('label', {}, ['Descrição']), hDesc]),
           ])
         )
       ]);
@@ -6347,7 +6268,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         tr.appendChild(el('td', {}, [b.tipo]));
         tr.appendChild(el('td', {}, [
           el('div', { class:'actionBtns' }, [
-            iconButton('Excluir', 'ðŸ—‘', 'danger', () => {
+            iconButton('Excluir', '🗑', 'danger', () => {
               dispatch('DELETE_BLOCKING', b.id);
               toast('Bloqueio removido.');
             })
@@ -6391,7 +6312,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const t2 = el('table');
       t2.appendChild(el('thead', {}, [el('tr', {}, [
         el('th', {}, ['Data']),
-        el('th', {}, ['Descri??o']),
+        el('th', {}, ['Descrição']),
         el('th', {}, ['Ações'])
       ])]));
 
@@ -6402,7 +6323,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         tr.appendChild(el('td', {}, [h.descricao]));
         tr.appendChild(el('td', {}, [
           el('div', { class:'actionBtns' }, [
-            iconButton('Excluir', 'ðŸ—‘', 'danger', () => {
+            iconButton('Excluir', '🗑', 'danger', () => {
               dispatch('DELETE_HOLIDAY', h.id);
               toast('Feriado removido.');
             })
@@ -6462,7 +6383,7 @@ const viewWindows = () => {
       months: 6,
       metric: 'occupation', // 'occupation' | 'freePct' | 'freeHH'
       view: 'occupation', // 'occupation' | 'capacity_free' | 'bottleneck' | 'idleness'
-      // Padr?o: mostrar TODOS e usar paginação (evita confusão de ?sumiu recurso).
+      // Padrão: mostrar TODOS e usar paginação (evita confusão de ?sumiu recurso).
       show: 'all',  // 'top' | 'all'
       topN: 10,
       dynamicOrder: true,
@@ -6700,7 +6621,7 @@ const viewWindows = () => {
         openHeatModal({ y, m0, focusResourceId });
       }),
       button('Abrir matriz do mês', 'primary', () => {
-        // Ajusta matriz di?ria para o mês inteiro
+        // Ajusta matriz diária para o mês inteiro
         const first = new Date(y, m0, 1);
         w.start = formatDate(first);
         w.days = Math.min(365, getDaysInMonth(y, m0).length);
@@ -6791,7 +6712,7 @@ const viewWindows = () => {
     ]);
     body.appendChild(summary);
 
-    const dows = ['Dom','Seg','Ter','Qua','Qui','Sex','S?b'];
+    const dows = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
     const dowRow = el('div', { class:'monthDow' }, dows.map(x => el('div', { class:'dow' }, [x])));
     body.appendChild(dowRow);
 
@@ -6843,7 +6764,7 @@ const viewWindows = () => {
       if (isHoliday(dateStr)) cls += ' bg-holiday';
      
 
-      // Core Clean v1: fun??es consolidadas de gráfico/exportação ficam no escopo global.
+      // Core Clean v1: funções consolidadas de gráfico/exportação ficam no escopo global.
 
  if (isWeekend(d)) cls += ' mutedDay';
       if (info.capacity === 0) cls += ' zero';
@@ -6882,7 +6803,7 @@ const viewWindows = () => {
   const findNextWindow = (resourceId) => {
     const start = toDate(w.start);
     const minFree = Math.max(0, Number(w.minFree||0));
-    const MAX_LOOKAHEAD = 3650; // ~10 anos ("sem limite" na pr?tica, sem travar)
+    const MAX_LOOKAHEAD = 3650; // ~10 anos ("sem limite" na prática, sem travar)
     for (let i=0;i<MAX_LOOKAHEAD;i++) {
       const d = addDays(start, i);
       const info = freeHoursInfo(resourceId, d);
@@ -6926,9 +6847,9 @@ const viewWindows = () => {
   ]);
 
   const hint = el('div', { class:'hint tiny' }, [
-    el('b', {}, ['Modo r?pido: ']),
+    el('b', {}, ['Modo rápido: ']),
     'matriz por janelas deslizantes (sem limite) + ?Próxima janela livre. ',
-    el('b', {}, ['Janelas = capacidade remanescente di?ria. ']),
+    el('b', {}, ['Janelas = capacidade remanescente diária. ']),
     'Feriado/Bloqueio/Férias/OFF zeram o dia. Excedente (negativo) ? permitido.'
   ]);
 
@@ -7029,7 +6950,7 @@ const viewWindows = () => {
         el('div', { class:'field' }, [el('label', {}, ['Mostrar']), showSel]),
         el('div', { class:'field' }, [el('label', {}, ['Visualização']), metricSel]),
         el('div', { class:'field' }, [el('label', {}, ['Ordenar por']), dirSel]),
-        el('div', { class:'field' }, [el('label', {}, ['Ordenação din?mica']), el('div', { class:'row' }, [dynChk, el('span', { class:'tiny muted' }, ['(desligue para manter fixa)'])])]),
+        el('div', { class:'field' }, [el('label', {}, ['Ordenação dinâmica']), el('div', { class:'row' }, [dynChk, el('span', { class:'tiny muted' }, ['(desligue para manter fixa)'])])]),
         fixBtn,
         button('◀', 'ghost', () => shiftMonth(-1)),
         button('Hoje', '', () => {
@@ -7107,11 +7028,11 @@ Dias 0h: ${m.daysZero} ? Dias excedidos: ${m.daysOver}`;
     return card('Heatmap gerencial por recurso (meses)', null, el('div', { class:'grid' }, [
       el('div', { class:'tiny muted' }, ['Heatmap executivo: no modo Ocupação, a célula mostra % ocupado e horas livres; vermelho = sobrecarga/sem janela, laranja/amarelo = atenção, verde = saudável e azul = ociosidade alta. Clique em uma célula para detalhar.']),
       el('div', { class:'heatLegend' }, [
-        el('span', { class:'heatBadge heat-overload' }, ['ðŸ”´ Sobrecarga / sem janela']),
-        el('span', { class:'heatBadge heat-tight' }, ['ðŸŸ  Apertado']),
-        el('span', { class:'heatBadge heat-attention' }, ['ðŸŸ¡ Atenção']),
-        el('span', { class:'heatBadge heat-healthy' }, ['ðŸŸ¢ Saudável']),
-        el('span', { class:'heatBadge heat-free' }, ['ðŸ”µ Ociosidade alta'])
+        el('span', { class:'heatBadge heat-overload' }, ['● Sobrecarga / sem janela']),
+        el('span', { class:'heatBadge heat-tight' }, ['● Apertado']),
+        el('span', { class:'heatBadge heat-attention' }, ['● Atenção']),
+        el('span', { class:'heatBadge heat-healthy' }, ['● Saudável']),
+        el('span', { class:'heatBadge heat-free' }, ['● Ociosidade alta'])
       ]),
       heatControls,
       heatPager || el('div', { style:'display:none' }),
@@ -7229,7 +7150,7 @@ Dias 0h: ${m.daysZero} ? Dias excedidos: ${m.daysOver}`;
             const heTotal = overtimeInfo(r.id, info.dateStr).total;
             let cls = 'cell '+info.cls;
 
-            // Mant?m destaque visual para fim de semana, mas sem bloquear o dia.
+            // Mantém destaque visual para fim de semana, mas sem bloquear o dia.
             if (isWeekend(d)) cls += ' bg-wknd';
 
             tr.appendChild(el('td', { class: cls+' clickable', title: formatDateBR(info.dateStr), onclick: () => openDayDetails(r.id, d) }, [
@@ -7297,7 +7218,7 @@ Dias 0h: ${m.daysZero} ? Dias excedidos: ${m.daysOver}`;
         createdAt: Date.now(),
       });
       toast('HE adicionada.');
-      // limpa motivo para facilitar novos lan?amentos
+      // limpa motivo para facilitar novos lançamentos
       motivoInp.value = '';
       render();
     });
@@ -7336,7 +7257,7 @@ Dias 0h: ${m.daysZero} ? Dias excedidos: ${m.daysOver}`;
           el('td', { class:'tiny muted' }, [String(ot.motivo||'')]),
           el('td', {}, [
             el('div', { class:'actionBtns' }, [
-              iconButton('Excluir', 'ðŸ—‘', 'danger', () => { dispatch('DELETE_OVERTIME', { id: ot.id }); render(); toast('HE removida.'); })
+              iconButton('Excluir', '🗑', 'danger', () => { dispatch('DELETE_OVERTIME', { id: ot.id }); render(); toast('HE removida.'); })
             ])
           ])
         ]);
@@ -7396,7 +7317,7 @@ Dias 0h: ${m.daysZero} ? Dias excedidos: ${m.daysOver}`;
       ]);
 
       const toolbar = el('div', { class:'row', style:'justify-content:space-between; align-items:center;' }, [
-        el('div', { class:'tiny muted' }, ['Cadastre refor?os pontuais por data/recurso.']),
+        el('div', { class:'tiny muted' }, ['Cadastre reforços pontuais por data/recurso.']),
         el('button', { class:'btn primary', type:'button', 'data-action':'he-open' }, ['Adicionar HE'])
       ]);
 
@@ -7429,7 +7350,7 @@ Dias 0h: ${m.daysZero} ? Dias excedidos: ${m.daysOver}`;
             ]),
             el('td', {}, [
               el('div', { class:'actionBtns' }, [
-                el('button', { class:'btn iconBtn danger', type:'button', title:'Excluir', 'aria-label':'Excluir', 'data-action':'he-delete', 'data-id': String(ot.id||'') }, ['ðŸ—‘'])
+                el('button', { class:'btn iconBtn danger', type:'button', title:'Excluir', 'aria-label':'Excluir', 'data-action':'he-delete', 'data-id': String(ot.id||'') }, ['🗑'])
               ])
             ])
           ]);
@@ -7446,7 +7367,7 @@ Dias 0h: ${m.daysZero} ? Dias excedidos: ${m.daysOver}`;
 return el('div', { class:'grid' }, [
       el('div', { class:'hint tiny' }, [
         el('b', {}, ['Hora Extra (HE): ']),
-        'cadastre capacidade extra pontual por data/recurso. Útil para liberar fins de semana ou refor?os espec?ficos.'
+        'cadastre capacidade extra pontual por data/recurso. Útil para liberar fins de semana ou reforços específicos.'
       ]),
       overtimeCard
     ]);
@@ -7473,7 +7394,7 @@ return el('div', { class:'grid' }, [
     const SNAPSHOT_IMPORT_PASSWORD = "CAPVIEW";
 
     const requireSnapshotPassword = async () => {
-      const pw = prompt("Digite a senha para importar o Snapshot padr?o:");
+      const pw = prompt("Digite a senha para importar o Snapshot padrão:");
       if (!pw) return false;
       return String(pw) === SNAPSHOT_IMPORT_PASSWORD;
     };
@@ -7494,7 +7415,7 @@ return el('div', { class:'grid' }, [
 
     const importSnapshot = async (file) => {
       if (!(await requireSnapshotPassword())) {
-        toast('Senha inv?lida. Importação cancelada.');
+        toast('Senha inválida. Importação cancelada.');
         return;
       }
       const txt = await readFileText(file);
@@ -7603,7 +7524,7 @@ return el('div', { class:'grid' }, [
           backupTxt = await currentFile.text();
         }
       } catch (e) {
-        console.warn('[DB] Não foi poss?vel ler o arquivo atual para backup:', e);
+        console.warn('[DB] Não foi possível ler o arquivo atual para backup:', e);
       }
       const payload = normalizeImportedState(stateToWrite || buildDbExportObject());
       const txtOut = JSON.stringify({
@@ -7631,7 +7552,7 @@ return el('div', { class:'grid' }, [
         const latestTxt = String((latest && latest.txt) || txtOut);
         let latestObj = parseSnapshotText(latestTxt);
 
-        // Se outra inst?ncia sobrescreveu este write no mesmo intervalo, o hash esperado
+        // Se outra instância sobrescreveu este write no mesmo intervalo, o hash esperado
         // não aparece. Não assumimos sucesso: tentamos preservar a alteração local com
         // merge imediato usando a baseline conhecida.
         if (latest && latest.matchedExpectedHash === false && opts?.allowRaceRecovery !== false) {
@@ -7645,8 +7566,8 @@ return el('div', { class:'grid' }, [
               allowRaceRecovery:false
             });
           }
-          pauseDbAutoSync('conflito pós-gravação', `Autosync pausado: ${recovery.conflictCount} conflito(s) após gravação simult?nea. Use Mesclar manualmente.`);
-          const err = new Error('Conflito pós-gravação simult?nea. A fila local foi preservada para mesclagem manual.');
+          pauseDbAutoSync('conflito pós-gravação', `Autosync pausado: ${recovery.conflictCount} conflito(s) após gravação simultânea. Use Mesclar manualmente.`);
+          const err = new Error('Conflito pós-gravação simultânea. A fila local foi preservada para mesclagem manual.');
           err.name = 'PostWriteConflictError';
           throw err;
         }
@@ -7670,7 +7591,7 @@ return el('div', { class:'grid' }, [
         return latestObj;
       } catch (e) {
         if (isDbHandleRecoverableError(e) || e?.name === 'RecoverableDbHandleError') {
-          const err = new Error('O vínculo com o arquivo ficou inválido após mudan?a no disco ou restri??o do navegador. Selecione o JSON novamente para concluir o salvamento.');
+          const err = new Error('O vínculo com o arquivo ficou inválido após mudança no disco ou restrição do navegador. Selecione o JSON novamente para concluir o salvamento.');
           err.name = 'RecoverableDbHandleError';
           err.cause = e;
           throw err;
@@ -7680,10 +7601,10 @@ return el('div', { class:'grid' }, [
     };
 
 
-    // V5.4.3: guarda anti-sobrescrita r?pida.
+    // V5.4.3: guarda anti-sobrescrita rápida.
     // Como o File System Access API não oferece gravação atémica/CAS entre abas/PCs,
-    // a prote??o ?: pequena janela com atraso determin?stico por usuário + releitura
-    // imediatamente antes de gravar. Assim, quando duas inst?ncias salvam quase juntas,
+    // a proteção ?: pequena janela com atraso determinístico por usuário + releitura
+    // imediatamente antes de gravar. Assim, quando duas instâncias salvam quase juntas,
     // uma grava primeiro e a outra detecta a alteração remota e entra no merge.
     const userDelayHash = () => {
       const src = String(userId || userName || 'local');
@@ -7780,7 +7701,7 @@ return el('div', { class:'grid' }, [
         console.warn('[Autosync] Falha:', e);
         markDbSync('falha no autosync; fila preservada');
         if (e?.name === 'RecoverableDbHandleError' || isDbHandleRecoverableError(e)) {
-          // Mant?m os dados locais intactos; s? pausa a escrita autom?tica.
+          // Mantém os dados locais intactos; só pausa a escrita automática.
           pauseDbAutoSync('vínculo do BD inválido', 'Autosync pausado: selecione o BD novamente. Seus dados locais foram mantidos.');
         }
         return false;
@@ -7854,15 +7775,15 @@ return el('div', { class:'grid' }, [
       dbWatcherRunning = false;
     };
 
-    // â”€â”€â”€ Modal-based merge conflict resolution â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ---------------------------------------------------------------- Modal-based merge conflict resolution
     // Replaces the old prompt()-based approach.  Shows a proper <dialog> so the
     // user can choose Mesclar / Recarregar / Salvar Cópia without the browser
     // blocking-prompt limitation (especially bad on file:// origins).
     const resolveConcurrentSave = (remoteFile, remoteTxt) => new Promise((resolve) => {
       const remoteObj = parseSnapshotText(remoteTxt);
       const localObj  = normalizeImportedState(buildDbExportObject());
-      // CORREÃ‡ÃO: Se o baseline não existe, sintetizamos uma base aproximada a partir
-      // dos itens que são IDÃŠNTICOS em local e remoto. Itens iguais em ambos os lados
+      // CORREÇÃO: Se o baseline não existe, sintetizamos uma base aproximada a partir
+      // dos itens que são IDÊNTICOS em local e remoto. Itens iguais em ambos os lados
       // entram na base ? localChanged=false e remoteChanged=false ? são preservados
       // sem conflito. Itens que diferem ficam sem base (b=undefined) ? o merge tenta
       // unir campos. Isso é muito mais seguro que usar remoteObj como base, que fazia
@@ -7945,27 +7866,27 @@ return el('div', { class:'grid' }, [
       };
 
       btnMerge.onclick = async () => {
-        setLoading(' Mesclando vers?es?');
+        setLoading(' Mesclando versões...');
         try {
           const mergedResult = mergeStatesThreeWay(baseObj, localObj, remoteObj);
           if (mergedResult.conflictCount > 0) {
             const detailLines = (mergedResult.conflicts || []).slice(0, 8).map(c => {
               const keys = [...new Set([...(c.localChangedKeys||[]), ...(c.remoteChangedKeys||[])])].join(', ') || 'sem detalhe';
               const reason = c.reason === 'edit_vs_delete'
-                ? 'edi??o vs exclusão'
+                ? 'edição vs exclusão'
                 : c.reason === 'duplicate_new_id'
                   ? 'novo item com mesmo ID'
                   : 'mesmo campo alterado';
               return `<li><b>${c.collection}</b> ? <span class="mono">${c.id}</span> ? ${reason}<br><span class="tiny muted">Campos: ${keys}</span></li>`;
             }).join('');
             const more = mergedResult.conflictCount > 8 ? `<div class="tiny muted" style="margin-top:8px">+ ${mergedResult.conflictCount - 8} conflito(s) adicional(is).</div>` : '';
-            showResult(`? Mesclagem bloqueada para evitar sobrescrita.<br><span class="tiny">${mergedResult.autoMergedCount} item(ns) foram preparados para mesclagem autom?tica, mas ${mergedResult.conflictCount} conflito(s) exigem revisão manual.</span><div style="margin-top:10px;text-align:left"><ol style="padding-left:18px;margin:0">${detailLines}</ol>${more}</div>`, true);
+            showResult(`? Mesclagem bloqueada para evitar sobrescrita.<br><span class="tiny">${mergedResult.autoMergedCount} item(ns) foram preparados para mesclagem automática, mas ${mergedResult.conflictCount} conflito(s) exigem revisão manual.</span><div style="margin-top:10px;text-align:left"><ol style="padding-left:18px;margin:0">${detailLines}</ol>${more}</div>`, true);
             toast(`Mesclagem bloqueada: ${mergedResult.conflictCount} conflito(s) real(is) detectado(s).`);
             return;
           }
           setLoading(' Gravando no arquivo?');
           await writeStateToSelectedDb(mergedResult.merged, { backupReason:'merge' });
-          // Atualiza explicitamente o baseline p?s-merge para que o próximo salvamento
+          // Atualiza explicitamente o baseline pós-merge para que o próximo salvamento
           // compare contra a versão mesclada, não contra uma base antiga/local.
           dbLoadedSnapshot = normalizeDbStateOnly(mergedResult.merged);
           persistDbBaseline(dbLoadedSnapshot);
@@ -7975,9 +7896,9 @@ return el('div', { class:'grid' }, [
             .map(k => `${k}: ${r[k].merged}`)
             .join(' ? ');
           const autoMsg = mergedResult.autoMergedCount > 0
-            ? ` | ðŸ”€ ${mergedResult.autoMergedCount} item(ns) unidos automaticamente.`
+            ? ` | ${mergedResult.autoMergedCount} item(ns) unidos automaticamente.`
             : '';
-          showResult(`âœ… Mesclagem concluída e salva com sucesso!<br><span class="tiny">${parts}${autoMsg}</span>`);
+          showResult(`✓ Mesclagem concluída e salva com sucesso!<br><span class="tiny">${parts}${autoMsg}</span>`);
           toast(mergedResult.autoMergedCount > 0
             ? `BD mesclado e salvo com sucesso. ${mergedResult.autoMergedCount} item(ns) unidos automaticamente.`
             : 'BD mesclado e salvo com sucesso.');
@@ -8122,7 +8043,7 @@ return el('div', { class:'grid' }, [
     const body = el('div', { class:'grid' }, [
       el('div', { class:'hint tiny' }, [
         el('b', {}, ['Banco de Dados por arquivo: ']),
-        'use esta aba para apontar o JSON oficial na pasta de rede. Depois de selecionado, o app salva no arquivo e monitora alterações para mesclar o uso simult?neo.'
+        'use esta aba para apontar o JSON oficial na pasta de rede. Depois de selecionado, o app salva no arquivo e monitora alterações para mesclar o uso simultâneo.'
       ]),
       card('Banco de Dados', null, el('div', { class:'grid' }, [
         dbMeta,
@@ -8151,10 +8072,10 @@ return el('div', { class:'grid' }, [
           ])])
         ]),
         el('div', { class:'tiny muted' }, [
-          'Fluxo esperado: selecione o JSON oficial pelo botão. O caminho salvo ? apenas referência visual/cópia; por segurança do navegador, o app não tenta abrir file:// automaticamente. Ao carregar o BD, feriados j? cadastrados são preservados/mesclados e não somem.'
+          'Fluxo esperado: selecione o JSON oficial pelo botão. O caminho salvo ? apenas referência visual/cópia; por segurança do navegador, o app não tenta abrir file:// automaticamente. Ao carregar o BD, feriados já cadastrados são preservados/mesclados e não somem.'
         ]),
         el('details', { class:'hint tiny' }, [
-          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avan?ado / manuten??o do BD']),
+          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenção do BD']),
           el('div', { class:'row', style:'margin-top:10px' }, [
             button('Salvar agora no BD', '', saveToSelectedDb),
             button('Recarregar do BD', '', reloadSelectedDb),
@@ -8174,20 +8095,20 @@ return el('div', { class:'grid' }, [
             button('Limpar dados do sistema', 'danger', confirmClearAllData),
           ]),
           el('div', { class:'tiny muted', style:'margin-top:8px' }, [
-            'Use estes controles s? para recuperação, teste ou manuten??o. No uso normal, o autosync salva e recarrega automaticamente.'
+            'Use estes controles só para recuperação, teste ou manutenção. No uso normal, o autosync salva e recarrega automaticamente.'
           ])
         ])
       ])),
       card('Eventos por usuário ? anti-sobrescrita', null, el('div', { class:'grid' }, [
         el('div', { class:'hint tiny' }, [
           el('b', {}, ['Como funciona: ']),
-          'selecione uma pasta ', el('span', { class:'mono' }, ['ORIZONData']), '. O app cria/usa ', el('span', { class:'mono' }, ['snapshot.json']), ' e ', el('span', { class:'mono' }, ['events/usuario.json']), '. Cada usuário grava no pr?prio arquivo de eventos; depois o app l? todos e aplica em ordem.'
+          'selecione uma pasta ', el('span', { class:'mono' }, ['ORIZONData']), '. O app cria/usa ', el('span', { class:'mono' }, ['snapshot.json']), ' e ', el('span', { class:'mono' }, ['events/usuario.json']), '. Cada usuário grava no próprio arquivo de eventos; depois o app lê todos e aplica em ordem.'
         ]),
         el('div', { class:'row', style:'gap:8px;flex-wrap:wrap' }, [
           el('span', { class:'pill' }, [el('span', { class:`dot ${capviewEventMode.enabled ? 'bg-ok' : 'bg-over'}` }), capviewEventMode.enabled ? 'Modo Eventos ligado' : 'Modo Eventos desligado']),
           el('span', { class:'pill' }, [el('span', { class:`dot ${(capviewEventMode.autoSyncEnabled !== false && capviewEventAutoSyncTimer) ? 'bg-ok' : 'bg-mid'}` }), (capviewEventMode.autoSyncEnabled !== false && capviewEventAutoSyncTimer) ? 'Autosync eventos ativo' : (capviewEventMode.autoSyncEnabled !== false ? 'Autosync pronto' : 'Autosync eventos desligado')]),
           capviewEventMode.folderName ? el('span', { class:'tag mono' }, [capviewEventMode.folderName]) : el('span', { class:'tag' }, ['Nenhuma pasta selecionada']),
-          el('span', { class:'tag' }, ['Pendentes aplicados na ?ltima leitura: ' + Number(capviewEventMode.pendingReadCount||0)]),
+          el('span', { class:'tag' }, ['Pendentes aplicados na última leitura: ' + Number(capviewEventMode.pendingReadCount||0)]),
           el('span', { class:'tag' }, ['Outbox local: ' + loadLocalEventOutbox().length])
         ]),
         el('div', { class:'tiny muted' }, [
@@ -8195,13 +8116,13 @@ return el('div', { class:'grid' }, [
         ]),
         el('div', { class:'row' }, [
           button(capviewEventMode.folderName ? 'Trocar pasta ORIZONData' : 'Selecionar pasta ORIZONData', 'primary', selectORIZONDataFolder),
-          loadLocalEventOutbox().length ? button('Enviar pend?ncias locais', '', async () => { const n = await flushLocalEventOutbox(); toast(n + ' evento(s) enviado(s) do outbox.'); render(); }) : null,
+          loadLocalEventOutbox().length ? button('Enviar pendências locais', '', async () => { const n = await flushLocalEventOutbox(); toast(n + ' evento(s) enviado(s) do outbox.'); render(); }) : null,
         ].filter(Boolean)),
         el('div', { class:'tiny muted' }, [
           'Uso recomendado: todos apontam para a mesma pasta ORIZONData. Depois de selecionada, o app grava eventos e l? alterações automaticamente enquanto a aba est? ativa.'
         ]),
         el('details', { class:'hint tiny' }, [
-          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avan?ado / manuten??o de eventos']),
+          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenção de eventos']),
           el('div', { class:'row', style:'margin-top:10px' }, [
             button('Enviar outbox para /events', '', async () => { const n = await flushLocalEventOutbox(); toast(n + ' evento(s) enviado(s) do outbox.'); render(); }),
             button(capviewEventMode.autoSyncEnabled !== false ? 'Desligar autosync eventos' : 'Ligar autosync eventos', '', toggleEventAutoSync),
@@ -8210,7 +8131,7 @@ return el('div', { class:'grid' }, [
             button('Desligar modo eventos', 'danger', disableEventMode),
           ]),
           el('div', { class:'tiny muted', style:'margin-top:8px' }, [
-            'Use estes controles s? se o autosync estiver parado, se houver pend?ncias locais ou para manuten??o do snapshot.'
+            'Use estes controles s? se o autosync estiver parado, se houver pendências locais ou para manutenção do snapshot.'
           ])
         ])
       ])),
@@ -8249,9 +8170,9 @@ return el('div', { class:'grid' }, [
           ])
         ]),
       ])),
-      card('Auditoria r?pida', null, el('div', { class:'grid' }, [
+      card('Auditoria rápida', null, el('div', { class:'grid' }, [
         el('div', { class:'tiny' }, [`Eventos registrados: `, el('span', { class:'mono' }, [String((state.events||[]).length)])]),
-        el('div', { class:'tiny' }, ['(Dica) Para auditoria corporativa, exporte o JSONL semanalmente e mantenha no reposit?rio/pasta de rede.'])
+        el('div', { class:'tiny' }, ['(Dica) Para auditoria corporativa, exporte o JSONL semanalmente e mantenha no repositório/pasta de rede.'])
       ]))
     ]);
 
@@ -8297,7 +8218,7 @@ return el('div', { class:'grid' }, [
     else if (activeTab === 'he') view = viewOvertime();
     else if (activeTab === 'windows') view = viewWindows();
     else if (activeTab === 'consolidation') view = viewConsolidation();
-    else view = el('div', {}, ['Aba inv?lida.']);
+    else view = el('div', {}, ['Aba inválida.']);
 
     if (!hasDbBinding()) {
       root.appendChild(el('div', { class:'globalDbWarn', style:'margin-bottom:14px' }, [
@@ -8870,12 +8791,12 @@ return el('div', { class:'grid' }, [
           const blk0 = blockingFor(rid, dateStr);
           const blockedNoHe = isWeekend(dObj) || isHoliday(dateStr) || !!blk0 || isThirdPartyOff(res, dateStr);
 
-          // Regra: dias não ?teis não recebem demanda normal. Com HE, s? a capacidade extra entra.
+          // Regra: dias não úteis não recebem demanda normal. Com HE, só a capacidade extra entra.
           if (blockedNoHe && otHours <= 0) {
             return { dateStr, capacity: 0, allocated: 0, free: 0, eligible: false, overtime: ot };
           }
 
-          // Capacidade base (janelas): dia ?til = 9h; dia não ?til = 0h; HE soma sobre a data/recurso.
+          // Capacidade base (janelas): dia útil = 9h; dia não útil = 0h; HE soma sobre a data/recurso.
           let base = blockedNoHe ? 0 : HOURS_PER_DAY;
 
           const capacity = Math.max(0, Number(base || 0)) + otHours;
@@ -8922,7 +8843,7 @@ return el('div', { class:'grid' }, [
         return;
       }
       if (!resources.length) {
-        toast('Não h? recursos cadastrados para exportar.');
+        toast('Não há recursos cadastrados para exportar.');
         return;
       }
 
@@ -9168,7 +9089,7 @@ const tryClose = () => {
   wireUserModal();
 
 
-  // Mant?m m?ltiplas abas do mesmo navegador alinhadas quando o usuário ? definido em outra inst?ncia.
+  // Mantém múltiplas abas do mesmo navegador alinhadas quando o usuário é definido em outra instância.
   window.addEventListener('storage', (ev) => {
     if (ev.key === USER_KEY) {
       const u = loadUserIdentity();
@@ -9231,5 +9152,5 @@ qs('#userName').addEventListener('input', (e) => setUser(e.target.value));
 })();
 </script>
 
-</body>
-</html>
+
+</body><div id="codex-browser-sidebar-comments-root" style="position: fixed; inset: 0px; pointer-events: none; z-index: 2147483000;"></div></html>
