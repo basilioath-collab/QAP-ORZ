@@ -1699,13 +1699,6 @@ main{padding:14px;overflow-x:hidden}
   let dbBinding = loadDbMeta();
   let dbFileHandle = null;
   let dbLoadedSnapshot = loadDbBaseline();
-  let dbPathValue = localStorage.getItem(DB_PATH_KEY) || '';
-
-  const setDbPathValue = (value) => {
-    dbPathValue = String(value || '').trim();
-    localStorage.setItem(DB_PATH_KEY, dbPathValue);
-  };
-
   const setDbBinding = (meta, handle=null, loadedSnapshot=null) => {
     dbBinding = {
       mode: String(meta?.mode || 'none'),
@@ -1733,7 +1726,7 @@ main{padding:14px;overflow-x:hidden}
     if (!reason) return false;
     if (!/(v[ií]nculo|inv[aá]lid|permiss|arquivo|json|notfound|security|selecion)/i.test(reason)) return false;
     const mode = String(dbBinding?.mode || 'none');
-    return mode === 'rw' || !!dbBinding?.name || !!dbPathValue;
+    return mode === 'rw' || !!dbBinding?.name;
   };
 
   const clearOrizonLocalStorage = () => {
@@ -1753,6 +1746,7 @@ main{padding:14px;overflow-x:hidden}
         ) keys.push(key);
       }
       for (const key of keys) localStorage.removeItem(key);
+      clearDemandCreateDraft();
     } catch (e) {
       console.warn('[ORIZON Clear] Falha ao limpar localStorage:', e);
     }
@@ -1777,7 +1771,6 @@ main{padding:14px;overflow-x:hidden}
     dbFileHandle = null;
     dbLoadedSnapshot = null;
     dbBinding = { mode:'none', name:'', lastLoadedAt:'', writable:false, baselineHash:'', baselineLastModified:0, baselineSize:0 };
-    dbPathValue = '';
     capviewDataDirHandle = null;
     capviewEventsDirHandle = null;
     capviewSnapshotFileHandle = null;
@@ -2443,6 +2436,76 @@ main{padding:14px;overflow-x:hidden}
     focusDemandsList: false,
     focusDemandsForm: false,
     prefillDemand: null, // { responsavel_id, data_inicio, data_fim }
+  };
+
+  const DEMAND_CREATE_DRAFT_KEY = 'capview_demand_create_draft_v1';
+
+  const normalizeDemandCreateDraft = (draft) => {
+    if (!draft || typeof draft !== 'object') return null;
+    const responsavelIds = Array.isArray(draft.responsavelIds)
+      ? [...new Set(draft.responsavelIds.map(id => String(id || '').trim()).filter(Boolean))]
+      : [];
+    const respPctById = {};
+    const pctSource = draft.respPctById && typeof draft.respPctById === 'object' ? draft.respPctById : {};
+    for (const rid of responsavelIds) {
+      const raw = Number(pctSource[rid] ?? 100);
+      respPctById[rid] = Number.isFinite(raw) ? raw : 100;
+    }
+    return {
+      titulo: String(draft.titulo || ''),
+      predio: String(draft.predio || ''),
+      focal: String(draft.focal || ''),
+      data_inicio: String(draft.data_inicio || ''),
+      data_fim: String(draft.data_fim || ''),
+      prioridade: String(draft.prioridade || 'Média'),
+      status: normalizeStatus(draft.status || (responsavelIds.length ? 'Em andamento' : 'Mapeada')),
+      observacoes: String(draft.observacoes || ''),
+      responsavelIds,
+      respPctById,
+      updatedAt: Number(draft.updatedAt || Date.now()),
+    };
+  };
+
+  const hasMeaningfulDemandCreateDraft = (draft) => {
+    const d = normalizeDemandCreateDraft(draft);
+    if (!d) return false;
+    return !!(
+      d.titulo.trim() ||
+      d.predio.trim() ||
+      d.focal.trim() ||
+      d.data_inicio ||
+      d.data_fim ||
+      d.observacoes.trim() ||
+      d.responsavelIds.length ||
+      d.prioridade !== 'Média' ||
+      d.status !== 'Mapeada'
+    );
+  };
+
+  const loadDemandCreateDraft = () => {
+    try {
+      const raw = sessionStorage.getItem(DEMAND_CREATE_DRAFT_KEY);
+      return raw ? normalizeDemandCreateDraft(JSON.parse(raw)) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const saveDemandCreateDraft = (draft) => {
+    try {
+      const normalized = normalizeDemandCreateDraft({ ...(draft || {}), updatedAt: Date.now() });
+      if (!hasMeaningfulDemandCreateDraft(normalized)) {
+        sessionStorage.removeItem(DEMAND_CREATE_DRAFT_KEY);
+        return;
+      }
+      sessionStorage.setItem(DEMAND_CREATE_DRAFT_KEY, JSON.stringify(normalized));
+    } catch (e) {
+      console.warn('[ORIZON Draft] Falha ao salvar rascunho da demanda:', e);
+    }
+  };
+
+  const clearDemandCreateDraft = () => {
+    try { sessionStorage.removeItem(DEMAND_CREATE_DRAFT_KEY); } catch {}
   };
 
   // Busca por título sem perder foco: evita render() a cada tecla de forma destrutiva.
@@ -4941,8 +5004,9 @@ main{padding:14px;overflow-x:hidden}
       const allocValidation = validateDemandAllocationLimits(allocations);
       if (!allocValidation.ok) { toast(allocValidation.msg); return; }
       const primaryResponsavelId = allocations[0]?.resourceId || '';
+      const latestDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
       const next = {
-        ...demand,
+        ...latestDemand,
         titulo: titleVal,
         predio: predioVal,
         focal: focalVal,
@@ -5546,7 +5610,7 @@ main{padding:14px;overflow-x:hidden}
     return el('span', { class:`statusPill s-${key}`, title: title || undefined }, children);
   };
 
-  const button = (label, cls, onClick) => el('button', { class:'btn '+(cls||''), type:'button', onclick:onClick }, [label]);
+  const button = (label, cls, onClick, attrs={}) => el('button', { class:'btn '+(cls||''), type:'button', onclick:onClick, ...(attrs || {}) }, [label]);
   const iconButton = (label, icon, cls, onClick) => el('button', {
     class:'btn iconBtn '+(cls||''),
     type:'button',
@@ -6705,6 +6769,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         respBox,
         respMenu
       ]);
+      let persistDemandCreateDraft = () => {};
 
       const getRespName = (id) => (state.resources||[]).find(r => r.id === id)?.nome || id;
       const selectedResponsaveis = () => [...selectedRespIds].filter(Boolean);
@@ -6727,6 +6792,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         renderRespOptions();
         restoreRespBoxScroll(keepScrollLeft, false);
         if (selectedRespIds.size === 0) { status.value = 'Mapeada'; syncMapeada(); }
+        persistDemandCreateDraft();
       };
 
       const respAllocList = el('div', { class:'respAllocList' });
@@ -6744,6 +6810,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const rid = String(respAllocPick.value || '');
         if (!rid) return;
         respPctById.set(rid, Number(respAllocPctEditor.value || 0));
+        persistDemandCreateDraft();
       });
       const renderRespChips = () => {
         const keepScrollLeft = respBox ? respBox.scrollLeft : 0;
@@ -6776,7 +6843,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           });
           respChips.appendChild(chip);
           const pct = el('input', { type:'number', min:'0', max:'100', step:'5', value:String(respPctById.get(rid) ?? 100), disabled: ids.length >= 2 ? '' : null });
-          pct.addEventListener('input', () => { respPctById.set(rid, Number(pct.value || 0)); });
+          pct.addEventListener('input', () => { respPctById.set(rid, Number(pct.value || 0)); persistDemandCreateDraft(); });
           respAllocList.appendChild(el('div', { class:'respAllocRow' }, [
             el('div', { class:'respAllocName', title:getRespName(rid) }, [getRespName(rid)]),
             el('div', { class:'respAllocPct' }, [el('label', {}, ['% diário']), pct]),
@@ -6797,6 +6864,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         renderRespOptions();
         openRespMenu();
         restoreRespBoxScroll(keepScrollLeft, wasAtEnd);
+        persistDemandCreateDraft();
       };
 
       const renderRespOptions = () => {
@@ -6875,13 +6943,55 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         renderRespChips();
         renderRespOptions();
       };
-      status.addEventListener('change', syncMapeada);
+      persistDemandCreateDraft = () => saveDemandCreateDraft({
+        titulo: titulo.value,
+        predio: predio.value,
+        focal: focal.value,
+        data_inicio: ini.value,
+        data_fim: fim.value,
+        prioridade: prioridade.value,
+        status: normalizeStatus(status.value),
+        observacoes: obs.value,
+        responsavelIds: selectedResponsaveis(),
+        respPctById: Object.fromEntries([...respPctById].map(([rid, pct]) => [rid, Number(pct || 0)])),
+      });
+
+      const restoreDemandCreateDraft = (draft) => {
+        const d = normalizeDemandCreateDraft(draft);
+        if (!hasMeaningfulDemandCreateDraft(d)) return false;
+        titulo.value = d.titulo || '';
+        predio.value = d.predio || '';
+        focal.value = d.focal || '';
+        ini.value = d.data_inicio || '';
+        fim.value = d.data_fim || '';
+        prioridade.value = ['Baixa','Média','Alta','Crítica'].includes(d.prioridade) ? d.prioridade : 'Média';
+        status.value = d.status || (d.responsavelIds.length ? 'Em andamento' : 'Mapeada');
+        obs.value = d.observacoes || '';
+        selectedRespIds.clear();
+        respPctById.clear();
+        for (const rid of d.responsavelIds) {
+          selectedRespIds.add(rid);
+          respPctById.set(rid, Number(d.respPctById?.[rid] ?? 100));
+        }
+        if (selectedRespIds.size && normalizeStatus(status.value) === 'Mapeada') status.value = 'Em andamento';
+        syncMapeada();
+        return true;
+      };
+
+      const draftRestored = restoreDemandCreateDraft(loadDemandCreateDraft());
+      status.addEventListener('change', () => { syncMapeada(); persistDemandCreateDraft(); });
+      [titulo, predio, focal, ini, fim, prioridade, obs].forEach(field => {
+        field.addEventListener('input', persistDemandCreateDraft);
+        field.addEventListener('change', persistDemandCreateDraft);
+      });
       // default
-      status.value = 'Mapeada';
-      syncMapeada();
+      if (!draftRestored) {
+        status.value = 'Mapeada';
+        syncMapeada();
+      }
 
       // Prefill vindo de atalhos (ex.: abrir dia na matriz de janelas e clicar em "Cadastrar demanda")
-      if (uiFilters.prefillDemand) {
+      if (uiFilters.prefillDemand && !draftRestored) {
         const p = uiFilters.prefillDemand;
         if (p.data_inicio) ini.value = p.data_inicio;
         if (p.data_fim) fim.value = p.data_fim;
@@ -6892,6 +7002,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           status.value = 'Mapeada';
         }
         syncMapeada();
+        persistDemandCreateDraft();
+        uiFilters.prefillDemand = null;
+      } else if (uiFilters.prefillDemand) {
         uiFilters.prefillDemand = null;
       }
 
@@ -6944,9 +7057,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           allocations,
           responsavel_id: allocations[0]?.resourceId || '',
         };
-        dispatch('ADD_DEMAND', { ...basePayload, id: generateId() });
+        const newDemand = { ...basePayload, id: generateId() };
+        dispatch('ADD_DEMAND', newDemand);
+        const added = (state.demands || []).some(d => String(d.id) === String(newDemand.id));
+        if (!added) return;
+        clearDemandCreateDraft();
         titulo.value=''; predio.value=''; selectedRespIds.clear(); respPctById.clear(); respSearch.value=''; focal.value=''; ini.value=''; fim.value=''; obs.value=''; prioridade.value='Média'; status.value='Mapeada';
         syncMapeada();
+        render();
         toast('Demanda adicionada.');
       };
 
@@ -9095,21 +9213,6 @@ return el('div', { class:'grid' }, [
       toast('Modelo de BD exportado.');
     };
 
-    const copyDbPath = async () => {
-      if (!dbPathValue) {
-        toast('Nenhum caminho salvo.');
-        return;
-      }
-      try {
-        await navigator.clipboard.writeText(dbPathValue);
-        toast('Caminho copiado.');
-      } catch {
-        const copied = fallbackCopyText(dbPathValue);
-        toast(copied ? 'Caminho copiado.' : 'Não foi possível copiar o caminho.');
-      }
-    };
-
-    const dbPathInput = el('input', { type:'text', value: dbPathValue, placeholder:'\\servidor\pasta\arquivo.json' });
 
     const dbStatusPill = (() => {
       let label = 'Nenhum BD vinculado';
@@ -9141,67 +9244,57 @@ return el('div', { class:'grid' }, [
       ]),
       card('Banco JSON direto (avançado)', null, el('div', { class:'grid' }, [
         dbMeta,
-        el('div', { class:'row' }, [
-          el('div', { class:'field' }, [
-            el('label', {}, ['Banco JSON oficial']),
+        el('div', { class:'tiny muted' }, [
+          'Fluxo esperado: selecione o JSON oficial pelo botão. Por segurança do navegador, o app não tenta abrir file:// automaticamente. Ao carregar o BD, feriados já cadastrados são preservados/mesclados e não somem.'
+        ]),
+        el('details', { class:'hint tiny' }, [
+          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenção do BD']),
+          el('div', { class:'grid', style:'margin-top:10px' }, [
+            el('div', { class:'field', style:'max-width:260px' }, [
+              el('label', {}, ['Senha de manutenção']),
+              el('input', {
+                type:'password',
+                placeholder:'Digite a senha',
+                autocomplete:'off',
+                oninput:(ev) => {
+                  const unlocked = String(ev.target.value || '') === 'manutencao';
+                  const details = ev.target.closest('details');
+                  if (!details) return;
+                  details.querySelectorAll('[data-maintenance-action="1"]').forEach(btn => { btn.disabled = unlocked ? null : true; });
+                  const status = details.querySelector('[data-maintenance-status="1"]');
+                  if (status) status.textContent = unlocked ? 'Acesso liberado.' : 'Digite a senha para liberar as ações.';
+                }
+              })
+            ]),
             el('div', { class:'row' }, [
-              button(dbBinding.mode === 'rw' ? 'Trocar arquivo JSON' : 'Selecionar arquivo JSON', 'primary', selectDbReadWrite),
-              dbAutoSyncPauseReason ? button('Religar autosync', 'primary', () => {
+              button('Salvar agora no BD', '', saveToSelectedDb, { disabled:true, 'data-maintenance-action':'1' }),
+              button('Recarregar do BD', '', reloadSelectedDb, { disabled:true, 'data-maintenance-action':'1' }),
+              button('Ligar autosync', '', () => {
                 if (capviewEventMode.enabled) {
                   disableDbAutoSyncForEventMode();
-                  toast('Modo Eventos ativo: autosync do BD permanece desligado.');
+                  toast('Modo Eventos ativo: desligue o modo Eventos antes de ligar autosync do BD.');
                   render();
                   return;
                 }
+                const wasPaused = !!dbAutoSyncPauseReason;
+                const wasEnabled = !!dbAutoSyncEnabled;
                 dbAutoSyncEnabled = true;
                 localStorage.setItem('capview_db_autosync_enabled', '1');
                 clearDbAutoSyncPause();
                 startDbWatcher();
-                scheduleDbAutoSave('resume-merge');
-                toast('Autosync religado: mesclando com o BD mais atual.');
-                render();
-              }) : null,
-            ].filter(Boolean))
-          ])
-        ]),
-        el('div', { class:'row' }, [
-          el('div', { class:'field', style:'flex:1;min-width:320px' }, [el('label', {}, ['Caminho do BD de Rede']), dbPathInput]),
-          el('div', { class:'field' }, [el('label', {}, ['Ações']), el('div', { class:'row' }, [
-            button('Salvar caminho', '', () => { setDbPathValue(dbPathInput.value); toast('Caminho salvo localmente.'); }),
-            button('Copiar', '', copyDbPath),
-          ])])
-        ]),
-        el('div', { class:'tiny muted' }, [
-          'Fluxo esperado: selecione o JSON oficial pelo botão. O caminho salvo é apenas referência visual/cópia; por segurança do navegador, o app não tenta abrir file:// automaticamente. Ao carregar o BD, feriados já cadastrados são preservados/mesclados e não somem.'
-        ]),
-        el('details', { class:'hint tiny' }, [
-          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenão do BD']),
-          el('div', { class:'row', style:'margin-top:10px' }, [
-            button('Salvar agora no BD', '', saveToSelectedDb),
-            button('Recarregar do BD', '', reloadSelectedDb),
-            button(dbAutoSyncEnabled ? 'Desligar autosync' : 'Ligar autosync', '', () => {
-              if (!dbAutoSyncEnabled && capviewEventMode.enabled) {
-                disableDbAutoSyncForEventMode();
-                toast('Modo Eventos ativo: desligue o modo Eventos antes de ligar autosync do BD.');
-                render();
-                return;
-              }
-              dbAutoSyncEnabled = !dbAutoSyncEnabled;
-              localStorage.setItem('capview_db_autosync_enabled', dbAutoSyncEnabled ? '1' : '0');
-              if (dbAutoSyncEnabled) {
-                const wasPaused = !!dbAutoSyncPauseReason;
-                clearDbAutoSyncPause();
-                startDbWatcher();
                 scheduleDbAutoSave(wasPaused ? 'resume-merge' : 'toggle-on');
-                toast(wasPaused ? 'Autosync religado: mesclando com o BD mais atual.' : 'Autosync ligado.');
-              }
-              else { stopDbWatcher(); clearDbAutoSyncPause(); toast('Autosync desligado.'); }
-              render();
-            }),
-            button('Limpar dados do sistema', 'danger', confirmClearAllData),
-          ]),
-          el('div', { class:'tiny muted', style:'margin-top:8px' }, [
-            'Use estes controles só para recuperação, teste ou manutenão. No uso normal, o autosync salva e recarrega automaticamente.'
+                toast(wasPaused ? 'Autosync religado: mesclando com o BD mais atual.' : (wasEnabled ? 'Autosync já está ligado.' : 'Autosync ligado.'));
+                render();
+              }, { disabled:true, 'data-maintenance-action':'1' }),
+              button('Limpar dados do sistema', 'danger', confirmClearAllData, { disabled:true, 'data-maintenance-action':'1' }),
+              button(dbBinding.mode === 'rw' ? 'Trocar arquivo JSON' : 'Selecionar arquivo JSON', 'primary', selectDbReadWrite, { disabled:true, 'data-maintenance-action':'1' }),
+            ]),
+            el('div', { class:'tiny muted', 'data-maintenance-status':'1' }, [
+              'Digite a senha para liberar as ações.'
+            ]),
+            el('div', { class:'tiny muted' }, [
+              'Use estes controles só para recuperação, teste ou manutenção. No uso normal, o autosync salva e recarrega automaticamente.'
+            ])
           ])
         ])
       ])),
