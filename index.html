@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ORIZON - Planejamento &amp; Performance</title>
     <!-- ORIZON PWA / Instalável -->
-  <meta name="theme-color" content="#5126A8">
+  <meta name="theme-color" content="#050505">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="msapplication-TileColor" content="#5126A8">
+  <meta name="msapplication-TileColor" content="#050505">
   <meta name="application-name" content="ORIZON">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="ORIZON">
@@ -28,24 +28,30 @@
   </script>
 <style>
     :root{
-      --header:#5126A8;
-      --header-hover:#6D3BDB;
-      --accent:#7C5CFF;
-      --success:#A6E22E;
+      --brand-black:#050505;
+      --brand-ink:#0B0D0A;
+      --brand-white:#F8F7F2;
+      --brand-lime:#8AD420;
+      --brand-lime-hover:#9BE622;
+
+      --header:var(--brand-black);
+      --header-hover:var(--brand-ink);
+      --accent:var(--brand-lime);
+      --success:var(--brand-lime);
       --danger:#DC2626;
       --warning:#F59E0B;
-      --bg:#F5F7FA;
+      --bg:#F8F7F2;
       --surface:#FFFFFF;
-      --border:#D8E0E8;
-      --text:#1E293B;
-      --muted:#64748B;
+      --border:#DADDD2;
+      --text:#10120E;
+      --muted:#66705D;
 
       --primary:var(--header-hover);
       --primary-light:var(--accent);
-      --primary-soft:rgba(124,92,255,.12);
-      --primary-wash:rgba(124,92,255,.07);
-      --success-soft:rgba(166,226,46,.18);
-      --success-wash:rgba(166,226,46,.12);
+      --primary-soft:rgba(138,212,32,.14);
+      --primary-wash:rgba(138,212,32,.08);
+      --success-soft:rgba(138,212,32,.20);
+      --success-wash:rgba(138,212,32,.12);
       --warning-soft:rgba(245,158,11,.14);
       --alert:var(--warning);
       --alert-soft:rgba(245,158,11,.12);
@@ -64,10 +70,10 @@
       --chart-atrasada:#DC2626;
       --chart-concluida:#16A34A;
       --chart-mapeada:#94A3B8;
-      --chart-congelada:var(--progress-cyan);
+      --chart-congelada:#D18A00;
       --progress-cyan:#06B6D4;
       --bg-dark:var(--header);
-      --shadow:0 1px 2px rgba(15,23,42,.05), 0 14px 30px rgba(40,28,88,.09);
+      --shadow:0 1px 2px rgba(16,18,14,.05), 0 14px 30px rgba(5,5,5,.08);
       --radius:10px;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: Inter, "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
@@ -76,7 +82,7 @@
     html,body{height:100%}
     body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;letter-spacing:0}
     .sticky{position:sticky;top:0;z-index:50}
-    header{background:var(--header);border-bottom:1px solid rgba(255,255,255,.18);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;color:#fff;box-shadow:0 10px 28px rgba(35,18,82,.22)}
+    header{background:var(--header);border-bottom:1px solid rgba(138,212,32,.28);padding:18px 22px;display:flex;align-items:center;justify-content:space-between;color:#fff;box-shadow:0 10px 28px rgba(5,5,5,.28)}
     header h1{margin:0;font-size:22px;line-height:1.05;letter-spacing:.12em;font-weight:950}
     header h1 .brandSub{display:block;margin-left:4px;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:rgba(255,255,255,.78);font-weight:750}
     header p{margin:6px 0 0 0;font-size:11px;color:rgba(255,255,255,.78);letter-spacing:.12em;text-transform:uppercase;font-weight:800}
@@ -85,7 +91,7 @@
     @media (min-width:640px){.userBox .meta{display:block}}
     .userBox .meta label{display:block;font-size:11px;color:rgba(255,255,255,.72)}
     .userBox input{font-size:13px;font-weight:700;border:1px solid transparent;background:rgba(255,255,255,.08);color:#fff;padding:2px 6px;border-radius:8px;outline:none;text-align:right;max-width:220px}
-    .userBox input:focus{border-color:var(--success);background:rgba(166,226,46,.14)}
+    .userBox input:focus{border-color:var(--success);background:rgba(138,212,32,.14)}
     .userBox input.locked{cursor:not-allowed;border-color:rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:rgba(255,255,255,.9)}
     .avatar{height:42px;width:42px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;color:white;font-weight:900;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .12s ease}
     .avatar:hover{background:var(--success);border-color:var(--success);color:var(--header);transform:translateY(-1px)}
@@ -111,9 +117,9 @@
     .btn{border:1px solid var(--border);background:#fff;color:var(--text);padding:9px 13px;border-radius:8px;font-weight:850;cursor:pointer;transition:background-color .14s ease,border-color .14s ease,color .14s ease,box-shadow .14s ease,transform .08s ease}
     .btn:hover{border-color:var(--header-hover);background:var(--primary-wash);color:var(--header-hover)}
     .btn:active{transform:translateY(1px)}
-    .btn:focus-visible{outline:3px solid rgba(124,92,255,.24);outline-offset:2px}
+    .btn:focus-visible{outline:3px solid rgba(138,212,32,.34);outline-offset:2px}
     .btn.primary{background:var(--header-hover);color:#fff;border-color:var(--header-hover)}
-    .btn.primary:hover{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 8px 18px rgba(109,59,219,.22)}
+    .btn.primary:hover{background:var(--accent);border-color:var(--accent);color:var(--header);box-shadow:0 8px 18px rgba(138,212,32,.24)}
     .btn.danger{background:#fff;border-color:var(--danger-border);color:var(--danger)}
     .btn.danger:hover{border-color:var(--danger);background:var(--danger-soft);color:var(--danger)}
     .btn.ghost{background:transparent}
@@ -146,7 +152,7 @@
     thead th{font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:900;background:#F8FAFC}
     tbody tr{transition:background-color .12s ease}
     table:not(.calTable) tbody tr:nth-child(even) td{background:rgba(248,250,252,.48)}
-    table:not(.calTable) tbody tr:hover td{background:rgba(91,77,255,.055)}
+    table:not(.calTable) tbody tr:hover td{background:rgba(138,212,32,.08)}
     .tiny{font-size:11px;color:var(--muted)}
     .muted{color:var(--muted)}
     .mono{font-family:var(--mono)}
@@ -246,7 +252,7 @@
     .bg-holiday{background:linear-gradient(135deg,#F1F5F9 0,#F1F5F9 58%,#E2E8F0 58%,#E2E8F0 100%) !important;color:#334155 !important;border-color:#CBD5E1 !important;font-weight:950;box-shadow:inset 0 0 0 1px rgba(100,116,139,.26)}
     .bg-holiday .top,.bg-holiday .sub,.dayHead.bg-holiday{font-weight:950;color:#334155 !important}
     .bg-off{background:#FAFBFC !important;color:#94A3B8 !important;border-color:#E2E8F0 !important;box-shadow:inset 0 0 0 1px rgba(203,213,225,.45)}
-    .bg-vac{background:#F3EFFE !important;color:#6D3BDB !important;border-color:#C4B5FD !important}
+    .bg-vac{background:rgba(138,212,32,.14) !important;color:#446A0C !important;border-color:rgba(138,212,32,.48) !important}
     .bg-he{background:rgba(6,182,212,.10) !important;color:#0E7490 !important;border-color:rgba(6,182,212,.42) !important}
     .cell.has-he{box-shadow:inset 0 -2px 0 rgba(6,182,212,.7)}
     .heRow td{background:var(--primary-soft);border-bottom:1px solid var(--primary-light)}
@@ -453,8 +459,8 @@ main{padding:14px;overflow-x:hidden}
 .eventFolderStatus{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(255,255,255,.24);border-radius:999px;padding:8px 12px;background:rgba(255,255,255,.10);color:#fff;font-size:12px;font-weight:950;cursor:pointer;white-space:nowrap;box-shadow:inset 0 0 0 1px rgba(255,255,255,.06);transition:transform .12s ease,background-color .16s ease,border-color .16s ease,color .16s ease}
 .eventFolderStatus:hover{transform:translateY(-1px);background:rgba(255,255,255,.16)}
 .eventFolderStatus .eventFolderDot{width:10px;height:10px;border-radius:999px;background:#DC2626;box-shadow:0 0 0 3px rgba(220,38,38,.18)}
-.eventFolderStatus.connected{background:rgba(166,226,46,.16);border-color:rgba(166,226,46,.72);color:#fff}
-.eventFolderStatus.connected .eventFolderDot{background:#A6E22E;box-shadow:0 0 0 3px rgba(166,226,46,.20)}
+.eventFolderStatus.connected{background:rgba(138,212,32,.16);border-color:rgba(138,212,32,.72);color:#fff}
+.eventFolderStatus.connected .eventFolderDot{background:var(--brand-lime);box-shadow:0 0 0 3px rgba(138,212,32,.20)}
 .eventFolderStatus.reconnect{background:rgba(220,38,38,.22);border-color:rgba(248,113,113,.88);color:#fff}
 .eventFolderStatus.reconnect .eventFolderDot{background:#DC2626;box-shadow:0 0 0 3px rgba(220,38,38,.24)}
 .eventFolderStatus.disconnected{background:rgba(220,38,38,.18);border-color:rgba(248,113,113,.72);color:#fff}
@@ -485,7 +491,7 @@ main{padding:14px;overflow-x:hidden}
     .legendDot.mid{background:#F59E0B}
     .legendDot.over{background:#DC2626}
     .legendDot.block{background:#94A3B8}
-    .legendDot.vac{background:#7C5CFF}
+    .legendDot.vac{background:var(--brand-lime)}
     .legendDot.holiday{background:#E2E8F0;border-color:#94A3B8}
     .legendDot.he{background:var(--progress-cyan)}
     .legendDot.off{background:var(--surface);border:1px solid var(--muted)}
@@ -576,7 +582,7 @@ main{padding:14px;overflow-x:hidden}
     height:64px;
     width:auto;
     object-fit:contain;
-    filter:drop-shadow(0 2px 10px rgba(166,226,46,.18));
+    filter:drop-shadow(0 2px 10px rgba(138,212,32,.22));
 }
 
 .brandText h1{
@@ -4278,7 +4284,7 @@ main{padding:14px;overflow-x:hidden}
           const iaHours = Math.max(0, Number(ia.horas_dia || ia.horas || 0));
           const trIa = el('tr');
           trIa.appendChild(el('td', {}, [
-            el('div', { style:'font-weight:950;color:#6d3bdb' }, [`Interna - ${iaTitle}`]),
+            el('div', { style:'font-weight:950;color:#446A0C' }, [`Interna - ${iaTitle}`]),
             el('div', { class:'tiny' }, [ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade'])
           ]));
           trIa.appendChild(el('td', {}, [el('span', { class:'statusPill s-andamento' }, [el('span', { class:'sDot' }), 'Atividade interna'])]));
@@ -9503,7 +9509,7 @@ return el('div', { class:'grid' }, [
  xmlns:x="urn:schemas-microsoft-com:office:excel"
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
  <Styles>
-  <Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#EEF2FF" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#EAF8D1" ss:Pattern="Solid"/></Style>
  </Styles>
  ${sheets.map(s => worksheetXml(s.name, s.headers, s.rows)).join('')}
 </Workbook>`;
