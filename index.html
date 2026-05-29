@@ -626,7 +626,7 @@ main{padding:14px;overflow-x:hidden}
   <div class="userBox">
     <div class="meta">
       <label>Usuário Ativo</label>
-      <input id="userName" value="">
+      <input id="userName" value="" maxlength="30">
     </div>
     <div class="avatar" id="avatar" role="button" tabindex="0">A</div>
   </div>
@@ -859,7 +859,7 @@ main{padding:14px;overflow-x:hidden}
       <div class="formStack">
         <div>
           <label class="lbl">Nome completo</label>
-          <input id="userModalName" placeholder="Ex.: Arthur Basílio">
+          <input id="userModalName" placeholder="Ex.: Arthur Basílio" maxlength="30">
           <div class="hint tiny">Use seu nome como no crachá.</div>
         </div>
 
@@ -2378,6 +2378,8 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const validateApontamentoInput = ({ data, etapa, horas }, demand={}) => {
+    const dateValidation = validateDateYearLimit(data, 'Data do apontamento');
+    if (dateValidation) return dateValidation;
     if (!isISODateString(data)) return 'Informe uma data válida para o apontamento.';
     if (!normalizeProjectStep(etapa)) return 'Informe a etapa do projeto.';
     if (!Number.isFinite(horas) || horas <= 0) return 'Informe horas gastas maior que zero.';
@@ -3162,6 +3164,8 @@ main{padding:14px;overflow-x:hidden}
       updateAvatar();
       return;
     }
+    const validation = validateTextLimit(name, 'Nome do usuário', INPUT_LIMITS.userName, { required:true });
+    if (validation) { toast(validation); updateAvatar(); return; }
     const u = ensureUserIdentity(name);
     userName = u.displayName;
     userId = u.userId;
@@ -3209,6 +3213,72 @@ main{padding:14px;overflow-x:hidden}
     return internalActivitiesForResourceOnDate(resourceId, dateObj, { onlyCapacity:true })
       .reduce((acc, a) => acc + Math.max(0, Number(a?.horas_dia || a?.horas || 0)), 0);
   };
+  const INPUT_LIMITS = {
+    userName: 30,
+    resourceName: 30,
+    demandTitle: 80,
+    building: 50,
+    focal: 60,
+    demandNotes: 500,
+    shortNote: 180,
+    justification: 400,
+  };
+  const MIN_APP_YEAR = 2000;
+  const MAX_APP_YEAR = 2100;
+
+  const validateTextLimit = (value, label, max, { required=false } = {}) => {
+    const text = String(value || '').trim();
+    if (required && !text) return `${label}: preenchimento obrigatório.`;
+    if (text.length > max) return `${label}: limite de ${max} caracteres.`;
+    return '';
+  };
+
+  const validateDateYearLimit = (value, label) => {
+    const date = String(value || '').trim();
+    if (!date) return '';
+    if (!isISODateString(date)) return `${label}: informe uma data válida.`;
+    const year = Number(date.slice(0, 4));
+    if (year < MIN_APP_YEAR || year > MAX_APP_YEAR) return `${label}: use datas entre ${MIN_APP_YEAR} e ${MAX_APP_YEAR}.`;
+    return '';
+  };
+
+  const validateDateRangeLimits = (start, end, { allowEmpty=false, label='Período' } = {}) => {
+    const ini = String(start || '').trim();
+    const fim = String(end || '').trim();
+    if (!allowEmpty && (!ini || !fim)) return `${label}: informe início e fim.`;
+    if ((ini && !fim) || (!ini && fim)) return `${label}: preencha início e fim ou deixe ambos em branco.`;
+    const startValidation = validateDateYearLimit(ini, `${label} início`);
+    if (startValidation) return startValidation;
+    const endValidation = validateDateYearLimit(fim, `${label} fim`);
+    if (endValidation) return endValidation;
+    if (ini && fim && fim < ini) return `${label}: a data fim não pode ser anterior ao início.`;
+    return '';
+  };
+
+  const validateResourcePayload = ({ nome, vigencia_inicio='', vigencia_fim='', tipo='Interno' } = {}) => {
+    const nameValidation = validateTextLimit(nome, 'Nome do recurso', INPUT_LIMITS.resourceName, { required:true });
+    if (nameValidation) return nameValidation;
+    if (String(tipo || '').trim() === 'Terceiro') {
+      return validateDateRangeLimits(vigencia_inicio, vigencia_fim, { allowEmpty:true, label:'Vigência do terceiro' });
+    }
+    return '';
+  };
+
+  const validateDemandFields = ({ titulo='', predio='', focal='', data_inicio='', data_fim='', observacoes='', status='Mapeada' } = {}) => {
+    const textRules = [
+      ['Título', titulo, INPUT_LIMITS.demandTitle, true],
+      ['Prédio', predio, INPUT_LIMITS.building, false],
+      ['Focal', focal, INPUT_LIMITS.focal, false],
+      ['Observações', observacoes, INPUT_LIMITS.demandNotes, false],
+    ];
+    for (const [label, value, max, required] of textRules) {
+      const validation = validateTextLimit(value, label, max, { required });
+      if (validation) return validation;
+    }
+    const isMapped = normalizeStatus(status) === 'Mapeada';
+    return validateDateRangeLimits(data_inicio, data_fim, { allowEmpty:isMapped, label: isMapped ? 'Período da demanda mapeada' : 'Período da demanda' });
+  };
+
   const validateDemandAllocationLimits = (allocations=[]) => {
     const list = Array.isArray(allocations) ? allocations : [];
     for (const a of list) {
@@ -4347,9 +4417,9 @@ main{padding:14px;overflow-x:hidden}
     const body = qs('#demandEditModalBody');
     body.innerHTML = '';
 
-    const titulo = el('input', { value: demand.titulo || '', placeholder:'Ex: PQ Sistema X' });
-    const predio = el('input', { value: demand.predio || '', placeholder:'Ex: Prédio A' });
-    const focal = el('input', { value: demand.focal || '', placeholder:'Ex: Fulano (Focal)' });
+    const titulo = el('input', { value: demand.titulo || '', placeholder:'Ex: PQ Sistema X', maxlength:String(INPUT_LIMITS.demandTitle) });
+    const predio = el('input', { value: demand.predio || '', placeholder:'Ex: Prédio A', maxlength:String(INPUT_LIMITS.building) });
+    const focal = el('input', { value: demand.focal || '', placeholder:'Ex: Fulano (Focal)', maxlength:String(INPUT_LIMITS.focal) });
 
     const selectedRespIds = new Set();
     const respPctById = new Map();
@@ -4474,8 +4544,8 @@ main{padding:14px;overflow-x:hidden}
     });
     document.addEventListener('mousedown', (ev) => { if (!responsavel.contains(ev.target)) closeRespMenu(); });
 
-    const ini = el('input', { type:'date', value: demand.data_inicio || '' });
-    const fim = el('input', { type:'date', value: demand.data_fim || '' });
+    const ini = el('input', { type:'date', value: demand.data_inicio || '', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const fim = el('input', { type:'date', value: demand.data_fim || '', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const prioridade = el('select', {}, [
       el('option', { value:'Baixa' }, ['Baixa']),
       el('option', { value:'Média' }, ['Média']),
@@ -4493,9 +4563,9 @@ main{padding:14px;overflow-x:hidden}
     ]);
     status.value = normalizeStatus(demand.status);
 
-    const obs = el('textarea', { placeholder:'Observações...' }, [demand.observacoes || '']);
+    const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [demand.observacoes || '']);
 
-    const just = el('textarea', { placeholder:'Justificativa (opcional)...', style:'min-height:92px' });
+    const just = el('textarea', { placeholder:'Justificativa (opcional)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
     const justHint = el('div', { class:'tiny muted' }, [
       'Se você preencher, a justificativa será registrada no histórico (events) do app para rastreabilidade.'
     ]);
@@ -4503,11 +4573,11 @@ main{padding:14px;overflow-x:hidden}
     // v0.2.2 ? Apontamentos reais com timeline visual por demanda.
     let apontamentos = normalizeDemandApontamentos(demand);
     let editingAptId = '';
-    const aptData = el('input', { type:'date', value: todayISO() });
+    const aptData = el('input', { type:'date', value: todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const aptEtapa = el('select');
     for (const step of PROJECT_STEP_OPTIONS) aptEtapa.appendChild(el('option', { value:step }, [step]));
     const aptHoras = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:30 ou 2.5' });
-    const aptObs = el('input', { placeholder:'Observação do apontamento...' });
+    const aptObs = el('input', { placeholder:'Observação do apontamento...', maxlength:String(INPUT_LIMITS.shortNote) });
     const aptList = el('div');
     const aptSummary = el('div', { class:'tiny muted' });
     let saveAptBtn = null;
@@ -4672,6 +4742,8 @@ main{padding:14px;overflow-x:hidden}
       const horas = parseApontamentoHours(aptHoras.value);
       const validation = validateApontamentoInput({ data, etapa, horas }, demand);
       if (validation) { toast(validation); return; }
+      const obsValidation = validateTextLimit(aptObs.value, 'Observação do apontamento', INPUT_LIMITS.shortNote);
+      if (obsValidation) { toast(obsValidation); return; }
 
       if (editingAptId) {
         const idx = apontamentos.findIndex(a => String(a.id) === String(editingAptId));
@@ -4776,6 +4848,24 @@ main{padding:14px;overflow-x:hidden}
 
       const nextStatus = normalizeStatus(status.value);
       if (nextStatus === 'Atrasada') { toast('Status Atrasada ? automático. Selecione outro status.'); return; }
+      const titleVal = (titulo.value || '').trim();
+      const predioVal = (predio.value || '').trim();
+      const focalVal = (focal.value || '').trim();
+      const iniVal = (ini.value || '').trim();
+      const fimVal = (fim.value || '').trim();
+      const obsVal = (obs.value || '').trim();
+      const justValidation = validateTextLimit(justification, 'Justificativa', INPUT_LIMITS.justification);
+      if (justValidation) { toast(justValidation); return; }
+      const demandValidation = validateDemandFields({
+        titulo: titleVal,
+        predio: predioVal,
+        focal: focalVal,
+        data_inicio: iniVal,
+        data_fim: fimVal,
+        observacoes: obsVal,
+        status: nextStatus,
+      });
+      if (demandValidation) { toast(demandValidation); return; }
       const respIds = (nextStatus === 'Mapeada') ? [] : selectedResponsaveis();
       if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais responsáveis ou marque como Mapeada.'); return; }
       const allocations = (nextStatus === 'Mapeada')
@@ -4786,17 +4876,17 @@ main{padding:14px;overflow-x:hidden}
       const primaryResponsavelId = allocations[0]?.resourceId || '';
       const next = {
         ...demand,
-        titulo: (titulo.value || '').trim() || demand.titulo,
-        predio: (predio.value || '').trim(),
-        focal: (focal.value || '').trim(),
+        titulo: titleVal,
+        predio: predioVal,
+        focal: focalVal,
         responsavel_id: (nextStatus === 'Mapeada') ? '' : primaryResponsavelId,
-        data_inicio: (ini.value || '').trim() || demand.data_inicio,
-        data_fim: (fim.value || '').trim() || demand.data_fim,
+        data_inicio: iniVal,
+        data_fim: fimVal,
         percentual_diario: Number(allocations[0]?.percentual_diario || 0),
         allocations,
         prioridade: prioridade.value,
         status: nextStatus,
-        observacoes: (obs.value || '').trim(),
+        observacoes: obsVal,
         apontamentos: normalizeDemandApontamentos({ apontamentos }),
         last_edit_by: userName,
         last_edit_at: Date.now(),
@@ -4871,11 +4961,11 @@ main{padding:14px;overflow-x:hidden}
     body.innerHTML = '';
 
     let apontamentos = normalizeDemandApontamentos(demand);
-    const data = el('input', { type:'date', value: todayISO() });
+    const data = el('input', { type:'date', value: todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const etapa = el('select');
     for (const step of PROJECT_STEP_OPTIONS) etapa.appendChild(el('option', { value:step }, [step]));
     const horas = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:30 ou 2.5' });
-    const obs = el('textarea', { placeholder:'Descreva rapidamente a atividade realizada...', style:'min-height:92px' });
+    const obs = el('textarea', { placeholder:'Descreva rapidamente a atividade realizada...', maxlength:String(INPUT_LIMITS.shortNote), style:'min-height:92px' });
     const history = el('div');
     const summary = el('div', { class:'tiny muted' });
     let editingAptId = '';
@@ -4958,6 +5048,8 @@ main{padding:14px;overflow-x:hidden}
       const nextHoras = parseApontamentoHours(horas.value);
       const validation = validateApontamentoInput({ data: nextData, etapa: nextEtapa, horas: nextHoras }, demand);
       if (validation) { toast(validation); return; }
+      const obsValidation = validateTextLimit(obs.value, 'Observação do apontamento', INPUT_LIMITS.shortNote);
+      if (obsValidation) { toast(obsValidation); return; }
 
       if (editingAptId) {
         const idx = apontamentos.findIndex(a => String(a.id) === String(editingAptId));
@@ -5041,9 +5133,9 @@ main{padding:14px;overflow-x:hidden}
     const body = qs('#demandReprogramModalBody');
     body.innerHTML = '';
 
-    const novaIni = el('input', { type:'date', value: demand.data_inicio || '' });
-    const novaFim = el('input', { type:'date', value: demand.data_fim || '' });
-    const just = el('textarea', { placeholder:'Justificativa (obrigatéria)...', style:'min-height:92px' });
+    const novaIni = el('input', { type:'date', value: demand.data_inicio || '', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const novaFim = el('input', { type:'date', value: demand.data_fim || '', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const just = el('textarea', { placeholder:'Justificativa (obrigatéria)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
 
     const dateErr = el('div', { class:'inlineError', style:'display:none' }, ['Verifique as datas: início e fim são obrigatórios e o fim não pode ser anterior ao início.']);
     const justErr = el('div', { class:'inlineError', style:'display:none' }, ['Informe uma justificativa para confirmar a reprogramação.']);
@@ -5057,8 +5149,9 @@ main{padding:14px;overflow-x:hidden}
       const ini = (novaIni.value || '').trim();
       const fim = (novaFim.value || '').trim();
       let ok = true;
-      if (!ini || !fim) ok = false;
-      if (ok && fim < ini) ok = false;
+      const dateValidation = validateDateRangeLimits(ini, fim, { allowEmpty:false, label:'Reprogramação' });
+      if (dateValidation) ok = false;
+      dateErr.textContent = dateValidation || 'Verifique as datas: início e fim são obrigatórios e o fim não pode ser anterior ao início.';
       setInvalid(novaIni, ok);
       setInvalid(novaFim, ok);
       dateErr.style.display = ok ? 'none' : 'block';
@@ -5067,7 +5160,9 @@ main{padding:14px;overflow-x:hidden}
 
     const validateJust = () => {
       const j = (just.value || '').trim();
-      const ok = j.length > 0;
+      const msg = validateTextLimit(j, 'Justificativa', INPUT_LIMITS.justification, { required:true });
+      const ok = !msg;
+      justErr.textContent = msg || 'Informe uma justificativa para confirmar a reprogramação.';
       setInvalid(just, ok);
       justErr.style.display = ok ? 'none' : 'block';
       return ok;
@@ -5112,8 +5207,8 @@ main{padding:14px;overflow-x:hidden}
     const refreshConfirmState = () => {
       const ini = (novaIni.value || '').trim();
       const fim = (novaFim.value || '').trim();
-      const okDates = !!ini && !!fim && (fim >= ini);
-      const okJust = (just.value || '').trim().length > 0;
+      const okDates = !validateDateRangeLimits(ini, fim, { allowEmpty:false, label:'Reprogramação' });
+      const okJust = !validateTextLimit(just.value, 'Justificativa', INPUT_LIMITS.justification, { required:true });
       confirmBtn.disabled = !(okDates && okJust);
     };
 
@@ -5167,7 +5262,7 @@ main{padding:14px;overflow-x:hidden}
     const body = qs('#resourceEditModalBody');
     body.innerHTML = '';
 
-    const nome = el('input', { value: resource.nome || '', placeholder:'Ex: Arthur' });
+    const nome = el('input', { value: resource.nome || '', placeholder:'Ex: Arthur', maxlength:String(INPUT_LIMITS.resourceName) });
 
     const tipo = el('select', {}, [
       el('option', { value:'Interno' }, ['Interno']),
@@ -5184,8 +5279,8 @@ main{padding:14px;overflow-x:hidden}
     ]);
     ativo.value = (resource.ativo === false) ? 'false' : 'true';
 
-    const vigIni = el('input', { type:'date', value: (resource.vigencia_inicio || '') });
-    const vigFim = el('input', { type:'date', value: (resource.vigencia_fim || '') });
+    const vigIni = el('input', { type:'date', value: (resource.vigencia_inicio || ''), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const vigFim = el('input', { type:'date', value: (resource.vigencia_fim || ''), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
 
     const vigRow = el('div', { class:'row' }, [
       el('div', { class:'field' }, [el('label', {}, ['Vigência início']), vigIni]),
@@ -5218,14 +5313,20 @@ main{padding:14px;overflow-x:hidden}
     };
 
     const save = () => {
+      const tipoVal = (String(tipo.value).trim() === 'Terceiro') ? 'Terceiro' : 'Interno';
+      const nomeVal = (nome.value || '').trim();
+      const vigIniVal = tipoVal === 'Terceiro' ? (vigIni.value || '') : '';
+      const vigFimVal = tipoVal === 'Terceiro' ? (vigFim.value || '') : '';
+      const validation = validateResourcePayload({ nome:nomeVal, tipo:tipoVal, vigencia_inicio:vigIniVal, vigencia_fim:vigFimVal });
+      if (validation) { toast(validation); return; }
       const next = {
         ...resource,
-        nome: (nome.value || '').trim() || resource.nome,
-        tipo: (String(tipo.value).trim() === 'Terceiro') ? 'Terceiro' : 'Interno',
-        horas_dia: ((String(tipo.value).trim() === 'Terceiro') ? HOURS_PER_DAY_THIRD : HOURS_PER_DAY),
+        nome: nomeVal,
+        tipo: tipoVal,
+        horas_dia: (tipoVal === 'Terceiro' ? HOURS_PER_DAY_THIRD : HOURS_PER_DAY),
         ativo: (ativo.value === 'true'),
-        vigencia_inicio: (String(tipo.value).trim() === 'Terceiro' ? (vigIni.value || undefined) : undefined),
-        vigencia_fim: (String(tipo.value).trim() === 'Terceiro' ? (vigFim.value || undefined) : undefined),
+        vigencia_inicio: (tipoVal === 'Terceiro' ? (vigIniVal || undefined) : undefined),
+        vigencia_fim: (tipoVal === 'Terceiro' ? (vigFimVal || undefined) : undefined),
         last_edit_by: userName,
         last_edit_at: Date.now(),
       };
@@ -6368,7 +6469,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   const viewResources = () => {
     const form = (() => {
-      const name = el('input', { placeholder:'Ex: Arthur', value:'' });
+      const name = el('input', { placeholder:'Ex: Arthur', value:'', maxlength:String(INPUT_LIMITS.resourceName) });
       const type = el('select', {}, [
         el('option', { value:'Interno' }, ['Interno']),
         el('option', { value:'Terceiro' }, ['Terceiro']),
@@ -6378,8 +6479,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('option', { value:'true' }, ['Ativo']),
         el('option', { value:'false' }, ['Inativo']),
       ]);
-      const vigIni = el('input', { type:'date' });
-      const vigFim = el('input', { type:'date' });
+      const vigIni = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+      const vigFim = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
 
       const thirdWrap = el('div', { class:'row', style:'width:100%' }, [
         el('div', { class:'field' }, [el('label', {}, ['Vigência Início (Terceiro)']), vigIni]),
@@ -6394,7 +6495,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
       const submit = () => {
         const nome = name.value.trim();
-        if (!nome) return toast('Informe o nome do recurso.');
+        const validation = validateResourcePayload({ nome, tipo:type.value, vigencia_inicio:vigIni.value, vigencia_fim:vigFim.value });
+        if (validation) return toast(validation);
         const payload = {
           id: generateId(),
           nome,
@@ -6521,9 +6623,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     })();
 
     const form = (() => {
-      const titulo = el('input', { placeholder:'Ex: PQ Sistema X' });
-      const predio = el('input', { placeholder:'Ex: Prédio A' });
-      const focal = el('input', { placeholder:'Ex: Fulano (Focal)' });
+      const titulo = el('input', { placeholder:'Ex: PQ Sistema X', maxlength:String(INPUT_LIMITS.demandTitle) });
+      const predio = el('input', { placeholder:'Ex: Prédio A', maxlength:String(INPUT_LIMITS.building) });
+      const focal = el('input', { placeholder:'Ex: Fulano (Focal)', maxlength:String(INPUT_LIMITS.focal) });
 
       // Responsáveis: busca + chips (mais intuitivo que select multiple/Ctrl)
       const selectedRespIds = new Set();
@@ -6673,8 +6775,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       });
       document.addEventListener('mousedown', (ev) => { if (!responsavel.contains(ev.target)) closeRespMenu(); });
 
-      const ini = el('input', { type:'date' });
-      const fim = el('input', { type:'date' });
+      const ini = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+      const fim = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
       const prioridade = el('select', {}, [
         el('option', { value:'Baixa' }, ['Baixa']),
         el('option', { value:'Média' }, ['Média']),
@@ -6687,7 +6789,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('option', { value:'Mapeada' }, ['Mapeada (sem responsável)']),
         el('option', { value:'Congelada' }, ['Congelada']),
       ]);
-      const obs = el('textarea', { placeholder:'Observações...' });
+      const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) });
 
       const syncMapeada = () => {
         const st = normalizeStatus(status.value);
@@ -6727,7 +6829,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       }
 
       const submit = () => {
-        if (!titulo.value.trim()) return toast('Informe o título.');
+        const tituloVal = titulo.value.trim();
+        const predioVal = (predio.value||'').trim();
+        const focalVal = (focal.value||'').trim();
+        const obsVal = (obs.value || '').trim();
 
         // Regras: Mapeada = sempre sem responsável; demais status permitem 1 ou mais responsáveis
         let st = normalizeStatus(status.value);
@@ -6739,17 +6844,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         // Regra: não é permitido CADASTRAR como Atrasada (status ? automático, quando aplicável)
         if (st === 'Atrasada') return toast('Status Atrasada ? automático. Selecione outro status para cadastrar.');
 
-        // Datas: s? são opcionais quando for Mapeada (sem responsável)
         const iniVal = (ini.value || '').trim();
         const fimVal = (fim.value || '').trim();
-        if (st === 'Mapeada') {
-          // permite sem datas, mas se preencher uma, exige as duas e valida ordem
-          if ((iniVal && !fimVal) || (!iniVal && fimVal)) return toast('Para demanda Mapeada: preencha início e fim ou deixe ambos em branco.');
-          if (iniVal && fimVal && fimVal < iniVal) return toast('Para demanda Mapeada: a data fim não pode ser anterior ao início.');
-        } else {
-          if (!iniVal || !fimVal) return toast('Informe início e fim.');
-          if (fimVal < iniVal) return toast('A data fim não pode ser anterior ao início.');
-        }
+        const demandValidation = validateDemandFields({
+          titulo: tituloVal,
+          predio: predioVal,
+          focal: focalVal,
+          data_inicio: iniVal,
+          data_fim: fimVal,
+          observacoes: obsVal,
+          status: st,
+        });
+        if (demandValidation) return toast(demandValidation);
 
         const allocations = (st === 'Mapeada')
           ? []
@@ -6758,13 +6864,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         if (!allocValidation.ok) return toast(allocValidation.msg);
         const basePayload = {
           logical_group_id: generateId('demand-group'),
-          titulo: titulo.value.trim(),
-          predio: (predio.value||'').trim(),
-          focal: (focal.value||'').trim(),
+          titulo: tituloVal,
+          predio: predioVal,
+          focal: focalVal,
           data_inicio: iniVal,
           data_fim: fimVal,
           percentual_diario: Number(allocations[0]?.percentual_diario || 0),
-          observacoes: obs.value || '',
+          observacoes: obsVal,
           prioridade: prioridade.value,
           status: st,
           reprogramacoes: 0,
@@ -6985,23 +7091,24 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const res = el('select');
       res.appendChild(el('option', { value:'' }, ['Selecione...']));
       for (const r of state.resources) res.appendChild(el('option', { value:r.id }, [r.nome]));
-      const dateStart = el('input', { type:'date' });
-      const dateEnd = el('input', { type:'date' });
+      const dateStart = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+      const dateEnd = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
       const tipo = el('select', {}, [
         el('option', { value:'Férias' }, ['Férias']),
         el('option', { value:'Reunião' }, ['Reunião']),
         el('option', { value:'Indisponível' }, ['Indisponível']),
       ]);
 
-      const hDate = el('input', { type:'date' });
-      const hDesc = el('input', { placeholder:'Ex: Feriado Municipal' });
+      const hDate = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+      const hDesc = el('input', { placeholder:'Ex: Feriado Municipal', maxlength:String(INPUT_LIMITS.shortNote) });
 
       const addBlocking = () => {
         if (!res.value) return toast('Selecione um recurso.');
         if (!dateStart.value) return toast('Selecione a data de início.');
         const start = dateStart.value;
         const end = dateEnd.value || dateStart.value;
-        if (end < start) return toast('A data fim não pode ser anterior ? data de início.');
+        const dateValidation = validateDateRangeLimits(start, end, { allowEmpty:false, label:'Bloqueio' });
+        if (dateValidation) return toast(dateValidation);
 
         const startDate = isoToLocalMidnight(start);
         const endDate = isoToLocalMidnight(end);
@@ -7019,6 +7126,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       };
       const addHoliday = () => {
         if (!hDate.value) return toast('Selecione a data do feriado.');
+        const dateValidation = validateDateYearLimit(hDate.value, 'Data do feriado');
+        if (dateValidation) return toast(dateValidation);
+        const descValidation = validateTextLimit(hDesc.value, 'Descrição do feriado', INPUT_LIMITS.shortNote);
+        if (descValidation) return toast(descValidation);
         dispatch('ADD_HOLIDAY', { id: generateId(), data: hDate.value, descricao: (hDesc.value||'').trim() || 'Feriado' });
         uiPagination.holidaysPage = 1;
         hDate.value=''; hDesc.value='';
@@ -8136,7 +8247,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     const fim = el('input', { type:'date', value: todayISO() });
     const horas = el('input', { type:'text', inputmode:'decimal', value:'01:00', placeholder:'Ex: 01:30 ou 1.5' });
     const contabiliza = el('select', {}, [el('option', { value:'true' }, ['Contabiliza capacidade']), el('option', { value:'false' }, ['Apenas informativa'])]);
-    const obs = el('textarea', { placeholder:'Observações...' });
+    const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) });
     const add = () => {
       if (!resourceSel.value) return toast('Cadastre/seleciona um recurso.');
       if (!title.value.trim()) return toast('Informe o título da atividade interna.');
@@ -10044,7 +10155,8 @@ const tryClose = () => {
         return;
       }
       const nm = String(nameInput?.value||'').trim();
-      if (!nm) { toast('Informe seu nome completo.'); return; }
+      const validation = validateTextLimit(nm, 'Nome do usuário', INPUT_LIMITS.userName, { required:true });
+      if (validation) { toast(validation); return; }
       setUser(nm);
       const hdr = qs('#userName'); if (hdr) hdr.value = userName;
       closeDialog(dlg);
