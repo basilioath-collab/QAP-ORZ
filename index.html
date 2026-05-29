@@ -3289,6 +3289,73 @@ main{padding:14px;overflow-x:hidden}
     return { ok:true };
   };
 
+
+  const blockingResourceId = (blocking={}) => String(blocking.recurso_id || blocking.resourceId || '').trim();
+  const blockingStartDate = (blocking={}) => normalizeDateLikeToISO(blocking.data_inicio || blocking.start || blocking.dateStart || blocking.data || blocking.date || '');
+  const blockingEndDate = (blocking={}) => normalizeDateLikeToISO(blocking.data_fim || blocking.end || blocking.dateEnd || blocking.data || blocking.date || blockingStartDate(blocking));
+  const blockingDateLabel = (blocking={}) => {
+    const start = blockingStartDate(blocking);
+    const end = blockingEndDate(blocking) || start;
+    if (!start) return '-';
+    return end && end !== start ? `${formatDateBR(start)} - ${formatDateBR(end)}` : formatDateBR(start);
+  };
+  const blockingCoversDate = (blocking={}, resourceId='', dateStr='') => {
+    const rid = blockingResourceId(blocking);
+    if (!rid || rid !== String(resourceId || '').trim()) return false;
+    const start = blockingStartDate(blocking);
+    const end = blockingEndDate(blocking) || start;
+    const date = String(dateStr || '').trim();
+    return !!(start && end && date && date >= start && date <= end);
+  };
+  const addDaysISO = (iso, days=1) => {
+    const d = isoToLocalMidnight(iso);
+    if (!d) return '';
+    d.setDate(d.getDate() + Number(days || 0));
+    return formatDate(d);
+  };
+  const buildBlockingDisplayRows = (items=[]) => {
+    const list = (Array.isArray(items) ? items : []).slice().sort((a,b) => {
+      const ra = blockingResourceId(a);
+      const rb = blockingResourceId(b);
+      if (ra !== rb) return ra.localeCompare(rb);
+      const ta = String(a.tipo || '').trim();
+      const tb = String(b.tipo || '').trim();
+      if (ta !== tb) return ta.localeCompare(tb);
+      const da = blockingStartDate(a);
+      const db = blockingStartDate(b);
+      if (da !== db) return da.localeCompare(db);
+      return String(a.id||'').localeCompare(String(b.id||''));
+    });
+    const rows = [];
+    for (const b of list) {
+      const rid = blockingResourceId(b);
+      const start = blockingStartDate(b);
+      const end = blockingEndDate(b) || start;
+      const tipo = String(b.tipo || '').trim();
+      const last = rows[rows.length - 1];
+      const canMergeLegacyDaily = last && last.resourceId === rid && last.tipo === tipo && last.end && start && addDaysISO(last.end, 1) === start;
+      const isSingleDayLegacy = start && end === start && !b.data_inicio && !b.data_fim;
+      if (canMergeLegacyDaily && isSingleDayLegacy && last.isLegacyDailyGroup) {
+        last.end = end;
+        last.ids.push(b.id);
+        last.items.push(b);
+        continue;
+      }
+      rows.push({
+        id: b.id,
+        ids: [b.id],
+        items: [b],
+        resourceId: rid,
+        start,
+        end,
+        tipo,
+        observacao: b.obs || b.observacao || '',
+        isLegacyDailyGroup: isSingleDayLegacy,
+      });
+    }
+    return rows;
+  };
+
   const ensureUserAsResource = () => {
     try {
       if (!hasUser()) return false;
@@ -4051,7 +4118,7 @@ main{padding:14px;overflow-x:hidden}
     },
 
     blockingFor(resourceId, dateStr) {
-      return (state.blockings || []).find(b => b.recurso_id === resourceId && b.data === dateStr);
+      return (state.blockings || []).find(b => blockingCoversDate(b, resourceId, dateStr));
     },
 
     overtimeInfo(resourceId, dateStr) {
@@ -7114,15 +7181,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const endDate = isoToLocalMidnight(end);
         if (!startDate || !endDate) return toast('Informe datas válidas para o bloqueio.');
 
-        let count = 0;
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-          dispatch('ADD_BLOCKING', { id: generateId('block'), recurso_id: res.value, data: formatDate(d), tipo: tipo.value });
-          count += 1;
-        }
+        dispatch('ADD_BLOCKING', {
+          id: generateId('block'),
+          recurso_id: res.value,
+          data: start,
+          data_inicio: start,
+          data_fim: end,
+          tipo: tipo.value,
+        });
         uiPagination.blockingsPage = 1;
         dateStart.value='';
         dateEnd.value='';
-        toast(count > 1 ? `${count} bloqueios adicionados.` : 'Bloqueio adicionado.');
+        toast(start === end ? 'Bloqueio adicionado.' : 'Bloqueio adicionado em uma linha para o período selecionado.');
       };
       const addHoliday = () => {
         if (!hDate.value) return toast('Selecione a data do feriado.');
@@ -7158,12 +7228,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       // Paginação: 10 itens por página (Bloqueios e Feriados)
 
       // ---- Bloqueios
-      const blockingsAll = (state.blockings||[]).slice().sort((a,b) => {
-        const da = a.data || '';
-        const db = b.data || '';
+      const blockingsAll = buildBlockingDisplayRows(state.blockings||[]).sort((a,b) => {
+        const da = a.start || '';
+        const db = b.start || '';
         if (da !== db) return da.localeCompare(db);
-        const ra = (resMap[a.recurso_id]?.nome || '');
-        const rb = (resMap[b.recurso_id]?.nome || '');
+        const ra = (resMap[a.resourceId]?.nome || '');
+        const rb = (resMap[b.resourceId]?.nome || '');
         if (ra !== rb) return ra.localeCompare(rb);
         return String(a.id||'').localeCompare(String(b.id||''));
       });
@@ -7185,14 +7255,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const btb = el('tbody');
       for (const b of blockings) {
         const tr = el('tr');
-        tr.appendChild(el('td', {}, [resMap[b.recurso_id]?.nome || '-']));
-        tr.appendChild(el('td', { class:'mono tiny' }, [formatDateBR(b.data)]));
-        tr.appendChild(el('td', {}, [b.tipo]));
+        tr.appendChild(el('td', {}, [resMap[b.resourceId]?.nome || '-']));
+        tr.appendChild(el('td', { class:'mono tiny' }, [blockingDateLabel(b)]));
+        tr.appendChild(el('td', {}, [b.tipo || '-']));
         tr.appendChild(el('td', {}, [
           el('div', { class:'actionBtns' }, [
             iconButton('Excluir', '🗑', 'danger', () => {
-              dispatch('DELETE_BLOCKING', b.id);
-              toast('Bloqueio removido.');
+              for (const id of (b.ids || [b.id]).filter(Boolean)) dispatch('DELETE_BLOCKING', id);
+              toast((b.ids || []).length > 1 ? 'Bloqueios do período removidos.' : 'Bloqueio removido.');
             })
           ])
         ]));
@@ -9668,12 +9738,12 @@ return el('div', { class:'grid' }, [
     const resMap = resourceById();
     return {
       headers: ['id','recurso','data','tipo','observacao'],
-      rows: (state.blockings||[]).map(b => ({
-        id: b.id || '',
-        recurso: resMap[b.recurso_id]?.nome || b.resourceId || b.recurso_id || '',
-        data: b.data || b.date || '',
+      rows: buildBlockingDisplayRows(state.blockings||[]).map(b => ({
+        id: (b.ids || [b.id]).filter(Boolean).join('|'),
+        recurso: resMap[b.resourceId]?.nome || b.resourceId || '',
+        data: blockingDateLabel(b),
         tipo: b.tipo || '',
-        observacao: b.obs || b.observacao || ''
+        observacao: b.observacao || ''
       }))
     };
   };
@@ -9746,12 +9816,13 @@ return el('div', { class:'grid' }, [
 
   const exportBloqueiosCSV = () => {
     const headers = ['id','recurso','data','tipo','observacao'];
-    const rows = (state.blockings||[]).map(b => ({
-      id: b.id || '',
-      recurso: b.resourceId || '',
-      data: b.date || '',
+    const resMap = resourceById();
+    const rows = buildBlockingDisplayRows(state.blockings||[]).map(b => ({
+      id: (b.ids || [b.id]).filter(Boolean).join('|'),
+      recurso: resMap[b.resourceId]?.nome || b.resourceId || '',
+      data: blockingDateLabel(b),
       tipo: b.tipo || '',
-      observacao: b.obs || b.observacao || ''
+      observacao: b.observacao || ''
     }));
     downloadText('bloqueios.csv', toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
     toast('CSV de Bloqueios exportado.');
