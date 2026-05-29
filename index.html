@@ -1699,13 +1699,6 @@ main{padding:14px;overflow-x:hidden}
   let dbBinding = loadDbMeta();
   let dbFileHandle = null;
   let dbLoadedSnapshot = loadDbBaseline();
-  let dbPathValue = localStorage.getItem(DB_PATH_KEY) || '';
-
-  const setDbPathValue = (value) => {
-    dbPathValue = String(value || '').trim();
-    localStorage.setItem(DB_PATH_KEY, dbPathValue);
-  };
-
   const setDbBinding = (meta, handle=null, loadedSnapshot=null) => {
     dbBinding = {
       mode: String(meta?.mode || 'none'),
@@ -1733,7 +1726,7 @@ main{padding:14px;overflow-x:hidden}
     if (!reason) return false;
     if (!/(v[ií]nculo|inv[aá]lid|permiss|arquivo|json|notfound|security|selecion)/i.test(reason)) return false;
     const mode = String(dbBinding?.mode || 'none');
-    return mode === 'rw' || !!dbBinding?.name || !!dbPathValue;
+    return mode === 'rw' || !!dbBinding?.name;
   };
 
   const clearOrizonLocalStorage = () => {
@@ -1777,7 +1770,6 @@ main{padding:14px;overflow-x:hidden}
     dbFileHandle = null;
     dbLoadedSnapshot = null;
     dbBinding = { mode:'none', name:'', lastLoadedAt:'', writable:false, baselineHash:'', baselineLastModified:0, baselineSize:0 };
-    dbPathValue = '';
     capviewDataDirHandle = null;
     capviewEventsDirHandle = null;
     capviewSnapshotFileHandle = null;
@@ -5546,7 +5538,7 @@ main{padding:14px;overflow-x:hidden}
     return el('span', { class:`statusPill s-${key}`, title: title || undefined }, children);
   };
 
-  const button = (label, cls, onClick) => el('button', { class:'btn '+(cls||''), type:'button', onclick:onClick }, [label]);
+  const button = (label, cls, onClick, attrs={}) => el('button', { class:'btn '+(cls||''), type:'button', onclick:onClick, ...(attrs || {}) }, [label]);
   const iconButton = (label, icon, cls, onClick) => el('button', {
     class:'btn iconBtn '+(cls||''),
     type:'button',
@@ -9095,21 +9087,6 @@ return el('div', { class:'grid' }, [
       toast('Modelo de BD exportado.');
     };
 
-    const copyDbPath = async () => {
-      if (!dbPathValue) {
-        toast('Nenhum caminho salvo.');
-        return;
-      }
-      try {
-        await navigator.clipboard.writeText(dbPathValue);
-        toast('Caminho copiado.');
-      } catch {
-        const copied = fallbackCopyText(dbPathValue);
-        toast(copied ? 'Caminho copiado.' : 'Não foi possível copiar o caminho.');
-      }
-    };
-
-    const dbPathInput = el('input', { type:'text', value: dbPathValue, placeholder:'\\servidor\pasta\arquivo.json' });
 
     const dbStatusPill = (() => {
       let label = 'Nenhum BD vinculado';
@@ -9141,67 +9118,57 @@ return el('div', { class:'grid' }, [
       ]),
       card('Banco JSON direto (avançado)', null, el('div', { class:'grid' }, [
         dbMeta,
-        el('div', { class:'row' }, [
-          el('div', { class:'field' }, [
-            el('label', {}, ['Banco JSON oficial']),
+        el('div', { class:'tiny muted' }, [
+          'Fluxo esperado: selecione o JSON oficial pelo botão. Por segurança do navegador, o app não tenta abrir file:// automaticamente. Ao carregar o BD, feriados já cadastrados são preservados/mesclados e não somem.'
+        ]),
+        el('details', { class:'hint tiny' }, [
+          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenção do BD']),
+          el('div', { class:'grid', style:'margin-top:10px' }, [
+            el('div', { class:'field', style:'max-width:260px' }, [
+              el('label', {}, ['Senha de manutenção']),
+              el('input', {
+                type:'password',
+                placeholder:'Digite a senha',
+                autocomplete:'off',
+                oninput:(ev) => {
+                  const unlocked = String(ev.target.value || '') === 'manutencao';
+                  const details = ev.target.closest('details');
+                  if (!details) return;
+                  details.querySelectorAll('[data-maintenance-action="1"]').forEach(btn => { btn.disabled = unlocked ? null : true; });
+                  const status = details.querySelector('[data-maintenance-status="1"]');
+                  if (status) status.textContent = unlocked ? 'Acesso liberado.' : 'Digite a senha para liberar as ações.';
+                }
+              })
+            ]),
             el('div', { class:'row' }, [
-              button(dbBinding.mode === 'rw' ? 'Trocar arquivo JSON' : 'Selecionar arquivo JSON', 'primary', selectDbReadWrite),
-              dbAutoSyncPauseReason ? button('Religar autosync', 'primary', () => {
+              button('Salvar agora no BD', '', saveToSelectedDb, { disabled:true, 'data-maintenance-action':'1' }),
+              button('Recarregar do BD', '', reloadSelectedDb, { disabled:true, 'data-maintenance-action':'1' }),
+              button('Ligar autosync', '', () => {
                 if (capviewEventMode.enabled) {
                   disableDbAutoSyncForEventMode();
-                  toast('Modo Eventos ativo: autosync do BD permanece desligado.');
+                  toast('Modo Eventos ativo: desligue o modo Eventos antes de ligar autosync do BD.');
                   render();
                   return;
                 }
+                const wasPaused = !!dbAutoSyncPauseReason;
+                const wasEnabled = !!dbAutoSyncEnabled;
                 dbAutoSyncEnabled = true;
                 localStorage.setItem('capview_db_autosync_enabled', '1');
                 clearDbAutoSyncPause();
                 startDbWatcher();
-                scheduleDbAutoSave('resume-merge');
-                toast('Autosync religado: mesclando com o BD mais atual.');
-                render();
-              }) : null,
-            ].filter(Boolean))
-          ])
-        ]),
-        el('div', { class:'row' }, [
-          el('div', { class:'field', style:'flex:1;min-width:320px' }, [el('label', {}, ['Caminho do BD de Rede']), dbPathInput]),
-          el('div', { class:'field' }, [el('label', {}, ['Ações']), el('div', { class:'row' }, [
-            button('Salvar caminho', '', () => { setDbPathValue(dbPathInput.value); toast('Caminho salvo localmente.'); }),
-            button('Copiar', '', copyDbPath),
-          ])])
-        ]),
-        el('div', { class:'tiny muted' }, [
-          'Fluxo esperado: selecione o JSON oficial pelo botão. O caminho salvo é apenas referência visual/cópia; por segurança do navegador, o app não tenta abrir file:// automaticamente. Ao carregar o BD, feriados já cadastrados são preservados/mesclados e não somem.'
-        ]),
-        el('details', { class:'hint tiny' }, [
-          el('summary', { style:'cursor:pointer;font-weight:950' }, ['Avançado / manutenão do BD']),
-          el('div', { class:'row', style:'margin-top:10px' }, [
-            button('Salvar agora no BD', '', saveToSelectedDb),
-            button('Recarregar do BD', '', reloadSelectedDb),
-            button(dbAutoSyncEnabled ? 'Desligar autosync' : 'Ligar autosync', '', () => {
-              if (!dbAutoSyncEnabled && capviewEventMode.enabled) {
-                disableDbAutoSyncForEventMode();
-                toast('Modo Eventos ativo: desligue o modo Eventos antes de ligar autosync do BD.');
-                render();
-                return;
-              }
-              dbAutoSyncEnabled = !dbAutoSyncEnabled;
-              localStorage.setItem('capview_db_autosync_enabled', dbAutoSyncEnabled ? '1' : '0');
-              if (dbAutoSyncEnabled) {
-                const wasPaused = !!dbAutoSyncPauseReason;
-                clearDbAutoSyncPause();
-                startDbWatcher();
                 scheduleDbAutoSave(wasPaused ? 'resume-merge' : 'toggle-on');
-                toast(wasPaused ? 'Autosync religado: mesclando com o BD mais atual.' : 'Autosync ligado.');
-              }
-              else { stopDbWatcher(); clearDbAutoSyncPause(); toast('Autosync desligado.'); }
-              render();
-            }),
-            button('Limpar dados do sistema', 'danger', confirmClearAllData),
-          ]),
-          el('div', { class:'tiny muted', style:'margin-top:8px' }, [
-            'Use estes controles só para recuperação, teste ou manutenão. No uso normal, o autosync salva e recarrega automaticamente.'
+                toast(wasPaused ? 'Autosync religado: mesclando com o BD mais atual.' : (wasEnabled ? 'Autosync já está ligado.' : 'Autosync ligado.'));
+                render();
+              }, { disabled:true, 'data-maintenance-action':'1' }),
+              button('Limpar dados do sistema', 'danger', confirmClearAllData, { disabled:true, 'data-maintenance-action':'1' }),
+              button(dbBinding.mode === 'rw' ? 'Trocar arquivo JSON' : 'Selecionar arquivo JSON', 'primary', selectDbReadWrite, { disabled:true, 'data-maintenance-action':'1' }),
+            ]),
+            el('div', { class:'tiny muted', 'data-maintenance-status':'1' }, [
+              'Digite a senha para liberar as ações.'
+            ]),
+            el('div', { class:'tiny muted' }, [
+              'Use estes controles só para recuperação, teste ou manutenção. No uso normal, o autosync salva e recarrega automaticamente.'
+            ])
           ])
         ])
       ])),
