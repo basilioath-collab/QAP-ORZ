@@ -1,4 +1,4 @@
-const ORIZON_CACHE = 'orizon-static-v3';
+const ORIZON_CACHE = 'orizon-static-v6';
 const ORIZON_ASSETS = [
   './index.html',
   './manifest.webmanifest',
