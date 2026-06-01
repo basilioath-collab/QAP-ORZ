@@ -2462,6 +2462,7 @@ main{padding:14px;overflow-x:hidden}
       plannedDays,
       apontamentosCount: apontamentos.length,
       windowSummary: demandApontamentoWindowSummary(demand, apontamentos),
+      windowClassification: demandWindowClassification(demand, apontamentos),
     };
   };
 
@@ -2586,6 +2587,47 @@ main{padding:14px;overflow-x:hidden}
       lateHours: Math.round(late.reduce((acc,a)=>acc+Number(a.horas||0),0) * 100) / 100,
       hasEarly: early.length > 0,
       hasLate: late.length > 0,
+    };
+  };
+
+  const diffDaysISO = (start, end) => {
+    const a = isoToLocalMidnight(start);
+    const b = isoToLocalMidnight(end);
+    if (!a || !b) return 0;
+    return Math.round((b.getTime() - a.getTime()) / 86400000);
+  };
+
+  const demandWindowClassification = (demand={}, apontamentosOverride=null) => {
+    const baselineStart = String(demand.baseline_inicio || demand.data_inicio || '').trim();
+    const baselineEnd = String(demand.baseline_fim || demand.data_fim || '').trim();
+    const currentStart = String(demand.data_inicio || '').trim();
+    const currentEnd = String(demand.data_fim || '').trim();
+    const summary = demandApontamentoWindowSummary(demand, apontamentosOverride);
+    const exceedsPlannedWindow = !!(isISODateString(baselineEnd) && isISODateString(currentEnd) && currentEnd > baselineEnd);
+    const startsAfterBaseline = !!(isISODateString(baselineStart) && isISODateString(currentStart) && currentStart > baselineStart);
+    const startsBeforeBaseline = !!(isISODateString(baselineStart) && isISODateString(currentStart) && currentStart < baselineStart);
+    const exceededDays = exceedsPlannedWindow ? Math.max(0, diffDaysISO(baselineEnd, currentEnd)) : 0;
+    const labels = [];
+    if (exceedsPlannedWindow) labels.push('Janela excedente do programado');
+    if (summary.hasEarly) labels.push('Execução antecipada');
+    if (summary.hasLate) labels.push('Execução fora do prazo atual');
+    return {
+      baselineStart,
+      baselineEnd,
+      currentStart,
+      currentEnd,
+      exceedsPlannedWindow,
+      exceededDays,
+      startsAfterBaseline,
+      startsBeforeBaseline,
+      hasEarlyExecution: summary.hasEarly,
+      hasLateExecution: summary.hasLate,
+      earlyCount: summary.earlyCount,
+      lateCount: summary.lateCount,
+      earlyHours: summary.earlyHours,
+      lateHours: summary.lateHours,
+      labels,
+      severity: (exceedsPlannedWindow || summary.hasLate) ? 'warn' : (summary.hasEarly ? 'info' : 'ok'),
     };
   };
 
@@ -6878,7 +6920,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       )[0] || null;
       const stepBadges = [...new Set(apontamentos.map(a => normalizeProjectStep(a.etapa)).filter(Boolean))].slice(0,6);
       const windowSummary = demandApontamentoWindowSummary(d, apontamentos);
-      return { demand:d, metrics, apontamentos, windowPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, remainingDays: remainingDaysLabel(d) };
+      const windowClassification = demandWindowClassification(d, apontamentos);
+      return { demand:d, metrics, apontamentos, windowPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, windowClassification, remainingDays: remainingDaysLabel(d) };
     }).sort((a,b) => {
       const toneWeight = { danger:0, warn:1, neutral:2, ok:3 };
       return (toneWeight[a.health.tone] ?? 9) - (toneWeight[b.health.tone] ?? 9) || String(a.demand.data_fim||'').localeCompare(String(b.demand.data_fim||''));
