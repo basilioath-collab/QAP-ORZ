@@ -334,6 +334,7 @@
     /* Barra de progresso (alocação) */
     .bar{height:10px;background:var(--border);border-radius:999px;overflow:hidden;border:1px solid rgba(0,0,0,.05)}
     .bar > span{display:block;height:100%;background:var(--progress-cyan)}
+    .bar.reprogrammed > span{background:linear-gradient(90deg,#ef4444,#dc2626)}
 
     /* Modal de detalhes do dia */
     dialog.modal{border:0;padding:0;background:transparent;max-width:980px;width:calc(100% - 24px)}
@@ -6877,15 +6878,25 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       if (!a || !b) return 0;
       return Math.max(1, Math.floor((b.getTime() - a.getTime()) / 86400000) + 1);
     };
-    const elapsedWindowPct = (demand) => {
-      const start = demand?.data_inicio || '';
-      const end = demand?.data_fim || '';
+    const elapsedWindowPct = (range) => {
+      const start = range?.data_inicio || range?.start || '';
+      const end = range?.data_fim || range?.end || '';
       if (!isISODateString(start) || !isISODateString(end)) return 0;
       if (now < start) return 0;
       if (now > end) return 100;
       const total = daysInclusive(start, end);
       const elapsed = daysInclusive(start, now);
       return total ? clamp((elapsed / total) * 100) : 0;
+    };
+    const reprogrammedWindowPct = (classification={}) => {
+      const start = String(classification.baselineEnd || '').trim();
+      const end = String(classification.currentEnd || '').trim();
+      if (!classification.exceedsPlannedWindow || !isISODateString(start) || !isISODateString(end) || end <= start) return 0;
+      if (now <= start) return 0;
+      if (now >= end) return 100;
+      const total = Math.max(1, diffDaysISO(start, end));
+      const elapsed = Math.max(0, diffDaysISO(start, now));
+      return clamp((elapsed / total) * 100);
     };
     const remainingDaysLabel = (demand) => {
       if (!demand?.data_fim || !isISODateString(demand.data_fim)) return '';
@@ -6904,18 +6915,24 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       if (!metrics.plannedHours) return { label:'Sem base planejada', tone:'neutral', hint:'Demanda sem horas planejadas calculáveis.' };
       if (metrics.realHours > metrics.plannedHours) return { label:'Acima do planejado', tone:'danger', hint:'Horas realizadas já superaram as horas planejadas.' };
       if (isExpired && realPct < 100) return { label:'Prazo vencido', tone:'danger', hint:'Janela encerrada com execução real abaixo do planejado.' };
-      if (windowPct >= 70 && realPct < 40) return { label:'Atenção ao andamento', tone:'warn', hint:'A janela avanãou mais que a execução real apontada.' };
+      if (windowPct >= 70 && realPct < 40) return { label:'Atenção ao andamento', tone:'warn', hint:'A janela avançou mais que a execução real apontada.' };
       if (realPct >= 90) return { label:'Próximo do limite', tone:'warn', hint:'Consumo de horas já está próximo do planejado.' };
       if (realPct > windowPct + 25) return { label:'Consumo acelerado', tone:'warn', hint:'Execução real está consumindo horas mais rápido que a janela.' };
-      if (realPct > 0) return { label:'Dentro do planejado', tone:'ok', hint:'Execução real compatével com a janela planejada.' };
+      if (realPct > 0) return { label:'Dentro do planejado', tone:'ok', hint:'Execução real compatível com a janela planejada.' };
       return { label:'Não iniciado', tone:'neutral', hint:'Sem apontamentos reais registrados para a demanda.' };
     };
 
     const projects = (dashboardFilteredDemands || []).map(d => {
       const metrics = demandExecutionMetrics(d);
       const apontamentos = normalizeDemandApontamentos(d);
-      const windowPct = elapsedWindowPct(d);
-      const health = projectHealth(metrics, windowPct, d);
+      const windowClassification = demandWindowClassification(d, apontamentos);
+      const plannedWindowPct = elapsedWindowPct({
+        data_inicio: windowClassification.baselineStart || d.data_inicio,
+        data_fim: windowClassification.baselineEnd || d.data_fim,
+      });
+      const reprogrammedPct = reprogrammedWindowPct(windowClassification);
+      const windowPct = plannedWindowPct;
+      const health = projectHealth(metrics, plannedWindowPct, d);
       const remainingBalance = Number(metrics.plannedHours || 0) - Number(metrics.realHours || 0);
       const etapasUnicas = new Set(apontamentos.map(a => normalizeProjectStep(a.etapa)).filter(Boolean)).size;
       const lastStep = apontamentos.slice().sort((a,b) =>
@@ -6923,8 +6940,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       )[0] || null;
       const stepBadges = [...new Set(apontamentos.map(a => normalizeProjectStep(a.etapa)).filter(Boolean))].slice(0,6);
       const windowSummary = demandApontamentoWindowSummary(d, apontamentos);
-      const windowClassification = demandWindowClassification(d, apontamentos);
-      return { demand:d, metrics, apontamentos, windowPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, windowClassification, remainingDays: remainingDaysLabel(d) };
+      return { demand:d, metrics, apontamentos, windowPct, plannedWindowPct, reprogrammedPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, windowClassification, remainingDays: remainingDaysLabel(d) };
     }).sort((a,b) => {
       const toneWeight = { danger:0, warn:1, neutral:2, ok:3 };
       return (toneWeight[a.health.tone] ?? 9) - (toneWeight[b.health.tone] ?? 9) || String(a.demand.data_fim||'').localeCompare(String(b.demand.data_fim||''));
@@ -6947,7 +6963,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint])
     ]);
 
-    const progressBar = (pct, title) => el('div', { class:'bar', title }, [
+    const progressBar = (pct, title, tone='') => el('div', { class:`bar${tone ? ' ' + tone : ''}`, title }, [
       el('span', { style:`width:${clamp(pct).toFixed(0)}%` })
     ]);
 
@@ -6997,8 +7013,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         ]),
 
         el('div', { class:'grid', style:'gap:8px;margin-top:auto' }, [
-          el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Avanço da janela']), el('div', { class:'tiny mono' }, [pctText(p.windowPct)])]),
-          progressBar(p.windowPct, 'Percentual da janela planejada já consumido'),
+          el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Avanço da janela']), el('div', { class:'tiny mono' }, [pctText(p.plannedWindowPct ?? p.windowPct)])]),
+          progressBar(p.plannedWindowPct ?? p.windowPct, 'Percentual da janela original planejada já consumido'),
+          wc.exceedsPlannedWindow ? el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Janela reprogramada']), el('div', { class:'tiny mono' }, [pctText(p.reprogrammedPct)])]) : null,
+          wc.exceedsPlannedWindow ? progressBar(p.reprogrammedPct, 'Percentual da extensão reprogramada já consumido', 'reprogrammed') : null,
           el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Execução real apontada']), el('div', { class:'tiny mono' }, [pctText(m.progressPct)])]),
           progressBar(m.progressPct, 'Percentual das horas planejadas já apontado como realizado')
         ]),
