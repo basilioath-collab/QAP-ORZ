@@ -126,6 +126,9 @@
     .btn.ghost:hover{background:var(--primary-wash)}
 
     .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--border);font-size:11px;font-weight:800;color:var(--muted);background:#fff}
+    .pill.warn{border-color:rgba(245,158,11,.48);background:var(--warning-soft);color:#92400E}
+    .pill.bad{border-color:var(--danger-border);background:var(--danger-soft);color:var(--danger)}
+    .pill.info{border-color:rgba(79,70,229,.22);background:rgba(79,70,229,.08);color:var(--indigo)}
     .pill .dot{height:10px;width:10px;border-radius:999px;border:1px solid rgba(0,0,0,.15)}
 
     .pill .xbtn{margin-left:4px;border:none;background:transparent;cursor:pointer;font-weight:950;color:var(--muted);line-height:1;padding:0 4px;border-radius:8px}
@@ -719,7 +722,7 @@ main{padding:14px;overflow-x:hidden}
       <div class="modalHd">
         <div>
           <div class="modalTitle" id="demandReprogramModalTitle">Reprogramar demanda</div>
-          <div class="modalSub" id="demandReprogramModalSub">Altere apenas a data e informe a justificativa (obrigatéria).</div>
+          <div class="modalSub" id="demandReprogramModalSub">Altere apenas o prazo final e informe a justificativa (obrigatória).</div>
         </div>
         <button class="btn ghost" id="demandReprogramModalClose" type="button">Fechar ×</button>
       </div>
@@ -1356,7 +1359,32 @@ main{padding:14px;overflow-x:hidden}
     return out;
   };
 
-  const normalizeDemandsV02 = (arr) => {
+  const relatedDemandReprogrammings = (demand, reprogrammings=[]) => {
+    const id = String(demand?.id || '').trim();
+    if (!id) return [];
+    return (Array.isArray(reprogrammings) ? reprogrammings : [])
+      .filter(rp => String(rp?.demanda_id || rp?.demandId || '') === id)
+      .sort((a,b) => Number(a?.timestamp || 0) - Number(b?.timestamp || 0));
+  };
+
+  const normalizeDemandBaseline = (demand, reprogrammings=[]) => {
+    if (!demand || typeof demand !== 'object' || Array.isArray(demand)) return demand;
+    const out = { ...demand };
+    const firstRp = relatedDemandReprogrammings(out, reprogrammings)[0] || {};
+    const baselineInicio = String(
+      out.baseline_inicio || out.baselineInicio || out.original_data_inicio || out.data_inicio_original ||
+      firstRp.inicio_original || firstRp.data_inicio_original || out.data_inicio || ''
+    ).trim();
+    const baselineFim = String(
+      out.baseline_fim || out.baselineFim || out.original_data_fim || out.data_fim_original || out.prazo_original ||
+      firstRp.prazo_anterior || firstRp.data_fim_anterior || firstRp.prazo_original || out.data_fim || ''
+    ).trim();
+    out.baseline_inicio = baselineInicio;
+    out.baseline_fim = baselineFim;
+    return out;
+  };
+
+  const normalizeDemandsV02 = (arr, reprogrammings=[]) => {
     const inList = Array.isArray(arr) ? arr : [];
     const grouped = new Map();
     const normTxt = (v='') => String(v || '')
@@ -1385,7 +1413,7 @@ main{padding:14px;overflow-x:hidden}
     ].join('|');
     for (const raw of inList) {
       if (!raw || typeof raw !== 'object') continue;
-      const d = { ...raw };
+      const d = normalizeDemandBaseline({ ...raw }, reprogrammings);
       const key = makeKey(d);
       const existing = grouped.get(key);
       const allocs = normalizeDemandAllocations(d);
@@ -1417,7 +1445,7 @@ main{padding:14px;overflow-x:hidden}
       ...migrated,
       schemaVersion: '0.2',
       resources: Array.isArray(migrated.resources) ? migrated.resources : [],
-      demands: normalizeDemandsV02(migrated.demands),
+      demands: normalizeDemandsV02(migrated.demands, migrated.reprogrammings),
       internalActivities: Array.isArray(migrated.internalActivities) ? migrated.internalActivities : [],
       blockings: Array.isArray(migrated.blockings) ? migrated.blockings : [],
       holidays: Array.isArray(migrated.holidays) ? migrated.holidays : [],
@@ -2436,6 +2464,8 @@ main{padding:14px;overflow-x:hidden}
       trendTone,
       plannedDays,
       apontamentosCount: apontamentos.length,
+      windowSummary: demandApontamentoWindowSummary(demand, apontamentos),
+      windowClassification: demandWindowClassification(demand, apontamentos),
     };
   };
 
@@ -2536,9 +2566,72 @@ main{padding:14px;overflow-x:hidden}
     if (!normalizeProjectStep(etapa)) return 'Informe a etapa do projeto.';
     if (!Number.isFinite(horas) || horas <= 0) return 'Informe horas gastas maior que zero.';
     if (horas > 24) return 'Horas gastas não pode ser maior que 24h em um único apontamento.';
-    if (demand.data_inicio && data < demand.data_inicio) return 'A data do apontamento não pode ser anterior ao início planejado da demanda.';
-    if (demand.data_fim && data > demand.data_fim) return 'A data do apontamento não pode ser posterior ao fim planejado da demanda.';
     return '';
+  };
+
+  const apontamentoWindowFlags = (demand={}, apontamento={}) => {
+    const data = String(apontamento?.data || '').trim();
+    const start = String(demand?.data_inicio || '').trim();
+    const end = String(demand?.data_fim || '').trim();
+    return {
+      early: !!(isISODateString(data) && isISODateString(start) && data < start),
+      late: !!(isISODateString(data) && isISODateString(end) && data > end),
+    };
+  };
+
+  const demandApontamentoWindowSummary = (demand={}, apontamentosOverride=null) => {
+    const apontamentos = Array.isArray(apontamentosOverride) ? normalizeDemandApontamentos({ apontamentos: apontamentosOverride }) : normalizeDemandApontamentos(demand);
+    const early = apontamentos.filter(a => apontamentoWindowFlags(demand, a).early);
+    const late = apontamentos.filter(a => apontamentoWindowFlags(demand, a).late);
+    return {
+      earlyCount: early.length,
+      lateCount: late.length,
+      earlyHours: Math.round(early.reduce((acc,a)=>acc+Number(a.horas||0),0) * 100) / 100,
+      lateHours: Math.round(late.reduce((acc,a)=>acc+Number(a.horas||0),0) * 100) / 100,
+      hasEarly: early.length > 0,
+      hasLate: late.length > 0,
+    };
+  };
+
+  const diffDaysISO = (start, end) => {
+    const a = isoToLocalMidnight(start);
+    const b = isoToLocalMidnight(end);
+    if (!a || !b) return 0;
+    return Math.round((b.getTime() - a.getTime()) / 86400000);
+  };
+
+  const demandWindowClassification = (demand={}, apontamentosOverride=null) => {
+    const baselineStart = String(demand.baseline_inicio || demand.data_inicio || '').trim();
+    const baselineEnd = String(demand.baseline_fim || demand.data_fim || '').trim();
+    const currentStart = String(demand.data_inicio || '').trim();
+    const currentEnd = String(demand.data_fim || '').trim();
+    const summary = demandApontamentoWindowSummary(demand, apontamentosOverride);
+    const exceedsPlannedWindow = !!(isISODateString(baselineEnd) && isISODateString(currentEnd) && currentEnd > baselineEnd);
+    const startsAfterBaseline = !!(isISODateString(baselineStart) && isISODateString(currentStart) && currentStart > baselineStart);
+    const startsBeforeBaseline = !!(isISODateString(baselineStart) && isISODateString(currentStart) && currentStart < baselineStart);
+    const exceededDays = exceedsPlannedWindow ? Math.max(0, diffDaysISO(baselineEnd, currentEnd)) : 0;
+    const labels = [];
+    if (exceedsPlannedWindow) labels.push('Janela excedente do programado');
+    if (summary.hasEarly) labels.push('Execução antecipada');
+    if (summary.hasLate) labels.push('Execução fora do prazo atual');
+    return {
+      baselineStart,
+      baselineEnd,
+      currentStart,
+      currentEnd,
+      exceedsPlannedWindow,
+      exceededDays,
+      startsAfterBaseline,
+      startsBeforeBaseline,
+      hasEarlyExecution: summary.hasEarly,
+      hasLateExecution: summary.hasLate,
+      earlyCount: summary.earlyCount,
+      lateCount: summary.lateCount,
+      earlyHours: summary.earlyHours,
+      lateHours: summary.lateHours,
+      labels,
+      severity: (exceedsPlannedWindow || summary.hasLate) ? 'warn' : (summary.hasEarly ? 'info' : 'ok'),
+    };
   };
 
   const isoToLocalMidnight = (iso) => {
@@ -3846,7 +3939,7 @@ main{padding:14px;overflow-x:hidden}
           didMutate = false;
           break;
         }
-        const stamped = applyCreateMeta(payload);
+        const stamped = applyCreateMeta(normalizeDemandBaseline(payload));
         state.demands.unshift(stamped);
         eventPayload = stamped;
         break;
@@ -3869,7 +3962,7 @@ main{padding:14px;overflow-x:hidden}
         break;
       case 'UPDATE_DEMAND': {
         const prev = (state.demands||[]).find(d => d.id === payload.id);
-        const stamped = applyUpdateMeta(payload, prev);
+        const stamped = applyUpdateMeta(normalizeDemandBaseline({ ...payload, baseline_inicio: payload.baseline_inicio || prev?.baseline_inicio, baseline_fim: payload.baseline_fim || prev?.baseline_fim }), prev);
         state.demands = state.demands.map(d => d.id === stamped.id ? stamped : d);
         eventPayload = stamped;
         break;
@@ -3886,9 +3979,8 @@ main{padding:14px;overflow-x:hidden}
         state.reprogrammings.push(rp);
         state.demands = state.demands.map(d => {
           if (d.id !== payload.demandId) return d;
-          const novoInicio = rp.novo_inicio || d.data_inicio || '';
           const novoFim = rp.novo_fim || rp.novo_prazo || d.data_fim || '';
-          return applyUpdateMeta({ ...d, data_inicio: novoInicio, data_fim: novoFim, reprogramacoes: (d.reprogramacoes||0) + 1 }, d);
+          return applyUpdateMeta({ ...d, data_fim: novoFim, reprogramacoes: (d.reprogramacoes||0) + 1 }, d);
         });
         eventPayload = { ...payload, reprogramming: rp };
         break;
@@ -3965,20 +4057,19 @@ main{padding:14px;overflow-x:hidden}
         case 'ADD_RESOURCE': rebuilt.resources.push(payload); break;
         case 'UPDATE_RESOURCE': rebuilt.resources = rebuilt.resources.map(r => r.id === payload.id ? payload : r); break;
         case 'DELETE_RESOURCE': removeResourceCascade(rebuilt, payload); break;
-        case 'ADD_DEMAND': rebuilt.demands.push(payload); break;
+        case 'ADD_DEMAND': rebuilt.demands.push(normalizeDemandBaseline(payload)); break;
         case 'ADD_INTERNAL_ACTIVITY': rebuilt.internalActivities.push(payload); break;
         case 'UPDATE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.map(x => x.id === payload.id ? payload : x); break;
         case 'DELETE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.filter(x => String(x.id) !== String(payload)); break;
-        case 'UPDATE_DEMAND': rebuilt.demands = rebuilt.demands.map(d => d.id === payload.id ? payload : d); break;
+        case 'UPDATE_DEMAND': rebuilt.demands = rebuilt.demands.map(d => d.id === payload.id ? normalizeDemandBaseline(payload) : d); break;
         case 'DELETE_DEMAND': rebuilt.demands = rebuilt.demands.filter(d => String(d.id) !== String(payload)); break;
         case 'DELETE_DEMANDS': rebuilt.demands = rebuilt.demands.filter(d => !demandMatchesDeletePayload(d, payload)); break;
         case 'REPROGRAM_DEMAND':
           rebuilt.reprogrammings.push(payload.reprogramming);
           rebuilt.demands = rebuilt.demands.map(d => {
             if (d.id !== payload.demandId) return d;
-            const novoInicio = payload.reprogramming.novo_inicio || d.data_inicio || '';
             const novoFim = payload.reprogramming.novo_fim || payload.reprogramming.novo_prazo || d.data_fim || '';
-            return { ...d, data_inicio: novoInicio, data_fim: novoFim, reprogramacoes: (d.reprogramacoes||0) + 1 };
+            return { ...d, data_fim: novoFim, reprogramacoes: (d.reprogramacoes||0) + 1 };
           });
           break;
         case 'ADD_BLOCKING': rebuilt.blockings.push(payload); break;
@@ -4230,7 +4321,7 @@ main{padding:14px;overflow-x:hidden}
     switch (type) {
       case 'ADD_RESOURCE': case 'UPDATE_RESOURCE': target.resources = upsert(target.resources, payload); break;
       case 'DELETE_RESOURCE': removeResourceCascade(target, payload); break;
-      case 'ADD_DEMAND': case 'UPDATE_DEMAND': target.demands = upsert(target.demands, payload); break;
+      case 'ADD_DEMAND': case 'UPDATE_DEMAND': target.demands = upsert(target.demands, normalizeDemandBaseline(payload)); break;
       case 'ADD_INTERNAL_ACTIVITY': case 'UPDATE_INTERNAL_ACTIVITY': target.internalActivities = upsert(target.internalActivities, payload); break;
       case 'DELETE_INTERNAL_ACTIVITY': target.internalActivities = (target.internalActivities||[]).filter(x => String(x.id) !== String(payload)); break;
       case 'DELETE_DEMAND': target.demands = (target.demands||[]).filter(d => String(d.id) !== String(payload)); break;
@@ -4240,7 +4331,7 @@ main{padding:14px;overflow-x:hidden}
         target.demands = (target.demands||[]).map(d => {
           if (String(d.id) !== String(payload?.demandId)) return d;
           const rp = payload.reprogramming || {};
-          return { ...d, data_inicio: rp.novo_inicio || d.data_inicio || '', data_fim: rp.novo_fim || rp.novo_prazo || d.data_fim || '', reprogramacoes: (d.reprogramacoes||0) + 1 };
+          return { ...d, data_fim: rp.novo_fim || rp.novo_prazo || d.data_fim || '', reprogramacoes: (d.reprogramacoes||0) + 1 };
         });
         break;
       }
@@ -5367,6 +5458,8 @@ main{padding:14px;overflow-x:hidden}
         responsavel_id: (nextStatus === 'Mapeada') ? '' : primaryResponsavelId,
         data_inicio: iniVal,
         data_fim: fimVal,
+        baseline_inicio: latestDemand.baseline_inicio || latestDemand.data_inicio || iniVal,
+        baseline_fim: latestDemand.baseline_fim || latestDemand.data_fim || fimVal,
         percentual_diario: Number(allocations[0]?.percentual_diario || 0),
         allocations,
         prioridade: prioridade.value,
@@ -5432,7 +5525,7 @@ main{padding:14px;overflow-x:hidden}
   };
 
   // ----------------------
-  // Reprogramar Demanda (modal: nova data de início + fim + justificativa obrigatéria)
+  // Reprogramar Demanda (modal: novo prazo final + justificativa obrigatória)
   // ----------------------
 
   const openDemandStagesModal = (demand) => {
@@ -5483,11 +5576,17 @@ main{padding:14px;overflow-x:hidden}
 
       const list = el('div', { style:'display:flex;flex-direction:column;gap:8px;margin-top:8px' });
       for (const a of [...apontamentos].reverse().slice(0, 8)) {
+        const flags = apontamentoWindowFlags(demand, a);
+        const windowBadges = [
+          flags.early ? el('span', { class:'pill warn', title:'Apontamento antes da data de início planejada.' }, ['Execução antecipada']) : null,
+          flags.late ? el('span', { class:'pill bad', title:'Apontamento depois do prazo atual da demanda.' }, ['Fora do prazo']) : null,
+        ].filter(Boolean);
         list.appendChild(el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:#fff' }, [
           el('div', { style:'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap' }, [
             el('div', {}, [
               el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa}`]),
-              el('div', { class:'mono', style:'font-weight:950;margin-top:2px' }, [`${fmtHours(a.horas || 0)}h`])
+              el('div', { class:'mono', style:'font-weight:950;margin-top:2px' }, [`${fmtHours(a.horas || 0)}h`]),
+              windowBadges.length ? el('div', { class:'row', style:'gap:6px;flex-wrap:wrap;margin-top:6px' }, windowBadges) : null
             ]),
             el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
               iconButton('Editar', '✎', '', () => {
@@ -5586,7 +5685,8 @@ main{padding:14px;overflow-x:hidden}
         el('b', {}, [demand.titulo || 'Demanda']),
         el('div', { class:'tiny muted', style:'margin-top:4px' }, [
           `${formatDateBR(demand.data_inicio)} -> ${formatDateBR(demand.data_fim)} - ${demand.prioridade || 'Media'} - ${effectiveStatus(demand)}`
-        ])
+        ]),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Apontamentos antes do início planejado são permitidos e contabilizados como execução antecipada.'])
       ]),
       el('div', { class:'field', style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff' }, [
         el('label', {}, ['Etapas do projeto / apontamento real']),
@@ -5613,16 +5713,17 @@ main{padding:14px;overflow-x:hidden}
     if (!dlg || !demand) return;
 
     qs('#demandReprogramModalTitle').textContent = `Reprogramar demanda - ${demand.titulo}`;
-    qs('#demandReprogramModalSub').textContent = 'Altere apenas as datas e informe a justificativa (obrigatéria).';
+    qs('#demandReprogramModalSub').textContent = 'Altere apenas o prazo final e informe a justificativa (obrigatória).';
 
     const body = qs('#demandReprogramModalBody');
     body.innerHTML = '';
 
-    const novaIni = el('input', { type:'date', value: demand.data_inicio || '', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const inicioAtual = String(demand.data_inicio || '').trim();
+    const novaIni = el('input', { type:'date', value: inicioAtual, disabled:'true', title:'A data de início não é alterada na reprogramação.' });
     const novaFim = el('input', { type:'date', value: demand.data_fim || '', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
-    const just = el('textarea', { placeholder:'Justificativa (obrigatéria)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
+    const just = el('textarea', { placeholder:'Justificativa (obrigatória)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
 
-    const dateErr = el('div', { class:'inlineError', style:'display:none' }, ['Verifique as datas: início e fim são obrigatórios e o fim não pode ser anterior ao início.']);
+    const dateErr = el('div', { class:'inlineError', style:'display:none' }, ['Verifique o prazo final: ele é obrigatório e não pode ser anterior ao início atual.']);
     const justErr = el('div', { class:'inlineError', style:'display:none' }, ['Informe uma justificativa para confirmar a reprogramação.']);
 
     const setInvalid = (fieldEl, ok) => {
@@ -5631,13 +5732,12 @@ main{padding:14px;overflow-x:hidden}
     };
 
     const validateDates = () => {
-      const ini = (novaIni.value || '').trim();
+      const ini = inicioAtual;
       const fim = (novaFim.value || '').trim();
       let ok = true;
       const dateValidation = validateDateRangeLimits(ini, fim, { allowEmpty:false, label:'Reprogramação' });
       if (dateValidation) ok = false;
-      dateErr.textContent = dateValidation || 'Verifique as datas: início e fim são obrigatórios e o fim não pode ser anterior ao início.';
-      setInvalid(novaIni, ok);
+      dateErr.textContent = dateValidation || 'Verifique o prazo final: ele é obrigatório e não pode ser anterior ao início atual.';
       setInvalid(novaFim, ok);
       dateErr.style.display = ok ? 'none' : 'block';
       return ok;
@@ -5657,8 +5757,7 @@ main{padding:14px;overflow-x:hidden}
       const okDates = validateDates();
       const okJust = validateJust();
       if (!okDates) {
-        if (!novaIni.value) novaIni.focus();
-        else if (!novaFim.value) novaFim.focus();
+        novaFim.focus();
         return;
       }
       if (!okJust) {
@@ -5670,7 +5769,8 @@ main{padding:14px;overflow-x:hidden}
         id: generateId(),
         demanda_id: demand.id,
         data: formatDate(new Date()),
-        novo_inicio: novaIni.value,
+        inicio_original: inicioAtual,
+        prazo_anterior: demand.data_fim || '',
         novo_fim: novaFim.value,
         // compatibilidade com snapshots antigos
         novo_prazo: novaFim.value,
@@ -5686,11 +5786,11 @@ main{padding:14px;overflow-x:hidden}
       toast('Demanda reprogramada.');
     });
 
-    // Come?a bloqueado ate preencher justificativa + datas validas
+    // Começa bloqueado até preencher justificativa + prazo válido
     confirmBtn.disabled = true;
 
     const refreshConfirmState = () => {
-      const ini = (novaIni.value || '').trim();
+      const ini = inicioAtual;
       const fim = (novaFim.value || '').trim();
       const okDates = !validateDateRangeLimits(ini, fim, { allowEmpty:false, label:'Reprogramação' });
       const okJust = !validateTextLimit(just.value, 'Justificativa', INPUT_LIMITS.justification, { required:true });
@@ -5699,9 +5799,8 @@ main{padding:14px;overflow-x:hidden}
 
     const onInput = () => {
       // se usuario ja interagiu, mostra erro conforme necessario
-      const ini = (novaIni.value || '').trim();
       const fim = (novaFim.value || '').trim();
-      if (ini && fim) validateDates();
+      if (inicioAtual && fim) validateDates();
       else dateErr.style.display = 'none';
 
       if ((just.value || '').trim()) { setInvalid(just, true); justErr.style.display = 'none'; }
@@ -5709,7 +5808,6 @@ main{padding:14px;overflow-x:hidden}
       refreshConfirmState();
     };
 
-    novaIni.addEventListener('input', onInput);
     novaFim.addEventListener('input', onInput);
     just.addEventListener('input', onInput);
 
@@ -5723,11 +5821,11 @@ main{padding:14px;overflow-x:hidden}
 
     body.appendChild(el('div', { class:'grid' }, [
       el('div', { class:'row' }, [
-        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Nova data (início)']), novaIni]),
-        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Nova data (fim)']), novaFim]),
+        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Data de início (não altera)']), novaIni, el('div', { class:'hint tiny' }, ['A reprogramação mantém o início original.'])]),
+        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Novo prazo final']), novaFim]),
       ]),
       el('div', { class:'field' }, [dateErr]),
-      el('div', { class:'field' }, [el('label', {}, ['Justificativa (obrigatéria)']), just, justErr]),
+      el('div', { class:'field' }, [el('label', {}, ['Justificativa (obrigatória)']), just, justErr]),
       footer
     ]));
 
@@ -6824,7 +6922,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         String(b.data||'').localeCompare(String(a.data||'')) || Number(b.created_at||0)-Number(a.created_at||0)
       )[0] || null;
       const stepBadges = [...new Set(apontamentos.map(a => normalizeProjectStep(a.etapa)).filter(Boolean))].slice(0,6);
-      return { demand:d, metrics, apontamentos, windowPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, remainingDays: remainingDaysLabel(d) };
+      const windowSummary = demandApontamentoWindowSummary(d, apontamentos);
+      const windowClassification = demandWindowClassification(d, apontamentos);
+      return { demand:d, metrics, apontamentos, windowPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, windowClassification, remainingDays: remainingDaysLabel(d) };
     }).sort((a,b) => {
       const toneWeight = { danger:0, warn:1, neutral:2, ok:3 };
       return (toneWeight[a.health.tone] ?? 9) - (toneWeight[b.health.tone] ?? 9) || String(a.demand.data_fim||'').localeCompare(String(b.demand.data_fim||''));
@@ -6863,6 +6963,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const lastText = p.lastStep
         ? `${formatDateBR(p.lastStep.data)} - ${normalizeProjectStep(p.lastStep.etapa)}`
         : '-';
+      const wc = p.windowClassification || {};
+      const windowIndicatorBadges = [
+        wc.exceedsPlannedWindow ? el('span', {
+          class:'pill warn',
+          title:`Baseline: ${formatDateBR(wc.baselineStart)} até ${formatDateBR(wc.baselineEnd)}. Prazo atual: ${formatDateBR(wc.currentEnd)}.`
+        }, [`Janela excedente do programado${wc.exceededDays ? `: +${wc.exceededDays} dia(s)` : ''}`]) : null,
+        wc.hasEarlyExecution ? el('span', { class:'pill info', title:'Há apontamentos antes da data de início planejada.' }, [`Execução antecipada: ${wc.earlyCount} apontamento(s) / ${fmtHours(wc.earlyHours)}h`]) : null,
+        wc.hasLateExecution ? el('span', { class:'pill bad', title:'Há apontamentos depois do prazo atual da demanda.' }, [`Execução fora do prazo: ${wc.lateCount} apontamento(s) / ${fmtHours(wc.lateHours)}h`]) : null,
+      ].filter(Boolean);
 
       return el('div', {
         style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff;box-shadow:0 10px 26px rgba(15,23,42,.06);display:flex;flex-direction:column;gap:12px;min-height:340px'
@@ -6870,7 +6979,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('div', { class:'row', style:'justify-content:space-between;gap:10px;align-items:flex-start' }, [
           el('div', { style:'min-width:0' }, [
             el('div', { style:'font-weight:950;font-size:15px;line-height:1.25;word-break:break-word' }, [d.titulo || d.id || 'Demanda']),
-            el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Janela: ${formatDateBR(d.data_inicio)} até ${formatDateBR(d.data_fim)}${p.remainingDays ? ' - ' + p.remainingDays : ''}`])
+            el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Janela: ${formatDateBR(d.data_inicio)} até ${formatDateBR(d.data_fim)}${p.remainingDays ? ' - ' + p.remainingDays : ''}`]),
+            wc.exceedsPlannedWindow ? el('div', { class:'tiny muted', style:'margin-top:3px' }, [`Programado original: ${formatDateBR(wc.baselineStart)} até ${formatDateBR(wc.baselineEnd)}`]) : null,
+            windowIndicatorBadges.length ? el('div', { class:'row', style:'gap:6px;flex-wrap:wrap;margin-top:6px' }, windowIndicatorBadges) : null
           ]),
           el('span', { class:`pill ${statusTone}`, title:p.health.hint, style:'white-space:nowrap' }, [p.health.label])
         ]),
@@ -7405,6 +7516,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           focal: focalVal,
           data_inicio: iniVal,
           data_fim: fimVal,
+          baseline_inicio: iniVal,
+          baseline_fim: fimVal,
           percentual_diario: Number(allocations[0]?.percentual_diario || 0),
           observacoes: obsVal,
           prioridade: prioridade.value,
