@@ -3585,12 +3585,11 @@ main{padding:14px;overflow-x:hidden}
     userId = finalUser.userId;
     persistUserIdentity(finalUser);
 
-    if (createNew) {
-      ensureUserAsResource();
-      await flushLocalEventOutbox();
-      try { await scanEventFolderUsers(); } catch {}
-      if (capviewEventMode.autoSyncEnabled !== false) setTimeout(() => eventAutoSyncTick('user-save'), 250);
-    }
+    try { await scanEventFolderUsers(); } catch {}
+    ensureUserAsResource({ repairedFromUserIdentity: !createNew });
+    await flushLocalEventOutbox();
+    try { await scanEventFolderUsers(); } catch {}
+    if (capviewEventMode.autoSyncEnabled !== false) setTimeout(() => eventAutoSyncTick('user-save'), 250);
     updateAvatar();
     return true;
   };
@@ -3779,18 +3778,20 @@ main{padding:14px;overflow-x:hidden}
     return rows;
   };
 
-  const ensureUserAsResource = () => {
+  const ensureUserAsResource = (opts={}) => {
     try {
       if (!hasUser()) return false;
       const uid = String(userId || '').trim();
       if (!uid || uid.startsWith('sessao-local__')) return false;
-      const alreadyExists = (state.resources || []).some((r) => {
-        const ownerId = String(r?.owner_user_id || r?.ownerUserId || '').trim();
-        return ownerId === uid;
-      });
+      const resourceOwnerId = (r) => String(r?.owner_user_id || r?.ownerUserId || '').trim();
+      const alreadyExists = (state.resources || []).some((r) => resourceOwnerId(r) === uid);
       if (alreadyExists) return false;
-      const knownInEventFolder = (scannedEventUsers || []).some(u => String(u.userId || '') === uid);
-      if (knownInEventFolder) return false;
+      const resourceAlreadyInEvents = (state.events || []).some((ev) => {
+        if (!ev || (ev.type !== 'ADD_RESOURCE' && ev.type !== 'UPDATE_RESOURCE')) return false;
+        return resourceOwnerId(ev.payload || {}) === uid;
+      });
+      const knownResourceInEventFolder = (scannedEventUsers || []).some(u => String(u.userId || '') === uid && String(u.resourceId || '').trim());
+      if (resourceAlreadyInEvents || knownResourceInEventFolder) return false;
       if (capviewEventMode.enabled && !sharedFolderReady()) return false;
       const payload = {
         id: generateId('resource'),
@@ -3800,6 +3801,7 @@ main{padding:14px;overflow-x:hidden}
         ativo: true,
         owner_user_id: uid,
         auto_created_from_user: true,
+        repaired_from_user_identity: !!opts.repairedFromUserIdentity,
       };
       try {
         dispatch('ADD_RESOURCE', payload);
