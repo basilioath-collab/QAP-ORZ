@@ -4092,10 +4092,11 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // V5.5.1 ? Eventos por usuário em pasta compartilhada
   // ----------------------
-  const eventSafeName = () => {
-    const base = String(userId || userName || 'sessao-local').trim() || 'sessao-local';
+  const eventSafeNameForIdentity = (identityId='', identityName='') => {
+    const base = String(identityId || identityName || 'sessao-local').trim() || 'sessao-local';
     return base.replace(/[^a-z0-9_.-]+/gi,'_').slice(0,80) || 'sessao-local';
   };
+  const eventSafeName = () => eventSafeNameForIdentity(userId, userName);
 
   const ensureEventUser = () => {
     if (!hasUser()) ensureNonBlockingUser();
@@ -4147,7 +4148,7 @@ main{padding:14px;overflow-x:hidden}
       capviewEventMode.lastStatus = 'Pasta vinculada. Alterações seráo registradas em /events por usuário.';
       persistEventFolderMeta();
       await ensureEventFolderReady({ createSnapshotIfMissing:true });
-      if (opts.requireUser !== false || hasUser()) await ensureUserEventFileInitialized();
+      if (opts.requireUser !== false) await ensureUserEventFileInitialized();
       try { stopDbWatcher(); } catch {}
       disableDbAutoSyncForEventMode();
       const flushed = await flushLocalEventOutbox();
@@ -4165,6 +4166,14 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const getMyEventFileHandle = async () => ensureUserEventFileInitialized();
+  const getEventFileHandleForIdentity = async (identityId='', identityName='') => {
+    await ensureEventFolderReady({ createSnapshotIfMissing:true });
+    const safeName = eventSafeNameForIdentity(identityId, identityName);
+    const handle = await capviewEventsDirHandle.getFileHandle(safeName + '.json', { create:true });
+    const txt = await fileTextOrDefault(handle, '');
+    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, []);
+    return { handle, safeName };
+  };
 
   const readEventArrayFromHandle = async (handle) => {
     const txt = await fileTextOrDefault(handle, '[]');
@@ -4178,17 +4187,19 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const writeSingleEventToUserFile = async (event) => {
-    const handle = await getMyEventFileHandle();
+    const targetUserId = String(event?.user_id || event?.userId || userId || '').trim();
+    const targetUserName = String(event?.user || event?.userName || userName || '').trim();
+    const { handle, safeName } = await getEventFileHandleForIdentity(targetUserId, targetUserName);
     const arr = await readEventArrayFromHandle(handle);
     if (!arr.some(e => String(e.id) === String(event.id))) {
-      arr.push({ ...event, status:'pending', sourceFile:eventSafeName() + '.json' });
+      arr.push({ ...event, status:'pending', sourceFile:safeName + '.json' });
       arr.sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
       await writeJsonToFileHandle(handle, arr);
     }
     // Verificação pós-gravação: evita falso positivo se o navegador negar escrita.
     const check = await readEventArrayFromHandle(handle);
     if (!check.some(e => String(e.id) === String(event.id))) throw new Error('Evento não confirmado no arquivo do usuário.');
-    return true;
+    return safeName;
   };
 
   const flushLocalEventOutbox = async () => {
@@ -4197,15 +4208,18 @@ main{padding:14px;overflow-x:hidden}
     capviewEventWriteInFlight = true;
     const outbox = loadLocalEventOutbox();
     const writtenIds = [];
+    const writtenFiles = new Set();
     try {
       for (const ev of outbox) {
-        await writeSingleEventToUserFile(ev);
+        const safeName = await writeSingleEventToUserFile(ev);
+        if (safeName) writtenFiles.add(safeName + '.json');
         writtenIds.push(String(ev.id));
       }
       if (writtenIds.length) {
         forgetLocalEventsFromOutbox(writtenIds);
         capviewEventMode.lastWriteAt = new Date().toISOString();
-        setEventModeStatus('Outbox enviado para /events/' + eventSafeName() + '.json: ' + writtenIds.length + ' evento(s).');
+        const filesText = writtenFiles.size === 1 ? [...writtenFiles][0] : `${writtenFiles.size} arquivo(s) de usuário`;
+        setEventModeStatus('Outbox enviado para /events/' + filesText + ': ' + writtenIds.length + ' evento(s).');
       }
       return writtenIds.length;
     } catch (e) {
@@ -4263,11 +4277,39 @@ main{padding:14px;overflow-x:hidden}
     if (!owner || !name) return null;
     return { userId: owner, displayName: name, resourceId: String(r.id || ''), source, resource: r };
   };
+  const displayNameFromEventFileSlug = (slug='') => String(slug || '')
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map(part => part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : '')
+    .join(' ')
+    .trim();
+  const userFromEventFilename = (filename='') => {
+    const base = String(filename || '').trim().replace(/\.json$/i, '');
+    const match = base.match(/^(.+?)__([a-z0-9]{4,})$/i);
+    if (!match) return null;
+    const displayName = displayNameFromEventFileSlug(match[1]);
+    if (!displayName) return null;
+    return { userId: base, displayName, source:'events.filename', sourceFile:String(filename || '').trim() };
+  };
+  const scanEventFolderUserFiles = async () => {
+    await ensureEventFolderReady({ createSnapshotIfMissing:true });
+    const users = [];
+    try {
+      for await (const [name, handle] of capviewEventsDirHandle.entries()) {
+        if (!handle || handle.kind !== 'file') continue;
+        if (!String(name || '').toLowerCase().endsWith('.json')) continue;
+        const user = userFromEventFilename(name);
+        if (user) users.push(user);
+      }
+    } catch (e) { console.warn('[ORIZON Usuários] Falha ao ler nomes dos arquivos de eventos:', e); }
+    return users;
+  };
 
   const scanEventFolderUsers = async () => {
     await ensureEventFolderReady({ createSnapshotIfMissing:true });
     const snapshot = await readSnapshotFromEventFolder();
     const sharedEvents = await readAllSharedEvents();
+    const fileUsers = await scanEventFolderUserFiles();
     const byId = new Map();
     const add = (u) => {
       if (!u || !u.userId) return;
@@ -4282,6 +4324,7 @@ main{padding:14px;overflow-x:hidden}
       });
     };
     for (const r of (snapshot.resources || [])) add(resourceUserRecord(r, 'snapshot.resources'));
+    for (const fileUser of fileUsers) add(fileUser);
     for (const ev of sharedEvents) {
       if (ev.user_id && ev.user) add({ userId: ev.user_id, displayName: ev.user, source: ev.sourceFile || 'events' });
       if ((ev.type === 'ADD_RESOURCE' || ev.type === 'UPDATE_RESOURCE') && ev.payload) add(resourceUserRecord(ev.payload, ev.sourceFile || ev.type));
@@ -4304,7 +4347,7 @@ main{padding:14px;overflow-x:hidden}
     scannedEventUsers = users;
     scannedEventDiagnostics = diagnostics;
     if (diagnostics.length) console.warn('[ORIZON Usuários] Mesmo nome com user_id diferente:', diagnostics);
-    return { users, diagnostics, snapshot, events: sharedEvents };
+    return { users, diagnostics, snapshot, events: sharedEvents, fileUsers };
   };
 
   const applySingleEventToState = (target, event) => {
