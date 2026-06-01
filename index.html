@@ -4312,10 +4312,12 @@ main{padding:14px;overflow-x:hidden}
     const snapshot = await readSnapshotFromEventFolder();
     const sharedEvents = await readAllSharedEvents();
     const fileUsers = await scanEventFolderUserFiles();
+    const fileUserIds = new Set(fileUsers.map(u => String(u?.userId || '').trim()).filter(Boolean));
     const byId = new Map();
-    const add = (u) => {
+    const add = (u, opts={}) => {
       if (!u || !u.userId) return;
       const id = String(u.userId).trim();
+      if (opts.requireEventFile && !fileUserIds.has(id)) return;
       const prev = byId.get(id) || {};
       byId.set(id, {
         ...prev,
@@ -4325,15 +4327,15 @@ main{padding:14px;overflow-x:hidden}
         sources: [...new Set([...(prev.sources || []), u.source || 'desconhecido'])]
       });
     };
-    for (const r of (snapshot.resources || [])) add(resourceUserRecord(r, 'snapshot.resources'));
     for (const fileUser of fileUsers) add(fileUser);
+    for (const r of (snapshot.resources || [])) add(resourceUserRecord(r, 'snapshot.resources'), { requireEventFile:true });
     for (const ev of sharedEvents) {
-      if (ev.user_id && ev.user) add({ userId: ev.user_id, displayName: ev.user, source: ev.sourceFile || 'events' });
-      if ((ev.type === 'ADD_RESOURCE' || ev.type === 'UPDATE_RESOURCE') && ev.payload) add(resourceUserRecord(ev.payload, ev.sourceFile || ev.type));
+      if (ev.user_id && ev.user) add({ userId: ev.user_id, displayName: ev.user, source: ev.sourceFile || 'events' }, { requireEventFile:true });
+      if ((ev.type === 'ADD_RESOURCE' || ev.type === 'UPDATE_RESOURCE') && ev.payload) add(resourceUserRecord(ev.payload, ev.sourceFile || ev.type), { requireEventFile:true });
     }
     for (const ev of (snapshot.events || [])) {
-      if (ev.user_id && ev.user) add({ userId: ev.user_id, displayName: ev.user, source:'snapshot.events' });
-      if ((ev.type === 'ADD_RESOURCE' || ev.type === 'UPDATE_RESOURCE') && ev.payload) add(resourceUserRecord(ev.payload, 'snapshot.events.payload'));
+      if (ev.user_id && ev.user) add({ userId: ev.user_id, displayName: ev.user, source:'snapshot.events' }, { requireEventFile:true });
+      if ((ev.type === 'ADD_RESOURCE' || ev.type === 'UPDATE_RESOURCE') && ev.payload) add(resourceUserRecord(ev.payload, 'snapshot.events.payload'), { requireEventFile:true });
     }
     const users = [...byId.values()].sort((a,b) => String(a.displayName).localeCompare(String(b.displayName), 'pt-BR'));
     const byName = new Map();
@@ -5788,9 +5790,9 @@ main{padding:14px;overflow-x:hidden}
       el('div', { class:'mono', style:'font-weight:950;margin-top:4px;line-height:1.25' }, [main]),
       hint ? el('div', { class:'tiny muted', style:'margin-top:4px' }, [hint]) : null
     ]);
-    const impactOriginal = el('div', { class:'mono', style:'font-weight:950' }, ['-']);
-    const impactCurrent = el('div', { class:'mono', style:'font-weight:950' }, ['-']);
-    const impactHint = el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Informe o novo prazo final para ver o impacto em dias.']);
+    const impactOriginal = el('div', { class:'mono', style:'font-weight:950;line-height:1.25' }, ['-']);
+    const impactCurrent = el('div', { class:'mono', style:'font-weight:950;line-height:1.25' }, ['-']);
+    const impactHint = el('div', { class:'tiny muted', style:'margin-top:4px;line-height:1.35' }, ['Informe o novo prazo final para ver o impacto em dias.']);
 
     const setInvalid = (fieldEl, ok) => {
       const wrap = fieldEl.closest('.field');
@@ -5899,27 +5901,27 @@ main{padding:14px;overflow-x:hidden}
     // estado inicial
     refreshConfirmState();
 
-    const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:10px' }, [
+    const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:4px;width:100%' }, [
       button('Cancelar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
       confirmBtn,
     ]);
 
-    body.appendChild(el('div', { class:'grid' }, [
-      el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px' }, [
+    body.appendChild(el('div', { class:'grid', style:'gap:14px' }, [
+      el('div', { style:'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch' }, [
         summaryCard('Programado original', `${formatDateBR(baselineInicio)} → ${formatDateBR(baselineFim)}`, 'Base usada no Avanço da janela.'),
         summaryCard('Prazo atual', `${formatDateBR(inicioAtual)} → ${formatDateBR(prazoAtual)}`, currentOverOriginal ? `${currentOverOriginal} dia(s) além do programado.` : 'Ainda dentro do prazo original.', currentOverOriginal ? 'danger' : '')
       ]),
-      el('div', { style:'border:1px solid var(--danger-border);border-radius:14px;padding:10px 12px;background:var(--danger-soft);margin-top:-10px' }, [
+      el('div', { style:'border:1px solid var(--danger-border);border-radius:14px;padding:12px;background:var(--danger-soft);display:grid;gap:4px' }, [
         el('div', { class:'tiny muted', style:'font-weight:900' }, ['Impacto calculado ao vivo']),
         impactOriginal,
         impactCurrent,
         impactHint
       ]),
-      el('div', { class:'row' }, [
-        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Data de início (não altera)']), novaIni, el('div', { class:'hint tiny' }, ['A reprogramação mantém o início original.'])]),
-        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Novo prazo final']), novaFim]),
+      el('div', { style:'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start' }, [
+        el('div', { class:'field', style:'min-width:0' }, [el('label', {}, ['Data de início (não altera)']), novaIni, el('div', { class:'hint tiny' }, ['A reprogramação mantém o início original.'])]),
+        el('div', { class:'field', style:'min-width:0' }, [el('label', {}, ['Novo prazo final']), novaFim]),
       ]),
-      el('div', { class:'field' }, [dateErr]),
+      el('div', { class:'field', style:'margin-top:-6px' }, [dateErr]),
       el('div', { class:'field' }, [el('label', {}, ['Justificativa (obrigatória)']), just, justErr]),
       footer
     ]));
@@ -10922,8 +10924,8 @@ return el('div', { class:'grid' }, [
       }
       existingSelect.disabled = !sharedFolderReady() || !users.length;
       if (existingHint) existingHint.textContent = users.length
-        ? `${users.length} usuário(s) encontrado(s). ${scannedEventDiagnostics.length ? 'Atenção: há nomes iguais com IDs diferentes no diagnóstico.' : ''}`
-        : 'Nenhum usuário encontrado; habilite Criar novo usuário.';
+        ? `${users.length} usuário(s) com arquivo em events encontrado(s). ${scannedEventDiagnostics.length ? 'Atenção: há nomes iguais com IDs diferentes no diagnóstico.' : ''}`
+        : 'Nenhum usuário encontrado na pasta events; habilite Criar novo usuário.';
     };
 
     const refreshFolderUsers = async () => {
