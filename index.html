@@ -10649,13 +10649,19 @@ return el('div', { class:'grid' }, [
 
     const refreshSaveState = () => {
       const folderReady = sharedFolderReady();
-      const creating = !!createMode?.checked;
       const selected = selectedExistingUser();
+      if (selected && createMode?.checked) createMode.checked = false;
+      const creating = !!createMode?.checked;
       const nm = String(nameInput?.value || '').trim();
-      if (saveBtn) saveBtn.disabled = !(folderReady && ((selected && !creating) || (creating && !!nm)));
+      if (createMode) createMode.disabled = !folderReady || !!selected;
+      if (nameInput) nameInput.disabled = !folderReady || !creating;
+      if (existingSelect) existingSelect.disabled = !folderReady || creating || !(scannedEventUsers || []).length;
+      const existingLoginReady = !!(selected && !creating);
+      const newUserReady = !!(!selected && creating && nm);
+      if (saveBtn) saveBtn.disabled = !(folderReady && (existingLoginReady || newUserReady));
       if (idInput) {
-        if (selected && !creating) idInput.value = selected.userId;
-        else if (creating && nm) {
+        if (existingLoginReady) idInput.value = selected.userId;
+        else if (newUserReady) {
           if (!pendingNewUserIdentity || pendingNewUserIdentity.displayName !== nm) pendingNewUserIdentity = previewUserIdentity(nm);
           idInput.value = pendingNewUserIdentity.userId;
         }
@@ -10707,15 +10713,19 @@ return el('div', { class:'grid' }, [
     };
 
     const setCreateMode = (enabled) => {
-      if (createMode) createMode.checked = !!enabled;
+      const turnOnCreate = !!enabled;
+      if (turnOnCreate && existingSelect) existingSelect.value = '';
+      if (createMode) createMode.checked = turnOnCreate;
       if (nameInput) {
-        nameInput.disabled = !sharedFolderReady() || !enabled;
+        nameInput.disabled = !sharedFolderReady() || !turnOnCreate;
         nameInput.readOnly = false;
         nameInput.classList.remove('locked');
-        if (enabled && selectedExistingUser()) nameInput.value = '';
-        if (enabled) pendingNewUserIdentity = null;
+        if (turnOnCreate) {
+          nameInput.value = '';
+          pendingNewUserIdentity = null;
+        }
       }
-      if (existingSelect) existingSelect.disabled = !sharedFolderReady() || !!enabled || !(scannedEventUsers || []).length;
+      if (existingSelect) existingSelect.disabled = !sharedFolderReady() || turnOnCreate || !(scannedEventUsers || []).length;
       refreshSaveState();
     };
 
@@ -10730,6 +10740,9 @@ return el('div', { class:'grid' }, [
         setCreateMode(false);
         if (nameInput) nameInput.value = u.displayName;
         if (idInput) idInput.value = u.userId;
+      } else {
+        if (nameInput && !createMode?.checked) nameInput.value = '';
+        if (idInput) idInput.value = '';
       }
       refreshSaveState();
     });
@@ -10764,6 +10777,11 @@ return el('div', { class:'grid' }, [
     if (saveBtn) saveBtn.addEventListener('click', async () => {
       const creating = !!createMode?.checked;
       const existing = selectedExistingUser();
+      if (creating && existing) {
+        toast('Escolha apenas uma opção: usuário existente ou criar novo usuário.');
+        refreshSaveState();
+        return;
+      }
       const ok = await resolveActiveUser({
         displayName: creating ? String(nameInput?.value || '').trim() : (existing?.displayName || ''),
         userId: creating ? String(idInput?.value || '') : (existing?.userId || ''),
