@@ -5720,12 +5720,32 @@ main{padding:14px;overflow-x:hidden}
     body.innerHTML = '';
 
     const inicioAtual = String(demand.data_inicio || '').trim();
+    const baselineInicio = String(demand.baseline_inicio || demand.data_inicio || '').trim();
+    const baselineFim = String(demand.baseline_fim || demand.data_fim || '').trim();
+    const prazoAtual = String(demand.data_fim || '').trim();
     const novaIni = el('input', { type:'date', value: inicioAtual, disabled:'true', title:'A data de início não é alterada na reprogramação.' });
     const novaFim = el('input', { type:'date', value: demand.data_fim || '', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const just = el('textarea', { placeholder:'Justificativa (obrigatória)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
 
     const dateErr = el('div', { class:'inlineError', style:'display:none' }, ['Verifique o prazo final: ele é obrigatório e não pode ser anterior ao início atual.']);
     const justErr = el('div', { class:'inlineError', style:'display:none' }, ['Informe uma justificativa para confirmar a reprogramação.']);
+    const formatSignedDays = (days) => {
+      const n = Number(days || 0);
+      if (!Number.isFinite(n) || n === 0) return 'sem alteração de dias';
+      return `${n > 0 ? '+' : ''}${n} dia(s)`;
+    };
+    const daysBetweenSafe = (start, end) => (isISODateString(start) && isISODateString(end)) ? diffDaysISO(start, end) : 0;
+    const currentOverOriginal = Math.max(0, daysBetweenSafe(baselineFim, prazoAtual));
+    const summaryCard = (label, main, hint='', tone='') => el('div', {
+      style:`border:1px solid ${tone==='danger'?'var(--danger-border)':'var(--border)'};border-radius:14px;padding:10px 12px;background:${tone==='danger'?'var(--danger-soft)':'var(--surface)'};min-width:0`
+    }, [
+      el('div', { class:'tiny muted', style:'font-weight:900' }, [label]),
+      el('div', { class:'mono', style:'font-weight:950;margin-top:4px;line-height:1.25' }, [main]),
+      hint ? el('div', { class:'tiny muted', style:'margin-top:4px' }, [hint]) : null
+    ]);
+    const impactOriginal = el('div', { class:'mono', style:'font-weight:950' }, ['-']);
+    const impactCurrent = el('div', { class:'mono', style:'font-weight:950' }, ['-']);
+    const impactHint = el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Informe o novo prazo final para ver o impacto em dias.']);
 
     const setInvalid = (fieldEl, ok) => {
       const wrap = fieldEl.closest('.field');
@@ -5770,7 +5790,8 @@ main{padding:14px;overflow-x:hidden}
         id: generateId(),
         demanda_id: demand.id,
         data: formatDate(new Date()),
-        inicio_original: inicioAtual,
+        inicio_original: baselineInicio || inicioAtual,
+        prazo_original: baselineFim || demand.data_fim || '',
         prazo_anterior: demand.data_fim || '',
         novo_fim: novaFim.value,
         // compatibilidade com snapshots antigos
@@ -5790,11 +5811,29 @@ main{padding:14px;overflow-x:hidden}
     // Começa bloqueado até preencher justificativa + prazo válido
     confirmBtn.disabled = true;
 
+    const refreshImpact = () => {
+      const nextFim = String(novaFim.value || '').trim();
+      if (!isISODateString(nextFim)) {
+        impactOriginal.textContent = '-';
+        impactCurrent.textContent = '-';
+        impactHint.textContent = 'Informe o novo prazo final para ver o impacto em dias.';
+        return;
+      }
+      const originalDelta = daysBetweenSafe(baselineFim, nextFim);
+      const currentDelta = daysBetweenSafe(prazoAtual, nextFim);
+      impactOriginal.textContent = `${formatSignedDays(originalDelta)} vs. prazo original`;
+      impactCurrent.textContent = `${formatSignedDays(currentDelta)} vs. prazo atual`;
+      impactHint.textContent = originalDelta > 0
+        ? `A demanda ficará ${originalDelta} dia(s) além do fim originalmente programado.`
+        : 'O novo prazo não ultrapassa o fim originalmente programado.';
+    };
+
     const refreshConfirmState = () => {
       const ini = inicioAtual;
       const fim = (novaFim.value || '').trim();
       const okDates = !validateDateRangeLimits(ini, fim, { allowEmpty:false, label:'Reprogramação' });
       const okJust = !validateTextLimit(just.value, 'Justificativa', INPUT_LIMITS.justification, { required:true });
+      refreshImpact();
       confirmBtn.disabled = !(okDates && okJust);
     };
 
@@ -5821,6 +5860,16 @@ main{padding:14px;overflow-x:hidden}
     ]);
 
     body.appendChild(el('div', { class:'grid' }, [
+      el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px' }, [
+        summaryCard('Programado original', `${formatDateBR(baselineInicio)} → ${formatDateBR(baselineFim)}`, 'Base usada no Avanço da janela.'),
+        summaryCard('Prazo atual', `${formatDateBR(inicioAtual)} → ${formatDateBR(prazoAtual)}`, currentOverOriginal ? `${currentOverOriginal} dia(s) além do programado.` : 'Ainda dentro do prazo original.', currentOverOriginal ? 'danger' : '')
+      ]),
+      el('div', { style:'border:1px solid var(--danger-border);border-radius:14px;padding:10px 12px;background:var(--danger-soft);margin-top:-10px' }, [
+        el('div', { class:'tiny muted', style:'font-weight:900' }, ['Impacto calculado ao vivo']),
+        impactOriginal,
+        impactCurrent,
+        impactHint
+      ]),
       el('div', { class:'row' }, [
         el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Data de início (não altera)']), novaIni, el('div', { class:'hint tiny' }, ['A reprogramação mantém o início original.'])]),
         el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Novo prazo final']), novaFim]),
@@ -6966,6 +7015,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     const progressBar = (pct, title, tone='') => el('div', { class:`bar${tone ? ' ' + tone : ''}`, title }, [
       el('span', { style:`width:${clamp(pct).toFixed(0)}%` })
     ]);
+    const progressRow = (label, pct, subtitle, title, tone='') => el('div', { class:'grid', style:'gap:4px' }, [
+      el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, [label]), el('div', { class:'tiny mono' }, [pctText(pct)])]),
+      subtitle ? el('div', { class:'tiny muted' }, [subtitle]) : null,
+      progressBar(pct, title, tone)
+    ]);
 
     const projectCard = (p) => {
       const d = p.demand;
@@ -6984,7 +7038,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         wc.exceedsPlannedWindow ? el('span', {
           class:'pill warn',
           title:`Baseline: ${formatDateBR(wc.baselineStart)} até ${formatDateBR(wc.baselineEnd)}. Prazo atual: ${formatDateBR(wc.currentEnd)}.`
-        }, [`Janela excedente do programado${wc.exceededDays ? `: +${wc.exceededDays} dia(s)` : ''}`]) : null,
+        }, [`Prazo original excedido${wc.exceededDays ? `: +${wc.exceededDays} dia(s)` : ''}`]) : null,
         wc.hasEarlyExecution ? el('span', { class:'pill info', title:'Há apontamentos antes da data de início planejada.' }, [`Execução antecipada: ${wc.earlyCount} apontamento(s) / ${fmtHours(wc.earlyHours)}h`]) : null,
         wc.hasLateExecution ? el('span', { class:'pill bad', title:'Há apontamentos depois do prazo atual da demanda.' }, [`Execução fora do prazo: ${wc.lateCount} apontamento(s) / ${fmtHours(wc.lateHours)}h`]) : null,
       ].filter(Boolean);
@@ -6995,8 +7049,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('div', { class:'row', style:'justify-content:space-between;gap:10px;align-items:flex-start' }, [
           el('div', { style:'min-width:0' }, [
             el('div', { style:'font-weight:950;font-size:15px;line-height:1.25;word-break:break-word' }, [d.titulo || d.id || 'Demanda']),
-            el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Janela: ${formatDateBR(d.data_inicio)} até ${formatDateBR(d.data_fim)}${p.remainingDays ? ' - ' + p.remainingDays : ''}`]),
-            wc.exceedsPlannedWindow ? el('div', { class:'tiny muted', style:'margin-top:3px' }, [`Programado original: ${formatDateBR(wc.baselineStart)} até ${formatDateBR(wc.baselineEnd)}`]) : null,
+            el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Janela atual: ${formatDateBR(d.data_inicio)} até ${formatDateBR(d.data_fim)}${p.remainingDays ? ' - ' + p.remainingDays : ''}`]),
+            el('div', { class:'tiny muted', style:'margin-top:3px' }, [`Programado original: ${formatDateBR(wc.baselineStart)} até ${formatDateBR(wc.baselineEnd)}`]),
             windowIndicatorBadges.length ? el('div', { class:'row', style:'gap:6px;flex-wrap:wrap;margin-top:6px' }, windowIndicatorBadges) : null
           ]),
           el('span', { class:`pill ${statusTone}`, title:p.health.hint, style:'white-space:nowrap' }, [p.health.label])
@@ -7012,13 +7066,26 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           miniMetric('Último apontamento', lastText, 'histórico operacional')
         ]),
 
-        el('div', { class:'grid', style:'gap:8px;margin-top:auto' }, [
-          el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Avanço da janela']), el('div', { class:'tiny mono' }, [pctText(p.plannedWindowPct ?? p.windowPct)])]),
-          progressBar(p.plannedWindowPct ?? p.windowPct, 'Percentual da janela original planejada já consumido'),
-          wc.exceedsPlannedWindow ? el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Janela reprogramada']), el('div', { class:'tiny mono' }, [pctText(p.reprogrammedPct)])]) : null,
-          wc.exceedsPlannedWindow ? progressBar(p.reprogrammedPct, 'Percentual da extensão reprogramada já consumido', 'reprogrammed') : null,
-          el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, ['Execução real apontada']), el('div', { class:'tiny mono' }, [pctText(m.progressPct)])]),
-          progressBar(m.progressPct, 'Percentual das horas planejadas já apontado como realizado')
+        el('div', { class:'grid', style:'gap:10px;margin-top:auto' }, [
+          progressRow(
+            'Avanço da janela original',
+            p.plannedWindowPct ?? p.windowPct,
+            `Original: ${formatDateBR(wc.baselineStart)} → ${formatDateBR(wc.baselineEnd)}. Ao fim original, permanece em 100%.`,
+            `Conta somente a janela original: ${formatDateBR(wc.baselineStart)} até ${formatDateBR(wc.baselineEnd)}.`
+          ),
+          wc.exceedsPlannedWindow ? progressRow(
+            'Janela reprogramada',
+            p.reprogrammedPct,
+            `Extensão: ${formatDateBR(wc.baselineEnd)} → ${formatDateBR(wc.currentEnd)} (${wc.exceededDays} dia(s)).`,
+            `Conta somente a extensão reprogramada: ${formatDateBR(wc.baselineEnd)} até ${formatDateBR(wc.currentEnd)}.`,
+            'reprogrammed'
+          ) : null,
+          progressRow(
+            'Execução real apontada',
+            m.progressPct,
+            `${hoursText(m.realHours)} realizadas de ${hoursText(m.plannedHours)} planejadas.`,
+            'Percentual das horas planejadas já apontado como realizado'
+          )
         ]),
 
         p.stepBadges.length
