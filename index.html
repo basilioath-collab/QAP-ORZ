@@ -2461,6 +2461,7 @@ main{padding:14px;overflow-x:hidden}
       trendTone,
       plannedDays,
       apontamentosCount: apontamentos.length,
+      windowSummary: demandApontamentoWindowSummary(demand, apontamentos),
     };
   };
 
@@ -2561,9 +2562,31 @@ main{padding:14px;overflow-x:hidden}
     if (!normalizeProjectStep(etapa)) return 'Informe a etapa do projeto.';
     if (!Number.isFinite(horas) || horas <= 0) return 'Informe horas gastas maior que zero.';
     if (horas > 24) return 'Horas gastas não pode ser maior que 24h em um único apontamento.';
-    if (demand.data_inicio && data < demand.data_inicio) return 'A data do apontamento não pode ser anterior ao início planejado da demanda.';
-    if (demand.data_fim && data > demand.data_fim) return 'A data do apontamento não pode ser posterior ao fim planejado da demanda.';
     return '';
+  };
+
+  const apontamentoWindowFlags = (demand={}, apontamento={}) => {
+    const data = String(apontamento?.data || '').trim();
+    const start = String(demand?.data_inicio || '').trim();
+    const end = String(demand?.data_fim || '').trim();
+    return {
+      early: !!(isISODateString(data) && isISODateString(start) && data < start),
+      late: !!(isISODateString(data) && isISODateString(end) && data > end),
+    };
+  };
+
+  const demandApontamentoWindowSummary = (demand={}, apontamentosOverride=null) => {
+    const apontamentos = Array.isArray(apontamentosOverride) ? normalizeDemandApontamentos({ apontamentos: apontamentosOverride }) : normalizeDemandApontamentos(demand);
+    const early = apontamentos.filter(a => apontamentoWindowFlags(demand, a).early);
+    const late = apontamentos.filter(a => apontamentoWindowFlags(demand, a).late);
+    return {
+      earlyCount: early.length,
+      lateCount: late.length,
+      earlyHours: Math.round(early.reduce((acc,a)=>acc+Number(a.horas||0),0) * 100) / 100,
+      lateHours: Math.round(late.reduce((acc,a)=>acc+Number(a.horas||0),0) * 100) / 100,
+      hasEarly: early.length > 0,
+      hasLate: late.length > 0,
+    };
   };
 
   const isoToLocalMidnight = (iso) => {
@@ -5508,11 +5531,17 @@ main{padding:14px;overflow-x:hidden}
 
       const list = el('div', { style:'display:flex;flex-direction:column;gap:8px;margin-top:8px' });
       for (const a of [...apontamentos].reverse().slice(0, 8)) {
+        const flags = apontamentoWindowFlags(demand, a);
+        const windowBadges = [
+          flags.early ? el('span', { class:'pill warn', title:'Apontamento antes da data de início planejada.' }, ['Execução antecipada']) : null,
+          flags.late ? el('span', { class:'pill bad', title:'Apontamento depois do prazo atual da demanda.' }, ['Fora do prazo']) : null,
+        ].filter(Boolean);
         list.appendChild(el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:#fff' }, [
           el('div', { style:'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap' }, [
             el('div', {}, [
               el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa}`]),
-              el('div', { class:'mono', style:'font-weight:950;margin-top:2px' }, [`${fmtHours(a.horas || 0)}h`])
+              el('div', { class:'mono', style:'font-weight:950;margin-top:2px' }, [`${fmtHours(a.horas || 0)}h`]),
+              windowBadges.length ? el('div', { class:'row', style:'gap:6px;flex-wrap:wrap;margin-top:6px' }, windowBadges) : null
             ]),
             el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
               iconButton('Editar', '✎', '', () => {
@@ -5611,7 +5640,8 @@ main{padding:14px;overflow-x:hidden}
         el('b', {}, [demand.titulo || 'Demanda']),
         el('div', { class:'tiny muted', style:'margin-top:4px' }, [
           `${formatDateBR(demand.data_inicio)} -> ${formatDateBR(demand.data_fim)} - ${demand.prioridade || 'Media'} - ${effectiveStatus(demand)}`
-        ])
+        ]),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Apontamentos antes do início planejado são permitidos e contabilizados como execução antecipada.'])
       ]),
       el('div', { class:'field', style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff' }, [
         el('label', {}, ['Etapas do projeto / apontamento real']),
@@ -6847,7 +6877,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         String(b.data||'').localeCompare(String(a.data||'')) || Number(b.created_at||0)-Number(a.created_at||0)
       )[0] || null;
       const stepBadges = [...new Set(apontamentos.map(a => normalizeProjectStep(a.etapa)).filter(Boolean))].slice(0,6);
-      return { demand:d, metrics, apontamentos, windowPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, remainingDays: remainingDaysLabel(d) };
+      const windowSummary = demandApontamentoWindowSummary(d, apontamentos);
+      return { demand:d, metrics, apontamentos, windowPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, remainingDays: remainingDaysLabel(d) };
     }).sort((a,b) => {
       const toneWeight = { danger:0, warn:1, neutral:2, ok:3 };
       return (toneWeight[a.health.tone] ?? 9) - (toneWeight[b.health.tone] ?? 9) || String(a.demand.data_fim||'').localeCompare(String(b.demand.data_fim||''));
@@ -6893,7 +6924,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('div', { class:'row', style:'justify-content:space-between;gap:10px;align-items:flex-start' }, [
           el('div', { style:'min-width:0' }, [
             el('div', { style:'font-weight:950;font-size:15px;line-height:1.25;word-break:break-word' }, [d.titulo || d.id || 'Demanda']),
-            el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Janela: ${formatDateBR(d.data_inicio)} até ${formatDateBR(d.data_fim)}${p.remainingDays ? ' - ' + p.remainingDays : ''}`])
+            el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Janela: ${formatDateBR(d.data_inicio)} até ${formatDateBR(d.data_fim)}${p.remainingDays ? ' - ' + p.remainingDays : ''}`]),
+            p.windowSummary?.hasEarly ? el('div', { class:'row', style:'gap:6px;flex-wrap:wrap;margin-top:6px' }, [
+              el('span', { class:'pill warn', title:'Há apontamentos antes da data de início planejada.' }, [`Execução antecipada: ${p.windowSummary.earlyCount} apontamento(s) / ${fmtHours(p.windowSummary.earlyHours)}h`])
+            ]) : null
           ]),
           el('span', { class:`pill ${statusTone}`, title:p.health.hint, style:'white-space:nowrap' }, [p.health.label])
         ]),
