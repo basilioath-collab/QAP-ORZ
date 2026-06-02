@@ -974,6 +974,7 @@ main{padding:14px;overflow-x:hidden}
   const DASH_PER_RESOURCE_PAGE_SIZE = 5; // Dashboard: Por Recurso (mês)
   const DASH_SHEET_PAGE_SIZE = 10; // Visão Geral: linhas por página
   const MODAL_DEMANDS_PAGE_SIZE = 10; // Modais com lista de demandas: 10 por página
+  const INTERNAL_ACTIVITY_PAGE_SIZE = 10; // Atividades internas: 10 por página
 
   const qs = (sel, el=document) => el.querySelector(sel);
   const qsa = (sel, el=document) => [...el.querySelectorAll(sel)];
@@ -1501,8 +1502,10 @@ main{padding:14px;overflow-x:hidden}
     const out = { ...item };
     if (!out.createdAt) out.createdAt = nowIso();
     if (!out.createdBy) out.createdBy = userName || out.createdBy || '';
+    if (!out.createdById && !out.created_by_id) out.createdById = userId || '';
     out.updatedAt = nowIso();
     out.updatedBy = userName || out.updatedBy || '';
+    out.updatedById = userId || out.updatedById || out.updated_by_id || '';
     out.version = Number(out.version || 0) > 0 ? Number(out.version) : 1;
     return out;
   };
@@ -1513,8 +1516,10 @@ main{padding:14px;overflow-x:hidden}
     const out = { ...next };
     out.createdAt = out.createdAt || prev.createdAt || nowIso();
     out.createdBy = out.createdBy || prev.createdBy || userName || '';
+    out.createdById = out.createdById || out.created_by_id || prev.createdById || prev.created_by_id || userId || '';
     out.updatedAt = nowIso();
     out.updatedBy = userName || out.updatedBy || '';
+    out.updatedById = userId || out.updatedById || out.updated_by_id || '';
     out.version = Math.max(Number(prev.version || 0), Number(out.version || 0), 0) + 1;
     return out;
   };
@@ -2821,6 +2826,7 @@ main{padding:14px;overflow-x:hidden}
     evaluationPage: 1,
     blockingsPage: 1,
     holidaysPage: 1,
+    internalActivitiesPage: 1,
     // Modais
     donutModalPage: 1,
     dayModalPage: 1,
@@ -3660,6 +3666,44 @@ main{padding:14px;overflow-x:hidden}
     return internalActivitiesForResourceOnDate(resourceId, dateObj, { onlyCapacity:true })
       .reduce((acc, a) => acc + Math.max(0, Number(a?.horas_dia || a?.horas || 0)), 0);
   };
+
+  const ownerFromInternalActivityId = (id) => {
+    const raw = String(id || '').trim();
+    const match = raw.match(/^(.+)::ia::/);
+    const owner = String(match?.[1] || '').trim();
+    if (!owner || owner === 'unknown') return '';
+    return owner;
+  };
+
+  const internalActivityOwnerId = (activity={}) => {
+    const owner = String(
+      activity.owner_user_id || activity.ownerUserId ||
+      activity.created_by_id || activity.createdById ||
+      activity.user_id || activity.userId ||
+      ownerFromInternalActivityId(activity.id) || ''
+    ).trim();
+    return owner;
+  };
+
+  const internalActivityOwnerName = (activity={}) => String(
+    activity.created_by || activity.createdBy ||
+    activity.usuario || activity.user ||
+    activity.owner_user_name || activity.ownerUserName || ''
+  ).trim();
+
+  const canViewInternalActivityDetails = (activity={}) => {
+    const ownerId = internalActivityOwnerId(activity);
+    if (ownerId) return !!userId && ownerId === String(userId);
+
+    const ownerName = internalActivityOwnerName(activity);
+    if (ownerName) return !!userName && normalizedPersonName(ownerName) === normalizedPersonName(userName);
+
+    // Legado sem autoria: mantém visível para não "sumir" com dados antigos/importados.
+    return true;
+  };
+
+  const canManageInternalActivity = canViewInternalActivityDetails;
+
   const INPUT_LIMITS = {
     userName: 30,
     resourceName: 30,
@@ -3914,6 +3958,7 @@ main{padding:14px;overflow-x:hidden}
       'ADD_BLOCKING','DELETE_BLOCKING',
       'ADD_HOLIDAY','DELETE_HOLIDAY',
       'ADD_OVERTIME','DELETE_OVERTIME',
+      'ADD_INTERNAL_ACTIVITY','UPDATE_INTERNAL_ACTIVITY','DELETE_INTERNAL_ACTIVITY',
       'IMPORT_ADD','IMPORT_REPLACE'
     ].includes(t);
   };
@@ -5095,12 +5140,18 @@ main{padding:14px;overflow-x:hidden}
         }
 
         for (const ia of internalActivities) {
-          const iaTitle = String(ia.titulo || ia.tipo || 'Atividade interna').trim();
+          const canSeeIaDetails = canViewInternalActivityDetails(ia);
+          const iaTitle = canSeeIaDetails
+            ? String(ia.titulo || ia.tipo || 'Atividade interna').trim()
+            : 'Atividade interna privada';
           const iaHours = Math.max(0, Number(ia.horas_dia || ia.horas || 0));
           const trIa = el('tr');
           trIa.appendChild(el('td', {}, [
             el('div', { style:'font-weight:950;color:#446A0C' }, [`Interna - ${iaTitle}`]),
-            el('div', { class:'tiny' }, [ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade'])
+            el('div', { class:'tiny' }, [canSeeIaDetails
+              ? (ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade')
+              : 'Detalhes visíveis apenas para quem lançou; horas seguem contabilizadas na capacidade.'
+            ])
           ]));
           trIa.appendChild(el('td', {}, [el('span', { class:'statusPill s-andamento' }, [el('span', { class:'sDot' }), 'Atividade interna'])]));
           trIa.appendChild(el('td', { class:'mono' }, [String(Math.round((capFinal > 0 ? (iaHours / capFinal) * 100 : 0) * 10) / 10)]));
@@ -9176,11 +9227,36 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         horas_dia: hh,
         contabiliza_capacidade: contabiliza.value === 'true',
         observacoes: obs.value || '',
+        owner_user_id: userId || '',
+        owner_user_name: userName || 'Sessão local',
+        created_by_id: userId || '',
+        created_by: userName || 'Sessão local',
       });
       title.value=''; horas.value='01:00'; obs.value='';
+      uiPagination.internalActivitiesPage = 1;
       render();
     };
-    const rows = (state.internalActivities||[]).slice().sort((a,b)=>String(b.data_inicio||'').localeCompare(String(a.data_inicio||'')));
+    const allRows = (state.internalActivities||[])
+      .filter(canViewInternalActivityDetails)
+      .slice()
+      .sort((a,b)=>String(b.data_inicio||'').localeCompare(String(a.data_inicio||'')));
+    const total = allRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / INTERNAL_ACTIVITY_PAGE_SIZE));
+    uiPagination.internalActivitiesPage = Math.min(Math.max(1, Number(uiPagination.internalActivitiesPage||1)), totalPages);
+    const startIdx = (uiPagination.internalActivitiesPage - 1) * INTERNAL_ACTIVITY_PAGE_SIZE;
+    const rows = allRows.slice(startIdx, startIdx + INTERNAL_ACTIVITY_PAGE_SIZE);
+    const shown = rows.length;
+    const pager = total > INTERNAL_ACTIVITY_PAGE_SIZE ? buildPager({
+      page: uiPagination.internalActivitiesPage,
+      totalPages,
+      total,
+      startIdx,
+      shown,
+      onPrev: () => { uiPagination.internalActivitiesPage = Math.max(1, uiPagination.internalActivitiesPage-1); render(); },
+      onNext: () => { uiPagination.internalActivitiesPage = Math.min(totalPages, uiPagination.internalActivitiesPage+1); render(); },
+      onFirst: () => { uiPagination.internalActivitiesPage = 1; render(); },
+      onLast: () => { uiPagination.internalActivitiesPage = totalPages; render(); },
+    }) : null;
     const table = el('table');
     table.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Título','Recurso','Período','Horas/dia','Capacidade','Ação'].map(h=>el('th',{},[h])))]));
     const tb = el('tbody');
@@ -9193,10 +9269,14 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       tr.appendChild(el('td',{},[`${formatDateBR(a.data_inicio)} - ${formatDateBR(a.data_fim)}`]));
       tr.appendChild(el('td',{},[`${Number(a.horas_dia||0).toFixed(1)}h`]));
       tr.appendChild(el('td',{},[a.contabiliza_capacidade===false?'Não':'Sim']));
-      tr.appendChild(el('td',{},[button('Excluir','danger',()=>{dispatch('DELETE_INTERNAL_ACTIVITY', a.id); render();})]));
+      tr.appendChild(el('td',{},[button('Excluir','danger',()=>{
+        if (!canManageInternalActivity(a)) return toast('Você só pode excluir atividades internas lançadas por você.');
+        dispatch('DELETE_INTERNAL_ACTIVITY', a.id);
+        render();
+      })]));
       tb.appendChild(tr);
     }
-    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'7',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna cadastrada.'])]));
+    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'7',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
     table.appendChild(tb);
     return el('div',{class:'grid'},[
       card('Cadastrar atividade interna', null, el('div',{class:'grid'},[
@@ -9214,7 +9294,11 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         el('div',{class:'field'},[el('label',{},['Observações']), obs]),
         el('div',{class:'row end'},[button('Adicionar atividade','primary',add)]),
       ])),
-      card('Atividades internas', null, el('div',{class:'scrollX'},[table]))
+      card('Atividades internas', null, el('div',{class:'grid'},[
+        el('div', { class:'tiny muted' }, ['Privacidade: esta lista mostra apenas as atividades internas lançadas pelo usuário atual; a capacidade continua considerando atividades contabilizáveis de todos.']),
+        pager,
+        el('div',{class:'scrollX'},[table])
+      ].filter(Boolean)))
     ]);
   };
 
@@ -10372,6 +10456,7 @@ return el('div', { class:'grid' }, [
       el('button', { class:'ddItem', type:'button', 'data-export':'he' }, ['Exportar HE']),
       el('div', { class:'ddSep' }, []),
       el('button', { class:'ddItem', type:'button', 'data-export':'janelas' }, ['Exportar Janelas Livres por recurso (meses)']),
+      el('button', { class:'ddItem', type:'button', 'data-export':'orizon_pack_analise' }, ['Exportar Orizon Pack de Análise']),
       el('button', { class:'ddItem', type:'button', 'data-export':'excel_all' }, ['Exportar Tudo (Excel .xls)']),
     ]);
 
@@ -10398,6 +10483,7 @@ return el('div', { class:'grid' }, [
         case 'feriados': exportFeriadosCSV(); break;
         case 'he': exportHECSV(); break;
         case 'janelas': exportJanelasPorRecursoMesCSV(); break;
+        case 'orizon_pack_analise': openOrizonPackAnaliseModal(); break;
         case 'excel_all': exportAllExcelWorkbook(); break;
       }
     });
@@ -10549,6 +10635,1042 @@ return el('div', { class:'grid' }, [
       fim: r.fim || r.vigencia_fim || ''
     }))
   });
+
+  const buildOrizonPackAnaliseContext = (options={}) => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m0 = now.getMonth();
+    const currentMonthStart = formatDate(new Date(y, m0, 1));
+    const currentMonthEnd = formatDate(new Date(y, m0 + 1, 0));
+    const currentYearStart = `${y}-01-01`;
+    const currentYearEnd = `${y}-12-31`;
+    const scope = String(options.scope || 'ano_atual');
+    const periodStart = scope === 'mes_atual' ? currentMonthStart : currentYearStart;
+    const periodEnd = scope === 'mes_atual' ? currentMonthEnd : currentYearEnd;
+    return {
+      exportedAt: nowIso(),
+      exportDate: formatDate(now),
+      currentYear: y,
+      currentMonth: `${y}-${String(m0 + 1).padStart(2, '0')}`,
+      currentMonthStart,
+      currentMonthEnd,
+      currentYearStart,
+      currentYearEnd,
+      periodScope: scope === 'mes_atual' ? 'mes_atual' : 'ano_atual',
+      periodLabel: scope === 'mes_atual' ? 'Mês atual' : 'Ano atual',
+      periodStart,
+      periodEnd,
+      privacyMode: 'completo',
+    };
+  };
+
+  const countAllApontamentos = () => (state.demands || [])
+    .reduce((acc, d) => acc + normalizeDemandApontamentos(d).length, 0);
+
+  const buildOrizonPackManifestData = (ctx=buildOrizonPackAnaliseContext(), qualityRows=[]) => {
+    const headers = ['campo','valor'];
+    const rows = [
+      { campo:'nome_export', valor:'Orizon Pack de Análise' },
+      { campo:'formato', valor:'XLS multiaba' },
+      { campo:'schema_version', valor:'orizon_pack_analise_v1' },
+      { campo:'exportado_em', valor:ctx.exportedAt },
+      { campo:'usuario_exportador', valor:userName || 'Sessão local' },
+      { campo:'user_id_exportador', valor:userId || '' },
+      { campo:'escopo_dados', valor:'todos os dados disponíveis no app' },
+      { campo:'escopo_periodo_configurado', valor:ctx.periodLabel },
+      { campo:'periodo_configurado_inicio', valor:ctx.periodStart },
+      { campo:'periodo_configurado_fim', valor:ctx.periodEnd },
+      { campo:'mes_atual', valor:ctx.currentMonth },
+      { campo:'periodo_mes_inicio', valor:ctx.currentMonthStart },
+      { campo:'periodo_mes_fim', valor:ctx.currentMonthEnd },
+      { campo:'ano_atual', valor:ctx.currentYear },
+      { campo:'periodo_ano_inicio', valor:ctx.currentYearStart },
+      { campo:'periodo_ano_fim', valor:ctx.currentYearEnd },
+      { campo:'modo_atividades_internas', valor:ctx.privacyMode },
+      { campo:'total_recursos', valor:(state.resources || []).length },
+      { campo:'total_demandas', valor:(state.demands || []).length },
+      { campo:'total_apontamentos', valor:countAllApontamentos() },
+      { campo:'total_atividades_internas', valor:(state.internalActivities || []).length },
+      { campo:'total_reprogramacoes', valor:(state.reprogrammings || []).length },
+      { campo:'total_he', valor:(state.overtimes || []).length },
+      { campo:'total_alertas_qualidade', valor:(qualityRows || []).length },
+      { campo:'observacao', valor:'Pacote consolidado com dimensões, fatos, indicadores executivos, atrasos, reprogramações e diagnóstico de qualidade para análise operacional.' },
+    ];
+    return { headers, rows };
+  };
+
+  const buildOrizonPackDimRecursoData = () => ({
+    headers: ['resource_id','nome','tipo','ativo','vigencia_inicio','vigencia_fim','horas_dia','owner_user_id','created_by','created_by_id','updated_by','updated_by_id'],
+    rows: (state.resources || []).map(r => ({
+      resource_id: r.id || '',
+      nome: r.nome || '',
+      tipo: r.tipo || '',
+      ativo: (r.ativo === false) ? 'false' : 'true',
+      vigencia_inicio: r.inicio || r.vigencia_inicio || '',
+      vigencia_fim: r.fim || r.vigencia_fim || '',
+      horas_dia: getResourceHoursPerDay(r),
+      owner_user_id: r.owner_user_id || r.ownerUserId || '',
+      created_by: r.createdBy || r.created_by || '',
+      created_by_id: r.createdById || r.created_by_id || '',
+      updated_by: r.updatedBy || r.updated_by || '',
+      updated_by_id: r.updatedById || r.updated_by_id || '',
+    }))
+  });
+
+  const buildOrizonPackDimDemandaData = () => {
+    const resMap = resourceById();
+    const headers = [
+      'demand_id','titulo','status_base','status_atual','responsavel_id','responsavel','data_inicio','data_fim',
+      'baseline_inicio','baseline_fim','percentual_diario','horas_dia','prioridade','predio','focal',
+      'observacoes','created_by','created_by_id','updated_by','updated_by_id'
+    ];
+    const rows = (state.demands || []).map(d => {
+      const pct = Number(d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
+      const rid = d.responsavel_id || d.resourceId || '';
+      return {
+        demand_id: d.id || '',
+        titulo: d.titulo || d.nome || '',
+        status_base: d.status || '',
+        status_atual: effectiveStatus ? effectiveStatus(d) : (d.status || ''),
+        responsavel_id: rid,
+        responsavel: resMap[rid]?.nome || d.responsavel || rid || '',
+        data_inicio: d.start || d.data_inicio || '',
+        data_fim: d.end || d.data_fim || '',
+        baseline_inicio: d.baseline_inicio || d.data_inicio || '',
+        baseline_fim: d.baseline_fim || d.data_fim || '',
+        percentual_diario: isFinite(pct) ? pct : '',
+        horas_dia: isFinite(pct) ? Number((pct / 100 * HOURS_PER_DAY).toFixed(2)) : '',
+        prioridade: d.prioridade || '',
+        predio: d.predio || '',
+        focal: d.focal || '',
+        observacoes: d.obs || d.observacoes || '',
+        created_by: d.createdBy || d.created_by || '',
+        created_by_id: d.createdById || d.created_by_id || '',
+        updated_by: d.updatedBy || d.updated_by || '',
+        updated_by_id: d.updatedById || d.updated_by_id || '',
+      };
+    });
+    return { headers, rows };
+  };
+
+  const buildOrizonPackQualidadeDadosData = () => {
+    const headers = ['severidade','categoria','entidade','entidade_id','campo','mensagem','sugestao'];
+    const rows = [];
+    const resMap = resourceById();
+    const demandMap = new Map((state.demands || []).map(d => [String(d.id || ''), d]));
+    const add = (severidade, categoria, entidade, entidadeId, campo, mensagem, sugestao='') => rows.push({
+      severidade, categoria, entidade, entidade_id: entidadeId || '', campo, mensagem, sugestao
+    });
+    const validDate = (v) => isISODateString(String(v || '').trim());
+
+    for (const r of (state.resources || [])) {
+      if (!String(r.id || '').trim()) add('erro', 'cadastro', 'recurso', '', 'id', 'Recurso sem ID.', 'Recriar ou revisar o cadastro do recurso.');
+      if (!String(r.nome || '').trim()) add('erro', 'cadastro', 'recurso', r.id, 'nome', 'Recurso sem nome.', 'Informar nome do recurso.');
+      const ini = String(r.inicio || r.vigencia_inicio || '').trim();
+      const fim = String(r.fim || r.vigencia_fim || '').trim();
+      if (ini && !validDate(ini)) add('erro', 'data', 'recurso', r.id, 'vigencia_inicio', 'Vigência inicial inválida.', 'Usar data no formato AAAA-MM-DD.');
+      if (fim && !validDate(fim)) add('erro', 'data', 'recurso', r.id, 'vigencia_fim', 'Vigência final inválida.', 'Usar data no formato AAAA-MM-DD.');
+      if (validDate(ini) && validDate(fim) && fim < ini) add('erro', 'data', 'recurso', r.id, 'vigencia', 'Vigência final menor que a inicial.', 'Revisar início/fim da vigência.');
+    }
+
+    for (const d of (state.demands || [])) {
+      const id = d.id || '';
+      const st = effectiveStatus ? effectiveStatus(d) : (d.status || '');
+      const start = String(d.start || d.data_inicio || '').trim();
+      const end = String(d.end || d.data_fim || '').trim();
+      const allocations = demandAllocations(d);
+      if (!String(id).trim()) add('erro', 'cadastro', 'demanda', '', 'id', 'Demanda sem ID.', 'Revisar cadastro/importação da demanda.');
+      if (!String(d.titulo || d.nome || '').trim()) add('erro', 'cadastro', 'demanda', id, 'titulo', 'Demanda sem título.', 'Informar título da demanda.');
+      if (st !== 'Mapeada' && !allocations.length) add('erro', 'alocacao', 'demanda', id, 'responsavel', 'Demanda não mapeada sem responsável/alocação.', 'Definir pelo menos um responsável ou marcar como Mapeada.');
+      if (start && !validDate(start)) add('erro', 'data', 'demanda', id, 'data_inicio', 'Data de início inválida.', 'Usar data no formato AAAA-MM-DD.');
+      if (end && !validDate(end)) add('erro', 'data', 'demanda', id, 'data_fim', 'Data fim inválida.', 'Usar data no formato AAAA-MM-DD.');
+      if (!start && st !== 'Mapeada') add('erro', 'data', 'demanda', id, 'data_inicio', 'Demanda não mapeada sem data de início.', 'Informar início do planejamento.');
+      if (!end && st !== 'Mapeada') add('erro', 'data', 'demanda', id, 'data_fim', 'Demanda não mapeada sem data fim.', 'Informar prazo do planejamento.');
+      if (validDate(start) && validDate(end) && end < start) add('erro', 'data', 'demanda', id, 'periodo', 'Data fim menor que data de início.', 'Revisar período da demanda.');
+      for (const a of allocations) {
+        if (!resMap[a.resourceId]) add('erro', 'alocacao', 'demanda', id, 'responsavel_id', `Responsável não encontrado: ${a.resourceId || '-'}.`, 'Selecionar um recurso existente.');
+        const pct = Number(a.percentual_diario || 0);
+        if (!isFinite(pct) || pct <= 0) add('aviso', 'alocacao', 'demanda', id, 'percentual_diario', `Alocação sem percentual válido para recurso ${a.resourceId || '-'}.`, 'Informar percentual diário maior que zero.');
+      }
+      const rawApts = Array.isArray(d.apontamentos) ? d.apontamentos : [];
+      rawApts.forEach((apt, idx) => {
+        const aptId = apt?.id || `${id || 'demanda'}::apt::${idx + 1}`;
+        const data = String(apt?.data || '').trim();
+        const horas = parseApontamentoHours(apt?.horas);
+        if (!data || !validDate(data)) add('erro', 'apontamento', 'apontamento', aptId, 'data', `Apontamento da demanda "${d.titulo || id}" sem data válida.`, 'Informar data no formato AAAA-MM-DD.');
+        if (!normalizeProjectStep(apt?.etapa || apt?.tipo || '')) add('erro', 'apontamento', 'apontamento', aptId, 'etapa', `Apontamento da demanda "${d.titulo || id}" sem etapa válida.`, 'Selecionar uma etapa/documento.');
+        if (!Number.isFinite(horas) || horas <= 0) add('erro', 'apontamento', 'apontamento', aptId, 'horas', `Apontamento da demanda "${d.titulo || id}" sem horas válidas.`, 'Informar horas maiores que zero.');
+        if (!String(apt?.usuario || apt?.user || apt?.created_by || '').trim() && !String(apt?.user_id || apt?.userId || '').trim()) {
+          add('aviso', 'autoria', 'apontamento', aptId, 'usuario', `Apontamento da demanda "${d.titulo || id}" sem autoria explícita.`, 'Registrar usuário responsável pelo apontamento.');
+        }
+      });
+    }
+
+    for (const ia of (state.internalActivities || [])) {
+      const id = ia.id || '';
+      const rid = ia.resourceId || ia.resource_id || ia.recurso_id || '';
+      const ini = String(ia.data_inicio || ia.dataInicio || ia.start_date || ia.data || '').trim();
+      const fim = String(ia.data_fim || ia.dataFim || ia.end_date || ini || ia.data || '').trim();
+      const horas = Number(ia.horas_dia ?? ia.horas ?? 0);
+      if (!String(id).trim()) add('erro', 'atividade_interna', 'atividade_interna', '', 'id', 'Atividade interna sem ID.', 'Revisar cadastro/importação da atividade.');
+      if (!rid) add('erro', 'atividade_interna', 'atividade_interna', id, 'resourceId', 'Atividade interna sem recurso.', 'Vincular atividade a um recurso.');
+      else if (!resMap[rid]) add('erro', 'atividade_interna', 'atividade_interna', id, 'resourceId', `Recurso da atividade interna não encontrado: ${rid}.`, 'Selecionar recurso existente.');
+      if (!String(ia.titulo || ia.tipo || '').trim()) add('aviso', 'atividade_interna', 'atividade_interna', id, 'titulo', 'Atividade interna sem título/tipo.', 'Informar título ou tipo.');
+      if (!ini || !validDate(ini)) add('erro', 'atividade_interna', 'atividade_interna', id, 'data_inicio', 'Atividade interna sem início válido.', 'Usar data no formato AAAA-MM-DD.');
+      if (!fim || !validDate(fim)) add('erro', 'atividade_interna', 'atividade_interna', id, 'data_fim', 'Atividade interna sem fim válido.', 'Usar data no formato AAAA-MM-DD.');
+      if (validDate(ini) && validDate(fim) && fim < ini) add('erro', 'atividade_interna', 'atividade_interna', id, 'periodo', 'Atividade interna com fim menor que início.', 'Revisar período.');
+      if (!isFinite(horas) || horas < 0 || horas > 24) add('erro', 'atividade_interna', 'atividade_interna', id, 'horas_dia', 'Horas/dia da atividade interna inválidas.', 'Informar valor entre 0 e 24.');
+      if (!internalActivityOwnerId(ia) && !internalActivityOwnerName(ia)) add('aviso', 'autoria', 'atividade_interna', id, 'owner', 'Atividade interna sem dono/autoria explícita.', 'Registrar owner_user_id ou created_by_id.');
+    }
+
+    for (const o of (state.overtimes || [])) {
+      const id = o.id || '';
+      const rid = o.resourceId || o.recurso_id || o.recurso || '';
+      const date = String(o.date || o.data || '').trim();
+      const horas = Number(o.horas ?? o.hours ?? 0);
+      if (!date || !validDate(date)) add('erro', 'he', 'he', id, 'data', 'HE sem data válida.', 'Usar data no formato AAAA-MM-DD.');
+      if (!isFinite(horas) || horas <= 0) add('erro', 'he', 'he', id, 'horas', 'HE sem horas válidas.', 'Informar horas maiores que zero.');
+      if (rid && rid !== '__ALL__' && !resMap[rid]) add('erro', 'he', 'he', id, 'resourceId', `Recurso da HE não encontrado: ${rid}.`, 'Selecionar recurso existente ou Todos.');
+      if (!String(o.motivo || o.obs || o.titulo || o.atividade || '').trim()) add('aviso', 'he', 'he', id, 'motivo', 'HE sem motivo/título.', 'Informar motivo para rastreabilidade.');
+    }
+
+    for (const rp of (state.reprogrammings || [])) {
+      const id = rp.id || '';
+      const did = rp.demanda_id || rp.demandId || rp.demand_id || '';
+      const novoFim = String(rp.novo_fim || rp.novo_prazo || '').trim();
+      if (!did) add('erro', 'reprogramacao', 'reprogramacao', id, 'demanda_id', 'Reprogramação sem demanda vinculada.', 'Vincular reprogramação a uma demanda.');
+      else if (!demandMap.has(String(did))) add('erro', 'reprogramacao', 'reprogramacao', id, 'demanda_id', `Demanda da reprogramação não encontrada: ${did}.`, 'Revisar histórico da reprogramação.');
+      if (!String(rp.motivo || rp.justificativa || '').trim()) add('erro', 'reprogramacao', 'reprogramacao', id, 'motivo', 'Reprogramação sem motivo.', 'Informar justificativa da reprogramação.');
+      if (novoFim && !validDate(novoFim)) add('erro', 'reprogramacao', 'reprogramacao', id, 'novo_fim', 'Novo prazo da reprogramação inválido.', 'Usar data no formato AAAA-MM-DD.');
+    }
+
+    return { headers, rows };
+  };
+
+  const orizonPackWeekStartKey = (iso) => {
+    const d = isoToLocalMidnight(iso);
+    if (!d) return '';
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    return formatDate(d);
+  };
+
+  const buildOrizonPackFactApontamentosData = () => {
+    const resMap = resourceById();
+    const headers = [
+      'apontamento_id','data','semana_inicio','ano_mes','demand_id','demanda','status_atual',
+      'responsavel_id','responsavel','etapa','horas','usuario','user_id','observacao',
+      'created_at','updated_at','updated_by','updated_by_id','antecipado','fora_prazo',
+      'predio','focal','prioridade'
+    ];
+    const rows = [];
+    for (const d of (state.demands || [])) {
+      const rid = d.responsavel_id || d.resourceId || '';
+      const responsavel = resMap[rid]?.nome || d.responsavel || rid || '';
+      for (const a of normalizeDemandApontamentos(d)) {
+        const flags = apontamentoWindowFlags(d, a);
+        rows.push({
+          apontamento_id: a.id || '',
+          data: a.data || '',
+          semana_inicio: orizonPackWeekStartKey(a.data),
+          ano_mes: String(a.data || '').slice(0, 7),
+          demand_id: d.id || '',
+          demanda: d.titulo || d.nome || d.id || '',
+          status_atual: effectiveStatus ? effectiveStatus(d) : (d.status || ''),
+          responsavel_id: rid,
+          responsavel,
+          etapa: normalizeProjectStep(a.etapa) || a.etapa || '',
+          horas: Number(a.horas || 0),
+          usuario: a.usuario || '',
+          user_id: a.user_id || '',
+          observacao: a.observacao || '',
+          created_at: a.created_at || '',
+          updated_at: a.updated_at || '',
+          updated_by: a.updated_by || '',
+          updated_by_id: a.updated_by_id || '',
+          antecipado: flags.early ? 'true' : 'false',
+          fora_prazo: flags.late ? 'true' : 'false',
+          predio: d.predio || '',
+          focal: d.focal || '',
+          prioridade: d.prioridade || '',
+        });
+      }
+    }
+    return { headers, rows };
+  };
+
+  const buildOrizonPackIndicadoresApontamentosData = (factRows=[]) => {
+    const headers = ['tipo_indicador','chave','rotulo','horas','quantidade_apontamentos','demandas_distintas','usuarios_distintos'];
+    const groups = new Map();
+    const add = (tipo, chave, rotulo, row) => {
+      const k = `${tipo}::${chave || 'nao_informado'}`;
+      if (!groups.has(k)) groups.set(k, {
+        tipo_indicador: tipo,
+        chave: chave || 'nao_informado',
+        rotulo: rotulo || chave || 'Não informado',
+        horas: 0,
+        quantidade_apontamentos: 0,
+        demandas: new Set(),
+        usuarios: new Set(),
+      });
+      const g = groups.get(k);
+      g.horas = Math.round((Number(g.horas || 0) + Number(row.horas || 0)) * 100) / 100;
+      g.quantidade_apontamentos += 1;
+      if (row.demand_id) g.demandas.add(String(row.demand_id));
+      if (row.user_id || row.usuario) g.usuarios.add(String(row.user_id || row.usuario));
+    };
+    for (const r of (factRows || [])) {
+      add('por_dia', r.data, formatDateBR(r.data), r);
+      add('por_semana', r.semana_inicio, r.semana_inicio ? `Semana de ${formatDateBR(r.semana_inicio)}` : 'Sem semana', r);
+      add('por_mes', r.ano_mes, r.ano_mes || 'Sem mês', r);
+      add('por_usuario', r.user_id || r.usuario, r.usuario || r.user_id || 'Sem usuário', r);
+      add('por_demanda', r.demand_id, r.demanda || r.demand_id || 'Sem demanda', r);
+      add('por_status', r.status_atual, r.status_atual || 'Sem status', r);
+    }
+    const rows = [...groups.values()]
+      .map(g => ({
+        tipo_indicador: g.tipo_indicador,
+        chave: g.chave,
+        rotulo: g.rotulo,
+        horas: Number(g.horas || 0),
+        quantidade_apontamentos: g.quantidade_apontamentos,
+        demandas_distintas: g.demandas.size,
+        usuarios_distintos: g.usuarios.size,
+      }))
+      .sort((a,b) => String(a.tipo_indicador).localeCompare(String(b.tipo_indicador)) || Number(b.horas || 0) - Number(a.horas || 0));
+    return { headers, rows };
+  };
+
+  const buildOrizonPackIndicadoresAtividadeData = (factRows=[]) => {
+    const headers = ['origem','atividade','horas','quantidade_registros','demandas_distintas','usuarios_distintos','primeira_data','ultima_data'];
+    const groups = new Map();
+    for (const r of (factRows || [])) {
+      const atividade = r.etapa || 'Não informado';
+      const k = `apontamento::${atividade}`;
+      if (!groups.has(k)) groups.set(k, {
+        origem: 'apontamento', atividade, horas: 0, quantidade_registros: 0, demandas: new Set(), usuarios: new Set(), primeira_data: '', ultima_data: ''
+      });
+      const g = groups.get(k);
+      g.horas = Math.round((Number(g.horas || 0) + Number(r.horas || 0)) * 100) / 100;
+      g.quantidade_registros += 1;
+      if (r.demand_id) g.demandas.add(String(r.demand_id));
+      if (r.user_id || r.usuario) g.usuarios.add(String(r.user_id || r.usuario));
+      if (r.data && (!g.primeira_data || r.data < g.primeira_data)) g.primeira_data = r.data;
+      if (r.data && (!g.ultima_data || r.data > g.ultima_data)) g.ultima_data = r.data;
+    }
+    const rows = [...groups.values()]
+      .map(g => ({
+        origem: g.origem,
+        atividade: g.atividade,
+        horas: Number(g.horas || 0),
+        quantidade_registros: g.quantidade_registros,
+        demandas_distintas: g.demandas.size,
+        usuarios_distintos: g.usuarios.size,
+        primeira_data: g.primeira_data,
+        ultima_data: g.ultima_data,
+      }))
+      .sort((a,b) => Number(b.horas || 0) - Number(a.horas || 0));
+    return { headers, rows };
+  };
+
+  const orizonPackDaysBetween = (startIso, endIso) => {
+    const start = isoToLocalMidnight(startIso);
+    const end = isoToLocalMidnight(endIso);
+    if (!start || !end || end < start) return [];
+    const out = [];
+    const cursor = new Date(start.getTime());
+    while (cursor.getTime() <= end.getTime()) {
+      out.push(new Date(cursor.getTime()));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return out;
+  };
+
+  const buildOrizonPackFactCapacidadeDiaRecursoData = (ctx=buildOrizonPackAnaliseContext()) => {
+    const headers = [
+      'data','ano_mes','semana_inicio','resource_id','recurso','tipo_recurso','horas_dia_recurso',
+      'capacidade_total_hh','alocado_demandas_hh','alocado_internas_hh','alocado_total_hh',
+      'livre_hh','overcap_hh','pct_ocupacao','pct_livre','he_hh','elegivel','motivo_nao_util','tag','classe'
+    ];
+    const rows = [];
+    const days = orizonPackDaysBetween(ctx.periodStart, ctx.periodEnd);
+    for (const r of (state.resources || [])) {
+      for (const d of days) {
+        const info = CapacityEngine.freeHoursInfo(r.id, d);
+        const dateStr = info.dateStr || formatDate(d);
+        const cap = Number(info.capacity || 0);
+        const allocDem = Number(info.allocatedFromDemandsHH || 0);
+        const allocInt = Number(info.allocatedFromInternalHH || 0);
+        const alloc = Number(info.allocated || 0);
+        const free = Number(info.free || 0);
+        const he = Number(info.overtime?.total || 0);
+        const reason = CapacityEngine.nonWorkingReasonForDay(r.id, d);
+        rows.push({
+          data: dateStr,
+          ano_mes: dateStr.slice(0, 7),
+          semana_inicio: orizonPackWeekStartKey(dateStr),
+          resource_id: r.id || '',
+          recurso: r.nome || '',
+          tipo_recurso: r.tipo || '',
+          horas_dia_recurso: getResourceHoursPerDay(r),
+          capacidade_total_hh: Number(cap.toFixed(2)),
+          alocado_demandas_hh: Number(allocDem.toFixed(2)),
+          alocado_internas_hh: Number(allocInt.toFixed(2)),
+          alocado_total_hh: Number(alloc.toFixed(2)),
+          livre_hh: Number(free.toFixed(2)),
+          overcap_hh: Number(Math.max(0, -free).toFixed(2)),
+          pct_ocupacao: cap > 0 ? Number(((alloc / cap) * 100).toFixed(1)) : '',
+          pct_livre: cap > 0 ? Number(((Math.max(0, free) / cap) * 100).toFixed(1)) : '',
+          he_hh: Number(he.toFixed(2)),
+          elegivel: info.eligible === false ? 'false' : 'true',
+          motivo_nao_util: info.eligible === false ? (reason?.label || info.tag || '') : '',
+          tag: info.tag || '',
+          classe: info.cls || '',
+        });
+      }
+    }
+    return { headers, rows };
+  };
+
+  const summarizeOrizonPackCapacityRows = (rows=[]) => {
+    const cap = rows.reduce((acc, r) => acc + Number(r.capacidade_total_hh || 0), 0);
+    const allocDem = rows.reduce((acc, r) => acc + Number(r.alocado_demandas_hh || 0), 0);
+    const allocInt = rows.reduce((acc, r) => acc + Number(r.alocado_internas_hh || 0), 0);
+    const alloc = rows.reduce((acc, r) => acc + Number(r.alocado_total_hh || 0), 0);
+    const free = rows.reduce((acc, r) => acc + Number(r.livre_hh || 0), 0);
+    const over = rows.reduce((acc, r) => acc + Number(r.overcap_hh || 0), 0);
+    const he = rows.reduce((acc, r) => acc + Number(r.he_hh || 0), 0);
+    return {
+      capacidade_total_hh: Number(cap.toFixed(2)),
+      alocado_demandas_hh: Number(allocDem.toFixed(2)),
+      alocado_internas_hh: Number(allocInt.toFixed(2)),
+      alocado_total_hh: Number(alloc.toFixed(2)),
+      livre_hh: Number(free.toFixed(2)),
+      overcap_hh: Number(over.toFixed(2)),
+      he_hh: Number(he.toFixed(2)),
+      pct_ocupacao: cap > 0 ? Number(((alloc / cap) * 100).toFixed(1)) : '',
+      pct_livre: cap > 0 ? Number(((Math.max(0, free) / cap) * 100).toFixed(1)) : '',
+      dias_elegiveis: rows.filter(r => r.elegivel !== 'false').length,
+      dias_com_overcap: rows.filter(r => Number(r.overcap_hh || 0) > 0).length,
+      dias_com_he: rows.filter(r => Number(r.he_hh || 0) > 0).length,
+      dias_com_interna: rows.filter(r => Number(r.alocado_internas_hh || 0) > 0).length,
+    };
+  };
+
+  const buildOrizonPackIndicadoresRecursoData = (factRows=[], ctx=buildOrizonPackAnaliseContext()) => {
+    const headers = [
+      'escopo','resource_id','recurso','tipo_recurso','capacidade_total_hh','alocado_demandas_hh',
+      'alocado_internas_hh','alocado_total_hh','livre_hh','overcap_hh','he_hh','pct_ocupacao',
+      'pct_livre','dias_elegiveis','dias_com_overcap','dias_com_he','dias_com_interna'
+    ];
+    const scopes = ctx.periodScope === 'mes_atual'
+      ? [{ escopo:'mes_atual', rows: factRows }]
+      : [
+        { escopo:'mes_atual', rows: factRows.filter(r => r.data >= ctx.currentMonthStart && r.data <= ctx.currentMonthEnd) },
+        { escopo:'ano_atual', rows: factRows },
+      ];
+    const rows = [];
+    for (const scope of scopes) {
+      const byResource = new Map();
+      for (const r of scope.rows) {
+        const k = r.resource_id || 'nao_informado';
+        if (!byResource.has(k)) byResource.set(k, []);
+        byResource.get(k).push(r);
+      }
+      for (const [rid, list] of byResource.entries()) {
+        const first = list[0] || {};
+        rows.push({
+          escopo: scope.escopo,
+          resource_id: rid,
+          recurso: first.recurso || '',
+          tipo_recurso: first.tipo_recurso || '',
+          ...summarizeOrizonPackCapacityRows(list),
+        });
+      }
+    }
+    return { headers, rows: rows.sort((a,b) => String(a.escopo).localeCompare(String(b.escopo)) || Number(b.pct_ocupacao || 0) - Number(a.pct_ocupacao || 0)) };
+  };
+
+  const buildOrizonPackIndicadoresCapacidadeData = (factRows=[], ctx=buildOrizonPackAnaliseContext()) => {
+    const headers = [
+      'escopo','chave','rotulo','capacidade_total_hh','alocado_demandas_hh','alocado_internas_hh',
+      'alocado_total_hh','livre_hh','overcap_hh','he_hh','pct_ocupacao','pct_livre',
+      'dias_elegiveis','dias_com_overcap','dias_com_he','dias_com_interna'
+    ];
+    const monthRows = factRows.filter(r => r.data >= ctx.currentMonthStart && r.data <= ctx.currentMonthEnd);
+    const byMonth = new Map();
+    for (const r of factRows) {
+      const k = r.ano_mes || 'sem_mes';
+      if (!byMonth.has(k)) byMonth.set(k, []);
+      byMonth.get(k).push(r);
+    }
+    const rows = ctx.periodScope === 'mes_atual'
+      ? [{ escopo:'mes_atual', chave:ctx.currentMonth, rotulo:ctx.currentMonth, ...summarizeOrizonPackCapacityRows(factRows) }]
+      : [
+        { escopo:'mes_atual', chave:ctx.currentMonth, rotulo:ctx.currentMonth, ...summarizeOrizonPackCapacityRows(monthRows) },
+        { escopo:'ano_atual', chave:String(ctx.currentYear), rotulo:String(ctx.currentYear), ...summarizeOrizonPackCapacityRows(factRows) },
+      ];
+    for (const [month, list] of byMonth.entries()) {
+      rows.push({ escopo:'por_mes', chave:month, rotulo:month, ...summarizeOrizonPackCapacityRows(list) });
+    }
+    return { headers, rows };
+  };
+
+  const buildOrizonPackFactPlanejadoDiaDemandaRecursoData = (ctx=buildOrizonPackAnaliseContext()) => {
+    const resMap = resourceById();
+    const headers = [
+      'data','ano_mes','semana_inicio','demand_id','demanda','status_atual','resource_id','recurso',
+      'percentual_diario','horas_planejadas_dia','conta_alocacao','elegivel_capacidade',
+      'motivo_nao_util','data_inicio','data_fim','baseline_inicio','baseline_fim','predio','focal','prioridade'
+    ];
+    const rows = [];
+    for (const d of (state.demands || [])) {
+      const start = String(d.data_inicio || d.start || '').trim();
+      const end = String(d.data_fim || d.end || '').trim();
+      if (!isISODateString(start) || !isISODateString(end) || end < ctx.periodStart || start > ctx.periodEnd) continue;
+      const rangeStart = start < ctx.periodStart ? ctx.periodStart : start;
+      const rangeEnd = end > ctx.periodEnd ? ctx.periodEnd : end;
+      const statusAtual = effectiveStatus ? effectiveStatus(d) : (d.status || '');
+      const contaAlocacao = STATUS_COUNTS_IN_ALLOCATION.has(statusAtual);
+      for (const alloc of demandAllocations(d)) {
+        const rid = alloc.resourceId || '';
+        const res = resMap[rid];
+        const pct = Number(alloc.percentual_diario || 0);
+        for (const day of orizonPackDaysBetween(rangeStart, rangeEnd)) {
+          const dateStr = formatDate(day);
+          const reason = CapacityEngine.nonWorkingReasonForDay(rid, day);
+          const elegivel = !reason;
+          const plannedHH = contaAlocacao && elegivel ? (Math.max(0, pct) / 100) * getResourceHoursPerDay(res) : 0;
+          rows.push({
+            data: dateStr,
+            ano_mes: dateStr.slice(0, 7),
+            semana_inicio: orizonPackWeekStartKey(dateStr),
+            demand_id: d.id || '',
+            demanda: d.titulo || d.nome || d.id || '',
+            status_atual: statusAtual,
+            resource_id: rid,
+            recurso: res?.nome || d.responsavel || rid || '',
+            percentual_diario: pct,
+            horas_planejadas_dia: Number(plannedHH.toFixed(2)),
+            conta_alocacao: contaAlocacao ? 'true' : 'false',
+            elegivel_capacidade: elegivel ? 'true' : 'false',
+            motivo_nao_util: reason?.label || '',
+            data_inicio: start,
+            data_fim: end,
+            baseline_inicio: d.baseline_inicio || start,
+            baseline_fim: d.baseline_fim || end,
+            predio: d.predio || '',
+            focal: d.focal || '',
+            prioridade: d.prioridade || '',
+          });
+        }
+      }
+    }
+    return { headers, rows };
+  };
+
+  const buildOrizonPackIndicadoresDemandaData = (plannedRows=[], apontamentoRows=[], ctx=buildOrizonPackAnaliseContext()) => {
+    const headers = [
+      'escopo','demand_id','demanda','status_atual','responsavel','horas_planejadas','horas_realizadas',
+      'saldo_horas','pct_realizado','qtd_apontamentos','qtd_recursos_planejados','qtd_etapas',
+      'apontamentos_antecipados','apontamentos_fora_prazo','data_inicio','data_fim','baseline_inicio','baseline_fim','predio','focal','prioridade'
+    ];
+    const resMap = resourceById();
+    const scopes = ctx.periodScope === 'mes_atual'
+      ? [{ escopo:'mes_atual', start:ctx.periodStart, end:ctx.periodEnd }]
+      : [
+        { escopo:'mes_atual', start:ctx.currentMonthStart, end:ctx.currentMonthEnd },
+        { escopo:'ano_atual', start:ctx.currentYearStart, end:ctx.currentYearEnd },
+      ];
+    const rows = [];
+    for (const scope of scopes) {
+      for (const d of (state.demands || [])) {
+        const did = String(d.id || '');
+        const planned = plannedRows.filter(r => String(r.demand_id || '') === did && r.data >= scope.start && r.data <= scope.end);
+        const real = apontamentoRows.filter(r => String(r.demand_id || '') === did && r.data >= scope.start && r.data <= scope.end);
+        const plannedHH = planned.reduce((acc, r) => acc + Number(r.horas_planejadas_dia || 0), 0);
+        const realHH = real.reduce((acc, r) => acc + Number(r.horas || 0), 0);
+        if (plannedHH <= 0 && realHH <= 0) continue;
+        const rid = d.responsavel_id || d.resourceId || '';
+        const etapas = new Set(real.map(r => r.etapa).filter(Boolean));
+        const recursos = new Set(planned.map(r => r.resource_id).filter(Boolean));
+        rows.push({
+          escopo: scope.escopo,
+          demand_id: did,
+          demanda: d.titulo || d.nome || did || '',
+          status_atual: effectiveStatus ? effectiveStatus(d) : (d.status || ''),
+          responsavel: resMap[rid]?.nome || d.responsavel || rid || '',
+          horas_planejadas: Number(plannedHH.toFixed(2)),
+          horas_realizadas: Number(realHH.toFixed(2)),
+          saldo_horas: Number((plannedHH - realHH).toFixed(2)),
+          pct_realizado: plannedHH > 0 ? Number(((realHH / plannedHH) * 100).toFixed(1)) : (realHH > 0 ? 100 : ''),
+          qtd_apontamentos: real.length,
+          qtd_recursos_planejados: recursos.size,
+          qtd_etapas: etapas.size,
+          apontamentos_antecipados: real.filter(r => r.antecipado === 'true').length,
+          apontamentos_fora_prazo: real.filter(r => r.fora_prazo === 'true').length,
+          data_inicio: d.data_inicio || d.start || '',
+          data_fim: d.data_fim || d.end || '',
+          baseline_inicio: d.baseline_inicio || d.data_inicio || d.start || '',
+          baseline_fim: d.baseline_fim || d.data_fim || d.end || '',
+          predio: d.predio || '',
+          focal: d.focal || '',
+          prioridade: d.prioridade || '',
+        });
+      }
+    }
+    return { headers, rows: rows.sort((a,b) => String(a.escopo).localeCompare(String(b.escopo)) || Number(b.pct_realizado || 0) - Number(a.pct_realizado || 0)) };
+  };
+
+  const buildOrizonPackFactAtividadesInternasData = (ctx=buildOrizonPackAnaliseContext()) => {
+    const resMap = resourceById();
+    const headers = [
+      'internal_activity_id','data','ano_mes','semana_inicio','resource_id','recurso','tipo','titulo',
+      'horas_dia','contabiliza_capacidade','owner_user_id','owner_user_name','created_by','created_by_id',
+      'data_inicio','data_fim','observacoes'
+    ];
+    const rows = [];
+    for (const ia of (state.internalActivities || [])) {
+      const startRaw = normalizeDateLikeToISO(ia.data_inicio || ia.dataInicio || ia.start_date || ia.data || '');
+      const endRaw = normalizeDateLikeToISO(ia.data_fim || ia.dataFim || ia.end_date || startRaw || ia.data || '') || startRaw;
+      if (!startRaw || !endRaw || endRaw < ctx.periodStart || startRaw > ctx.periodEnd) continue;
+      const start = startRaw < ctx.periodStart ? ctx.periodStart : startRaw;
+      const end = endRaw > ctx.periodEnd ? ctx.periodEnd : endRaw;
+      const rid = ia.resourceId || ia.resource_id || ia.recurso_id || '';
+      const res = resMap[rid];
+      for (const day of orizonPackDaysBetween(start, end)) {
+        const dateStr = formatDate(day);
+        rows.push({
+          internal_activity_id: ia.id || '',
+          data: dateStr,
+          ano_mes: dateStr.slice(0, 7),
+          semana_inicio: orizonPackWeekStartKey(dateStr),
+          resource_id: rid,
+          recurso: res?.nome || rid || '',
+          tipo: ia.tipo || '',
+          titulo: ia.titulo || '',
+          horas_dia: Number(ia.horas_dia ?? ia.horas ?? 0) || 0,
+          contabiliza_capacidade: ia.contabiliza_capacidade === false ? 'false' : 'true',
+          owner_user_id: internalActivityOwnerId(ia),
+          owner_user_name: internalActivityOwnerName(ia),
+          created_by: ia.created_by || ia.createdBy || '',
+          created_by_id: ia.created_by_id || ia.createdById || '',
+          data_inicio: startRaw,
+          data_fim: endRaw,
+          observacoes: ia.observacoes || '',
+        });
+      }
+    }
+    return { headers, rows };
+  };
+
+  const buildOrizonPackFactHEData = (ctx=buildOrizonPackAnaliseContext()) => {
+    const resMap = resourceById();
+    const headers = ['he_id','data','ano_mes','semana_inicio','resource_id','recurso','horas','titulo','motivo','predio','focal','prioridade','observacoes'];
+    const rows = (state.overtimes || []).map(o => {
+      const date = String(o.date || o.data || '').trim();
+      if (!isISODateString(date) || date < ctx.periodStart || date > ctx.periodEnd) return null;
+      const rid = o.resourceId || o.recurso_id || o.recurso || '';
+      return {
+        he_id: o.id || '',
+        data: date,
+        ano_mes: date.slice(0, 7),
+        semana_inicio: orizonPackWeekStartKey(date),
+        resource_id: rid,
+        recurso: rid === '__ALL__' ? 'Todos os recursos' : (resMap[rid]?.nome || rid || ''),
+        horas: Number(o.horas ?? o.hours ?? 0) || 0,
+        titulo: o.titulo || o.atividade || '',
+        motivo: o.motivo || o.obs || '',
+        predio: o.predio || '',
+        focal: o.focal || '',
+        prioridade: o.prioridade || '',
+        observacoes: o.observacoes || '',
+      };
+    }).filter(Boolean);
+    return { headers, rows };
+  };
+
+  const buildOrizonPackFactBloqueiosDiaData = (ctx=buildOrizonPackAnaliseContext()) => {
+    const resMap = resourceById();
+    const headers = ['blocking_id','data','ano_mes','semana_inicio','resource_id','recurso','tipo','observacao','horas_capacidade_removidas','eh_ferias'];
+    const rows = [];
+    for (const b of (state.blockings || [])) {
+      const startRaw = blockingStartDate(b);
+      const endRaw = blockingEndDate(b) || startRaw;
+      if (!startRaw || !endRaw || endRaw < ctx.periodStart || startRaw > ctx.periodEnd) continue;
+      const start = startRaw < ctx.periodStart ? ctx.periodStart : startRaw;
+      const end = endRaw > ctx.periodEnd ? ctx.periodEnd : endRaw;
+      const rid = blockingResourceId(b);
+      const res = resMap[rid];
+      const tipo = String(b.tipo || '').trim();
+      for (const day of orizonPackDaysBetween(start, end)) {
+        const dateStr = formatDate(day);
+        const removeHH = (!isWeekend(day) && !isHoliday(dateStr)) ? getResourceHoursPerDay(res) : 0;
+        rows.push({
+          blocking_id: b.id || '',
+          data: dateStr,
+          ano_mes: dateStr.slice(0, 7),
+          semana_inicio: orizonPackWeekStartKey(dateStr),
+          resource_id: rid,
+          recurso: res?.nome || rid || '',
+          tipo,
+          observacao: b.observacao || '',
+          horas_capacidade_removidas: Number(removeHH.toFixed(2)),
+          eh_ferias: tipo.toLowerCase() === 'férias' ? 'true' : 'false',
+        });
+      }
+    }
+    return { headers, rows };
+  };
+
+  const buildOrizonPackIndicadoresInternasData = (factRows=[]) => {
+    const headers = ['tipo_indicador','chave','rotulo','horas','quantidade_registros','recursos_distintos','usuarios_distintos'];
+    const groups = new Map();
+    const add = (tipo, chave, rotulo, row) => {
+      const k = `${tipo}::${chave || 'nao_informado'}`;
+      if (!groups.has(k)) groups.set(k, { tipo_indicador: tipo, chave: chave || 'nao_informado', rotulo: rotulo || chave || 'Não informado', horas: 0, quantidade_registros: 0, recursos: new Set(), usuarios: new Set() });
+      const g = groups.get(k);
+      g.horas = Math.round((Number(g.horas || 0) + Number(row.horas_dia || 0)) * 100) / 100;
+      g.quantidade_registros += 1;
+      if (row.resource_id) g.recursos.add(String(row.resource_id));
+      if (row.owner_user_id || row.owner_user_name) g.usuarios.add(String(row.owner_user_id || row.owner_user_name));
+    };
+    for (const r of factRows || []) {
+      add('por_tipo', r.tipo, r.tipo || 'Sem tipo', r);
+      add('por_recurso', r.resource_id, r.recurso || r.resource_id || 'Sem recurso', r);
+      add('por_usuario', r.owner_user_id || r.owner_user_name, r.owner_user_name || r.owner_user_id || 'Sem usuário', r);
+      add('por_mes', r.ano_mes, r.ano_mes || 'Sem mês', r);
+    }
+    const rows = [...groups.values()].map(g => ({
+      tipo_indicador: g.tipo_indicador, chave: g.chave, rotulo: g.rotulo, horas: g.horas,
+      quantidade_registros: g.quantidade_registros, recursos_distintos: g.recursos.size, usuarios_distintos: g.usuarios.size,
+    })).sort((a,b) => String(a.tipo_indicador).localeCompare(String(b.tipo_indicador)) || Number(b.horas || 0) - Number(a.horas || 0));
+    return { headers, rows };
+  };
+
+  const buildOrizonPackIndicadoresHEBloqueiosData = (heRows=[], bloqueioRows=[]) => {
+    const headers = ['origem','tipo_indicador','chave','rotulo','horas','quantidade_registros','recursos_distintos'];
+    const groups = new Map();
+    const add = (origem, tipo, chave, rotulo, horas, recursoId) => {
+      const k = `${origem}::${tipo}::${chave || 'nao_informado'}`;
+      if (!groups.has(k)) groups.set(k, { origem, tipo_indicador: tipo, chave: chave || 'nao_informado', rotulo: rotulo || chave || 'Não informado', horas: 0, quantidade_registros: 0, recursos: new Set() });
+      const g = groups.get(k);
+      g.horas = Math.round((Number(g.horas || 0) + Number(horas || 0)) * 100) / 100;
+      g.quantidade_registros += 1;
+      if (recursoId) g.recursos.add(String(recursoId));
+    };
+    for (const r of heRows || []) {
+      add('he', 'por_recurso', r.resource_id, r.recurso || r.resource_id || 'Sem recurso', r.horas, r.resource_id);
+      add('he', 'por_motivo', r.motivo || r.titulo, r.motivo || r.titulo || 'Sem motivo', r.horas, r.resource_id);
+      add('he', 'por_mes', r.ano_mes, r.ano_mes || 'Sem mês', r.horas, r.resource_id);
+    }
+    for (const r of bloqueioRows || []) {
+      add('bloqueio', 'por_recurso', r.resource_id, r.recurso || r.resource_id || 'Sem recurso', r.horas_capacidade_removidas, r.resource_id);
+      add('bloqueio', 'por_tipo', r.tipo, r.tipo || 'Sem tipo', r.horas_capacidade_removidas, r.resource_id);
+      add('bloqueio', 'por_mes', r.ano_mes, r.ano_mes || 'Sem mês', r.horas_capacidade_removidas, r.resource_id);
+    }
+    const rows = [...groups.values()].map(g => ({
+      origem: g.origem, tipo_indicador: g.tipo_indicador, chave: g.chave, rotulo: g.rotulo, horas: g.horas,
+      quantidade_registros: g.quantidade_registros, recursos_distintos: g.recursos.size,
+    })).sort((a,b) => String(a.origem).localeCompare(String(b.origem)) || String(a.tipo_indicador).localeCompare(String(b.tipo_indicador)) || Number(b.horas || 0) - Number(a.horas || 0));
+    return { headers, rows };
+  };
+
+  const orizonPackReprogramDate = (rp={}) => {
+    const direct = normalizeDateLikeToISO(rp.data || rp.date || rp.createdAt || '');
+    if (direct) return direct;
+    const ts = Number(rp.timestamp || 0);
+    return ts > 0 ? formatDate(new Date(ts)) : '';
+  };
+
+  const buildOrizonPackFactReprogramacoesData = (ctx=buildOrizonPackAnaliseContext()) => {
+    const demandMap = new Map((state.demands || []).map(d => [String(d.id || ''), d]));
+    const headers = [
+      'reprogramacao_id','data_reprogramacao','ano_mes','demand_id','demanda','status_atual',
+      'inicio_original','prazo_original','prazo_anterior','novo_fim','dias_adicionados',
+      'motivo','usuario','user_id','timestamp'
+    ];
+    const rows = [];
+    for (const rp of (state.reprogrammings || [])) {
+      const date = orizonPackReprogramDate(rp);
+      if (date && (date < ctx.periodStart || date > ctx.periodEnd)) continue;
+      const did = String(rp.demanda_id || rp.demandId || rp.demand_id || '').trim();
+      const d = demandMap.get(did) || {};
+      const prevEnd = String(rp.prazo_anterior || rp.prazo_original || d.baseline_fim || '').trim();
+      const newEnd = String(rp.novo_fim || rp.novo_prazo || '').trim();
+      rows.push({
+        reprogramacao_id: rp.id || '',
+        data_reprogramacao: date,
+        ano_mes: date ? date.slice(0, 7) : '',
+        demand_id: did,
+        demanda: d.titulo || d.nome || did || '',
+        status_atual: d.id && effectiveStatus ? effectiveStatus(d) : (d.status || ''),
+        inicio_original: rp.inicio_original || d.baseline_inicio || d.data_inicio || '',
+        prazo_original: rp.prazo_original || d.baseline_fim || '',
+        prazo_anterior: rp.prazo_anterior || '',
+        novo_fim: newEnd,
+        dias_adicionados: (isISODateString(prevEnd) && isISODateString(newEnd)) ? Math.max(0, diffDaysISO(prevEnd, newEnd)) : '',
+        motivo: rp.motivo || rp.justificativa || '',
+        usuario: rp.user || rp.usuario || rp.createdBy || '',
+        user_id: rp.user_id || rp.userId || rp.createdById || '',
+        timestamp: rp.timestamp || '',
+      });
+    }
+    return { headers, rows };
+  };
+
+  const inferOrizonPackDelayReason = ({ demand, metrics, windowClassification, reprogrammings }) => {
+    const lastRp = (reprogrammings || [])[reprogrammings.length - 1] || {};
+    const motivo = String(lastRp.motivo || lastRp.justificativa || '').trim();
+    if (motivo) return `Reprogramado: ${motivo}`;
+    if (Number(metrics.apontamentosCount || 0) === 0 && daysLate(demand) > 0) return 'Sem execução registrada';
+    if (Number(metrics.plannedHours || 0) > 0 && Number(metrics.progressPct || 0) < 50 && daysLate(demand) > 0) return 'Execução abaixo do planejado';
+    if (windowClassification?.hasLateExecution) return 'Execução fora do prazo';
+    if (Number(metrics.realHours || 0) > Number(metrics.plannedHours || 0) && Number(metrics.plannedHours || 0) > 0) return 'Esforço acima do estimado';
+    if (windowClassification?.exceedsPlannedWindow) return 'Prazo original excedido';
+    if (effectiveStatus(demand) === 'Atrasada') return 'Prazo vencido';
+    return 'Sem atraso identificado';
+  };
+
+  const buildOrizonPackFactAtrasosData = () => {
+    const resMap = resourceById();
+    const headers = [
+      'demand_id','demanda','status_atual','responsavel','data_inicio','data_fim','baseline_inicio','baseline_fim',
+      'dias_atraso','prazo_original_excedido','dias_excedidos_original','qtd_reprogramacoes','ultimo_motivo_reprogramacao',
+      'motivo_inferido','horas_planejadas','horas_realizadas','saldo_horas','pct_realizado',
+      'qtd_apontamentos','apontamentos_antecipados','apontamentos_fora_prazo','horas_antecipadas','horas_fora_prazo',
+      'predio','focal','prioridade'
+    ];
+    const rows = [];
+    for (const d of (state.demands || [])) {
+      const apontamentos = normalizeDemandApontamentos(d);
+      const metrics = demandExecutionMetrics(d, apontamentos);
+      const wc = demandWindowClassification(d, apontamentos);
+      const rps = relatedDemandReprogrammings(d, state.reprogrammings);
+      const st = effectiveStatus ? effectiveStatus(d) : (d.status || '');
+      const isAttention = st === 'Atrasada' || wc.exceedsPlannedWindow || wc.hasLateExecution || Number(metrics.realHours || 0) > Number(metrics.plannedHours || 0);
+      if (!isAttention) continue;
+      const rid = d.responsavel_id || d.resourceId || '';
+      const lastRp = rps[rps.length - 1] || {};
+      rows.push({
+        demand_id: d.id || '',
+        demanda: d.titulo || d.nome || d.id || '',
+        status_atual: st,
+        responsavel: resMap[rid]?.nome || d.responsavel || rid || '',
+        data_inicio: d.data_inicio || d.start || '',
+        data_fim: d.data_fim || d.end || '',
+        baseline_inicio: wc.baselineStart || d.baseline_inicio || d.data_inicio || '',
+        baseline_fim: wc.baselineEnd || d.baseline_fim || d.data_fim || '',
+        dias_atraso: daysLate(d),
+        prazo_original_excedido: wc.exceedsPlannedWindow ? 'true' : 'false',
+        dias_excedidos_original: wc.exceededDays || 0,
+        qtd_reprogramacoes: rps.length,
+        ultimo_motivo_reprogramacao: lastRp.motivo || lastRp.justificativa || '',
+        motivo_inferido: inferOrizonPackDelayReason({ demand:d, metrics, windowClassification:wc, reprogrammings:rps }),
+        horas_planejadas: Number(metrics.plannedHours || 0),
+        horas_realizadas: Number(metrics.realHours || 0),
+        saldo_horas: Number(metrics.delta || 0),
+        pct_realizado: Number(metrics.progressPct || 0),
+        qtd_apontamentos: Number(metrics.apontamentosCount || 0),
+        apontamentos_antecipados: wc.earlyCount || 0,
+        apontamentos_fora_prazo: wc.lateCount || 0,
+        horas_antecipadas: wc.earlyHours || 0,
+        horas_fora_prazo: wc.lateHours || 0,
+        predio: d.predio || '',
+        focal: d.focal || '',
+        prioridade: d.prioridade || '',
+      });
+    }
+    return { headers, rows };
+  };
+
+  const buildOrizonPackIndicadoresAtrasosData = (atrasoRows=[], reprogramRows=[]) => {
+    const headers = ['tipo_indicador','chave','rotulo','quantidade','dias_atraso','horas_planejadas','horas_realizadas','horas_fora_prazo','dias_adicionados'];
+    const groups = new Map();
+    const add = (tipo, chave, rotulo, row={}) => {
+      const k = `${tipo}::${chave || 'nao_informado'}`;
+      if (!groups.has(k)) groups.set(k, { tipo_indicador: tipo, chave: chave || 'nao_informado', rotulo: rotulo || chave || 'Não informado', quantidade: 0, dias_atraso: 0, horas_planejadas: 0, horas_realizadas: 0, horas_fora_prazo: 0, dias_adicionados: 0 });
+      const g = groups.get(k);
+      g.quantidade += 1;
+      g.dias_atraso += Number(row.dias_atraso || 0);
+      g.horas_planejadas += Number(row.horas_planejadas || 0);
+      g.horas_realizadas += Number(row.horas_realizadas || 0);
+      g.horas_fora_prazo += Number(row.horas_fora_prazo || 0);
+      g.dias_adicionados += Number(row.dias_adicionados || 0);
+    };
+    for (const r of atrasoRows || []) {
+      add('atraso_por_motivo', r.motivo_inferido, r.motivo_inferido, r);
+      add('atraso_por_status', r.status_atual, r.status_atual, r);
+      add('atraso_por_responsavel', r.responsavel, r.responsavel, r);
+    }
+    for (const r of reprogramRows || []) {
+      add('reprogramacao_por_motivo', r.motivo, r.motivo || 'Sem motivo', r);
+      add('reprogramacao_por_mes', r.ano_mes, r.ano_mes || 'Sem mês', r);
+    }
+    const rows = [...groups.values()].map(g => ({
+      tipo_indicador: g.tipo_indicador, chave: g.chave, rotulo: g.rotulo, quantidade: g.quantidade,
+      dias_atraso: g.dias_atraso, horas_planejadas: Number(g.horas_planejadas.toFixed(2)),
+      horas_realizadas: Number(g.horas_realizadas.toFixed(2)), horas_fora_prazo: Number(g.horas_fora_prazo.toFixed(2)),
+      dias_adicionados: g.dias_adicionados,
+    })).sort((a,b) => String(a.tipo_indicador).localeCompare(String(b.tipo_indicador)) || Number(b.quantidade || 0) - Number(a.quantidade || 0));
+    return { headers, rows };
+  };
+
+  const ensureOrizonPackAnaliseModal = () => {
+    let dlg = qs('#orizonPackAnaliseModal');
+    if (dlg) return dlg;
+    dlg = el('dialog', { id:'orizonPackAnaliseModal', class:'modal' }, [
+      el('div', { class:'modalCard', style:'max-width:720px' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Orizon Pack de Análise']),
+            el('div', { class:'modalSub' }, ['Configure o período dos fatos antes de gerar o XLS multiaba.']),
+          ]),
+          el('button', { class:'btn ghost', type:'button', id:'orizonPackAnaliseClose' }, ['Fechar ×']),
+        ]),
+        el('div', { class:'modalBd', id:'orizonPackAnaliseBody' }, []),
+      ]),
+    ]);
+    document.body.appendChild(dlg);
+    qs('#orizonPackAnaliseClose', dlg)?.addEventListener('click', () => closeDialog(dlg));
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    return dlg;
+  };
+
+  const openOrizonPackAnaliseModal = () => {
+    const ctx = buildOrizonPackAnaliseContext();
+    const dlg = ensureOrizonPackAnaliseModal();
+    const body = qs('#orizonPackAnaliseBody', dlg);
+    const scopeSelect = el('select', { id:'orizonPackScope', style:'width:100%' }, [
+      el('option', { value:'ano_atual', selected:'selected' }, [`Ano atual (${ctx.currentYearStart} a ${ctx.currentYearEnd})`]),
+      el('option', { value:'mes_atual' }, [`Mês atual (${ctx.currentMonthStart} a ${ctx.currentMonthEnd})`]),
+    ]);
+    body.innerHTML = '';
+    body.appendChild(el('div', { class:'grid' }, [
+      el('label', {}, [el('b', {}, ['Período dos fatos']), scopeSelect]),
+      el('div', { class:'hint' }, [
+        el('b', {}, ['O que entra no pacote?']),
+        el('div', { class:'tiny muted', style:'margin-top:6px;line-height:1.5' }, [
+          'Dimensões e diagnóstico olham para a base completa. Fatos operacionais, capacidade, planejamento, HE, bloqueios, internas e reprogramações respeitam o período escolhido. Atividades internas saem completas no XLS para análise, mantendo a privacidade apenas na tela operacional.'
+        ]),
+      ]),
+      el('div', { class:'grid two' }, [
+        el('div', { class:'card kpi' }, [el('div', { class:'tiny muted' }, ['Abas principais']), el('div', { class:'big' }, ['21'])]),
+        el('div', { class:'card kpi' }, [el('div', { class:'tiny muted' }, ['Modo internas']), el('div', { class:'big' }, ['Completo'])]),
+      ]),
+      el('div', { class:'modalActions' }, [
+        button('Cancelar', '', () => closeDialog(dlg)),
+        button('Gerar Orizon Pack', 'primary', () => {
+          closeDialog(dlg);
+          exportOrizonPackAnaliseWorkbook({ scope: scopeSelect.value });
+        }),
+      ]),
+    ]));
+    openDialog(dlg);
+  };
+
+  const orizonPackSlug = (value) => String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'nao_informado';
+
+  const sumOrizonPackRows = (rows=[], field) => Number((rows || []).reduce((acc, r) => acc + Number(r[field] || 0), 0).toFixed(2));
+
+  const countOrizonPackRowsInRange = (rows=[], dateField, start, end) => (rows || []).filter(r => {
+    const d = String(r[dateField] || '').slice(0, 10);
+    return d && d >= start && d <= end;
+  }).length;
+
+  const buildOrizonPackKpiExecutivoData = ({ ctx, qualidade, factApontamentos, factCapacidade, factPlanejado, factInternas, factHE, factBloqueios, factReprogramacoes, factAtrasos }) => {
+    const headers = ['categoria','indicador','escopo','valor','unidade','observacao'];
+    const rows = [];
+    const add = (categoria, indicador, escopo, valor, unidade='', observacao='') => rows.push({
+      categoria, indicador, escopo, valor: typeof valor === 'number' ? Number((Number.isFinite(valor) ? valor : 0).toFixed(2)) : valor, unidade, observacao,
+    });
+    const demands = state.demands || [];
+    const resources = state.resources || [];
+    const demandStatus = new Map();
+    for (const d of demands) {
+      const st = effectiveStatus ? effectiveStatus(d) : (d.status || 'Sem status');
+      demandStatus.set(st, (demandStatus.get(st) || 0) + 1);
+    }
+    add('base', 'total_recursos', 'base_completa', resources.length, 'recursos');
+    add('base', 'recursos_ativos', 'base_completa', resources.filter(r => r.ativo !== false).length, 'recursos');
+    add('base', 'total_demandas', 'base_completa', demands.length, 'demandas');
+    for (const [status, total] of [...demandStatus.entries()].sort((a,b) => String(a[0]).localeCompare(String(b[0])))) {
+      add('base', `demandas_${orizonPackSlug(status || 'sem_status')}`, 'base_completa', total, 'demandas', status || 'Sem status');
+    }
+    const capPeriodo = summarizeOrizonPackCapacityRows(factCapacidade.rows || []);
+    const capMes = summarizeOrizonPackCapacityRows((factCapacidade.rows || []).filter(r => r.data >= ctx.currentMonthStart && r.data <= ctx.currentMonthEnd));
+    add('capacidade', 'capacidade_total_hh', ctx.periodScope, capPeriodo.capacidade_total_hh, 'hh');
+    add('capacidade', 'alocado_total_hh', ctx.periodScope, capPeriodo.alocado_total_hh, 'hh');
+    add('capacidade', 'livre_hh', ctx.periodScope, capPeriodo.livre_hh, 'hh');
+    add('capacidade', 'overcap_hh', ctx.periodScope, capPeriodo.overcap_hh, 'hh');
+    add('capacidade', 'ocupacao_pct', ctx.periodScope, capPeriodo.pct_ocupacao, '%');
+    add('capacidade', 'capacidade_mes_atual_hh', 'mes_atual', capMes.capacidade_total_hh, 'hh');
+    add('capacidade', 'ocupacao_mes_atual_pct', 'mes_atual', capMes.pct_ocupacao, '%');
+    add('execucao', 'apontamentos_qtd_periodo', ctx.periodScope, countOrizonPackRowsInRange(factApontamentos.rows, 'data', ctx.periodStart, ctx.periodEnd), 'registros');
+    add('execucao', 'apontamentos_hh_periodo', ctx.periodScope, sumOrizonPackRows((factApontamentos.rows || []).filter(r => r.data >= ctx.periodStart && r.data <= ctx.periodEnd), 'horas'), 'hh');
+    add('planejamento', 'planejado_hh_periodo', ctx.periodScope, sumOrizonPackRows(factPlanejado.rows || [], 'horas_planejadas_dia'), 'hh');
+    add('internas', 'atividades_internas_hh_periodo', ctx.periodScope, sumOrizonPackRows(factInternas.rows || [], 'horas_dia'), 'hh');
+    add('internas', 'atividades_internas_registros_periodo', ctx.periodScope, (factInternas.rows || []).length, 'registros');
+    add('calendario', 'he_hh_periodo', ctx.periodScope, sumOrizonPackRows(factHE.rows || [], 'horas'), 'hh');
+    add('calendario', 'bloqueios_hh_removidas_periodo', ctx.periodScope, sumOrizonPackRows(factBloqueios.rows || [], 'horas_capacidade_removidas'), 'hh');
+    add('reprogramacoes', 'reprogramacoes_periodo', ctx.periodScope, (factReprogramacoes.rows || []).length, 'registros');
+    add('atrasos', 'demandas_em_diagnostico_atraso', 'base_completa', (factAtrasos.rows || []).length, 'demandas');
+    add('atrasos', 'horas_fora_prazo', 'base_completa', sumOrizonPackRows(factAtrasos.rows || [], 'horas_fora_prazo'), 'hh');
+    add('qualidade', 'alertas_qualidade', 'base_completa', (qualidade.rows || []).length, 'alertas');
+    add('pacote', 'abas_exportadas', 'arquivo', 21, 'abas', 'Manifesto, dimensões, fatos, indicadores, KPI executivo e qualidade.');
+    return { headers, rows };
+  };
+
+  const exportOrizonPackAnaliseWorkbook = (options={}) => {
+    const ctx = buildOrizonPackAnaliseContext(options);
+    const qualidade = buildOrizonPackQualidadeDadosData();
+    const factApontamentos = buildOrizonPackFactApontamentosData();
+    const indicadoresApontamentos = buildOrizonPackIndicadoresApontamentosData(factApontamentos.rows);
+    const indicadoresAtividade = buildOrizonPackIndicadoresAtividadeData(factApontamentos.rows);
+    const factCapacidade = buildOrizonPackFactCapacidadeDiaRecursoData(ctx);
+    const indicadoresRecurso = buildOrizonPackIndicadoresRecursoData(factCapacidade.rows, ctx);
+    const indicadoresCapacidade = buildOrizonPackIndicadoresCapacidadeData(factCapacidade.rows, ctx);
+    const factPlanejado = buildOrizonPackFactPlanejadoDiaDemandaRecursoData(ctx);
+    const indicadoresDemanda = buildOrizonPackIndicadoresDemandaData(factPlanejado.rows, factApontamentos.rows, ctx);
+    const factInternas = buildOrizonPackFactAtividadesInternasData(ctx);
+    const factHE = buildOrizonPackFactHEData(ctx);
+    const factBloqueios = buildOrizonPackFactBloqueiosDiaData(ctx);
+    const indicadoresInternas = buildOrizonPackIndicadoresInternasData(factInternas.rows);
+    const indicadoresHEBloqueios = buildOrizonPackIndicadoresHEBloqueiosData(factHE.rows, factBloqueios.rows);
+    const factReprogramacoes = buildOrizonPackFactReprogramacoesData(ctx);
+    const factAtrasos = buildOrizonPackFactAtrasosData();
+    const indicadoresAtrasos = buildOrizonPackIndicadoresAtrasosData(factAtrasos.rows, factReprogramacoes.rows);
+    const kpiExecutivo = buildOrizonPackKpiExecutivoData({ ctx, qualidade, factApontamentos, factCapacidade, factPlanejado, factInternas, factHE, factBloqueios, factReprogramacoes, factAtrasos });
+    downloadExcelWorkbook(`orizon_pack_analise_${ctx.exportDate}.xls`, [
+      { name:'manifest', ...buildOrizonPackManifestData(ctx, qualidade.rows) },
+      { name:'kpi_executivo', ...kpiExecutivo },
+      { name:'dim_recurso', ...buildOrizonPackDimRecursoData() },
+      { name:'dim_demanda', ...buildOrizonPackDimDemandaData() },
+      { name:'fact_apontamentos', ...factApontamentos },
+      { name:'fact_capacidade', ...factCapacidade },
+      { name:'fact_planejado', ...factPlanejado },
+      { name:'fact_internas', ...factInternas },
+      { name:'fact_he', ...factHE },
+      { name:'fact_bloqueios', ...factBloqueios },
+      { name:'fact_reprogramacoes', ...factReprogramacoes },
+      { name:'fact_atrasos', ...factAtrasos },
+      { name:'indic_apontamentos', ...indicadoresApontamentos },
+      { name:'indic_atividade', ...indicadoresAtividade },
+      { name:'indic_recurso', ...indicadoresRecurso },
+      { name:'indic_capacidade', ...indicadoresCapacidade },
+      { name:'indic_demanda', ...indicadoresDemanda },
+      { name:'indic_internas', ...indicadoresInternas },
+      { name:'indic_he_bloq', ...indicadoresHEBloqueios },
+      { name:'indic_atrasos', ...indicadoresAtrasos },
+      { name:'qualidade_dados', ...qualidade },
+    ]);
+    toast('Orizon Pack de Análise exportado.');
+  };
 
   const buildBloqueiosExportData = () => {
     const resMap = resourceById();
