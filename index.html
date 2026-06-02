@@ -974,6 +974,7 @@ main{padding:14px;overflow-x:hidden}
   const DASH_PER_RESOURCE_PAGE_SIZE = 5; // Dashboard: Por Recurso (mês)
   const DASH_SHEET_PAGE_SIZE = 10; // Visão Geral: linhas por página
   const MODAL_DEMANDS_PAGE_SIZE = 10; // Modais com lista de demandas: 10 por página
+  const INTERNAL_ACTIVITY_PAGE_SIZE = 10; // Atividades internas: 10 por página
 
   const qs = (sel, el=document) => el.querySelector(sel);
   const qsa = (sel, el=document) => [...el.querySelectorAll(sel)];
@@ -1501,8 +1502,10 @@ main{padding:14px;overflow-x:hidden}
     const out = { ...item };
     if (!out.createdAt) out.createdAt = nowIso();
     if (!out.createdBy) out.createdBy = userName || out.createdBy || '';
+    if (!out.createdById && !out.created_by_id) out.createdById = userId || '';
     out.updatedAt = nowIso();
     out.updatedBy = userName || out.updatedBy || '';
+    out.updatedById = userId || out.updatedById || out.updated_by_id || '';
     out.version = Number(out.version || 0) > 0 ? Number(out.version) : 1;
     return out;
   };
@@ -1513,8 +1516,10 @@ main{padding:14px;overflow-x:hidden}
     const out = { ...next };
     out.createdAt = out.createdAt || prev.createdAt || nowIso();
     out.createdBy = out.createdBy || prev.createdBy || userName || '';
+    out.createdById = out.createdById || out.created_by_id || prev.createdById || prev.created_by_id || userId || '';
     out.updatedAt = nowIso();
     out.updatedBy = userName || out.updatedBy || '';
+    out.updatedById = userId || out.updatedById || out.updated_by_id || '';
     out.version = Math.max(Number(prev.version || 0), Number(out.version || 0), 0) + 1;
     return out;
   };
@@ -2821,6 +2826,7 @@ main{padding:14px;overflow-x:hidden}
     evaluationPage: 1,
     blockingsPage: 1,
     holidaysPage: 1,
+    internalActivitiesPage: 1,
     // Modais
     donutModalPage: 1,
     dayModalPage: 1,
@@ -3660,6 +3666,44 @@ main{padding:14px;overflow-x:hidden}
     return internalActivitiesForResourceOnDate(resourceId, dateObj, { onlyCapacity:true })
       .reduce((acc, a) => acc + Math.max(0, Number(a?.horas_dia || a?.horas || 0)), 0);
   };
+
+  const ownerFromInternalActivityId = (id) => {
+    const raw = String(id || '').trim();
+    const match = raw.match(/^(.+)::ia::/);
+    const owner = String(match?.[1] || '').trim();
+    if (!owner || owner === 'unknown') return '';
+    return owner;
+  };
+
+  const internalActivityOwnerId = (activity={}) => {
+    const owner = String(
+      activity.owner_user_id || activity.ownerUserId ||
+      activity.created_by_id || activity.createdById ||
+      activity.user_id || activity.userId ||
+      ownerFromInternalActivityId(activity.id) || ''
+    ).trim();
+    return owner;
+  };
+
+  const internalActivityOwnerName = (activity={}) => String(
+    activity.created_by || activity.createdBy ||
+    activity.usuario || activity.user ||
+    activity.owner_user_name || activity.ownerUserName || ''
+  ).trim();
+
+  const canViewInternalActivityDetails = (activity={}) => {
+    const ownerId = internalActivityOwnerId(activity);
+    if (ownerId) return !!userId && ownerId === String(userId);
+
+    const ownerName = internalActivityOwnerName(activity);
+    if (ownerName) return !!userName && normalizedPersonName(ownerName) === normalizedPersonName(userName);
+
+    // Legado sem autoria: mantém visível para não "sumir" com dados antigos/importados.
+    return true;
+  };
+
+  const canManageInternalActivity = canViewInternalActivityDetails;
+
   const INPUT_LIMITS = {
     userName: 30,
     resourceName: 30,
@@ -3914,6 +3958,7 @@ main{padding:14px;overflow-x:hidden}
       'ADD_BLOCKING','DELETE_BLOCKING',
       'ADD_HOLIDAY','DELETE_HOLIDAY',
       'ADD_OVERTIME','DELETE_OVERTIME',
+      'ADD_INTERNAL_ACTIVITY','UPDATE_INTERNAL_ACTIVITY','DELETE_INTERNAL_ACTIVITY',
       'IMPORT_ADD','IMPORT_REPLACE'
     ].includes(t);
   };
@@ -5095,12 +5140,18 @@ main{padding:14px;overflow-x:hidden}
         }
 
         for (const ia of internalActivities) {
-          const iaTitle = String(ia.titulo || ia.tipo || 'Atividade interna').trim();
+          const canSeeIaDetails = canViewInternalActivityDetails(ia);
+          const iaTitle = canSeeIaDetails
+            ? String(ia.titulo || ia.tipo || 'Atividade interna').trim()
+            : 'Atividade interna privada';
           const iaHours = Math.max(0, Number(ia.horas_dia || ia.horas || 0));
           const trIa = el('tr');
           trIa.appendChild(el('td', {}, [
             el('div', { style:'font-weight:950;color:#446A0C' }, [`Interna - ${iaTitle}`]),
-            el('div', { class:'tiny' }, [ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade'])
+            el('div', { class:'tiny' }, [canSeeIaDetails
+              ? (ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade')
+              : 'Detalhes visíveis apenas para quem lançou; horas seguem contabilizadas na capacidade.'
+            ])
           ]));
           trIa.appendChild(el('td', {}, [el('span', { class:'statusPill s-andamento' }, [el('span', { class:'sDot' }), 'Atividade interna'])]));
           trIa.appendChild(el('td', { class:'mono' }, [String(Math.round((capFinal > 0 ? (iaHours / capFinal) * 100 : 0) * 10) / 10)]));
@@ -9176,11 +9227,36 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         horas_dia: hh,
         contabiliza_capacidade: contabiliza.value === 'true',
         observacoes: obs.value || '',
+        owner_user_id: userId || '',
+        owner_user_name: userName || 'Sessão local',
+        created_by_id: userId || '',
+        created_by: userName || 'Sessão local',
       });
       title.value=''; horas.value='01:00'; obs.value='';
+      uiPagination.internalActivitiesPage = 1;
       render();
     };
-    const rows = (state.internalActivities||[]).slice().sort((a,b)=>String(b.data_inicio||'').localeCompare(String(a.data_inicio||'')));
+    const allRows = (state.internalActivities||[])
+      .filter(canViewInternalActivityDetails)
+      .slice()
+      .sort((a,b)=>String(b.data_inicio||'').localeCompare(String(a.data_inicio||'')));
+    const total = allRows.length;
+    const totalPages = Math.max(1, Math.ceil(total / INTERNAL_ACTIVITY_PAGE_SIZE));
+    uiPagination.internalActivitiesPage = Math.min(Math.max(1, Number(uiPagination.internalActivitiesPage||1)), totalPages);
+    const startIdx = (uiPagination.internalActivitiesPage - 1) * INTERNAL_ACTIVITY_PAGE_SIZE;
+    const rows = allRows.slice(startIdx, startIdx + INTERNAL_ACTIVITY_PAGE_SIZE);
+    const shown = rows.length;
+    const pager = total > INTERNAL_ACTIVITY_PAGE_SIZE ? buildPager({
+      page: uiPagination.internalActivitiesPage,
+      totalPages,
+      total,
+      startIdx,
+      shown,
+      onPrev: () => { uiPagination.internalActivitiesPage = Math.max(1, uiPagination.internalActivitiesPage-1); render(); },
+      onNext: () => { uiPagination.internalActivitiesPage = Math.min(totalPages, uiPagination.internalActivitiesPage+1); render(); },
+      onFirst: () => { uiPagination.internalActivitiesPage = 1; render(); },
+      onLast: () => { uiPagination.internalActivitiesPage = totalPages; render(); },
+    }) : null;
     const table = el('table');
     table.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Título','Recurso','Período','Horas/dia','Capacidade','Ação'].map(h=>el('th',{},[h])))]));
     const tb = el('tbody');
@@ -9193,10 +9269,14 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       tr.appendChild(el('td',{},[`${formatDateBR(a.data_inicio)} - ${formatDateBR(a.data_fim)}`]));
       tr.appendChild(el('td',{},[`${Number(a.horas_dia||0).toFixed(1)}h`]));
       tr.appendChild(el('td',{},[a.contabiliza_capacidade===false?'Não':'Sim']));
-      tr.appendChild(el('td',{},[button('Excluir','danger',()=>{dispatch('DELETE_INTERNAL_ACTIVITY', a.id); render();})]));
+      tr.appendChild(el('td',{},[button('Excluir','danger',()=>{
+        if (!canManageInternalActivity(a)) return toast('Você só pode excluir atividades internas lançadas por você.');
+        dispatch('DELETE_INTERNAL_ACTIVITY', a.id);
+        render();
+      })]));
       tb.appendChild(tr);
     }
-    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'7',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna cadastrada.'])]));
+    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'7',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
     table.appendChild(tb);
     return el('div',{class:'grid'},[
       card('Cadastrar atividade interna', null, el('div',{class:'grid'},[
@@ -9214,7 +9294,11 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         el('div',{class:'field'},[el('label',{},['Observações']), obs]),
         el('div',{class:'row end'},[button('Adicionar atividade','primary',add)]),
       ])),
-      card('Atividades internas', null, el('div',{class:'scrollX'},[table]))
+      card('Atividades internas', null, el('div',{class:'grid'},[
+        el('div', { class:'tiny muted' }, ['Privacidade: esta lista mostra apenas as atividades internas lançadas pelo usuário atual; a capacidade continua considerando atividades contabilizáveis de todos.']),
+        pager,
+        el('div',{class:'scrollX'},[table])
+      ].filter(Boolean)))
     ]);
   };
 
