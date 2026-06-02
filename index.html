@@ -3070,6 +3070,31 @@ main{padding:14px;overflow-x:hidden}
     return out.sort((a,b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
   };
 
+  const isConsolidatedEventReceipt = (event) =>
+    !!(event && event.consolidated === true && !Object.prototype.hasOwnProperty.call(event, 'payload'));
+
+  const compactConsolidatedEventReceipt = (event) => {
+    if (!event || !event.id) return null;
+    const receipt = {
+      id: String(event.id),
+      type: String(event.type || ''),
+      timestamp: Number(event.timestamp || 0),
+      user: String(event.user || ''),
+      user_id: String(event.user_id || event.userId || ''),
+      consolidated: true
+    };
+    if (event.sourceFile) receipt.sourceFile = String(event.sourceFile);
+    if (Object.prototype.hasOwnProperty.call(event, 'payload')) {
+      try { receipt.payloadHash = simpleHash(stableStringify(event.payload)); } catch {}
+    } else if (event.payloadHash) {
+      receipt.payloadHash = String(event.payloadHash);
+    }
+    return receipt;
+  };
+
+  const compactConsolidatedEventReceipts = (events=[]) =>
+    mergeEventListsUnique(events).map(compactConsolidatedEventReceipt).filter(Boolean);
+
   const sharedFolderReady = () => !!(capviewEventMode.enabled && capviewDataDirHandle && capviewEventsDirHandle && capviewSnapshotFileHandle);
   const hasEventFolderIntent = () => !!(capviewEventMode.enabled || capviewEventMode.folderName || loadLocalEventOutbox().length);
   const eventFolderConnectionStatus = () => {
@@ -4115,7 +4140,10 @@ main{padding:14px;overflow-x:hidden}
     await writable.write(String(text || ''));
     await writable.close();
   };
-  const writeJsonToFileHandle = async (handle, obj) => writeTextToFileHandle(handle, JSON.stringify(obj, null, 2));
+  const stringifyJsonForFile = (obj, opts={}) => opts.pretty === true
+    ? JSON.stringify(obj, null, 2)
+    : JSON.stringify(obj);
+  const writeJsonToFileHandle = async (handle, obj, opts={}) => writeTextToFileHandle(handle, stringifyJsonForFile(obj, opts));
 
   const ensureEventFolderReady = async ({ createSnapshotIfMissing=true } = {}) => {
     if (!capviewDataDirHandle || !capviewEventsDirHandle || !capviewSnapshotFileHandle) throw new Error('Selecione a pasta ORIZONData primeiro.');
@@ -4186,6 +4214,58 @@ main{padding:14px;overflow-x:hidden}
       if (parsed && Array.isArray(parsed.events)) return parsed.events.filter(e => e && e.id);
     } catch (e) { console.warn('[ORIZON Eventos] Arquivo de eventos inválido:', handle?.name, e); }
     return [];
+  };
+
+  const eventArchiveFolderName = (date=new Date()) => {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}_${pad(date.getHours())}-${pad(date.getMinutes())}-${pad(date.getSeconds())}`;
+  };
+
+  const archiveAndClearConsolidatedEventFiles = async (consolidatedEvents, opts={}) => {
+    if (!sharedFolderReady()) return { archivedEventCount:0, activeFilesTouched:0, archiveFolder:'' };
+    const consolidatedIds = eventIdsSet(consolidatedEvents || []);
+    const snapshotEventsToPreserve = (Array.isArray(opts.snapshotEvents) ? opts.snapshotEvents : [])
+      .filter(ev => ev && ev.id && Object.prototype.hasOwnProperty.call(ev, 'payload'));
+    if (!consolidatedIds.size && !snapshotEventsToPreserve.length) return { archivedEventCount:0, activeFilesTouched:0, archiveFolder:'' };
+
+    const archiveRoot = await capviewEventsDirHandle.getDirectoryHandle('archive', { create:true });
+    const folderName = String(opts.folderName || eventArchiveFolderName()).replace(/[^a-z0-9_.-]+/gi, '_').slice(0,80) || eventArchiveFolderName();
+    const archiveDir = await archiveRoot.getDirectoryHandle(folderName, { create:true });
+    let archivedEventCount = 0;
+    let activeFilesTouched = 0;
+    const archivedFiles = [];
+
+    for await (const [name, handle] of capviewEventsDirHandle.entries()) {
+      if (!handle || handle.kind !== 'file') continue;
+      if (!String(name || '').toLowerCase().endsWith('.json')) continue;
+      const current = await readEventArrayFromHandle(handle);
+      const archived = current.filter(ev => ev && ev.id && consolidatedIds.has(String(ev.id)));
+      if (!archived.length) continue;
+      const remaining = current.filter(ev => !ev || !ev.id || !consolidatedIds.has(String(ev.id)));
+      const archiveHandle = await archiveDir.getFileHandle(name, { create:true });
+      const archiveCurrent = await readEventArrayFromHandle(archiveHandle);
+      await writeJsonToFileHandle(archiveHandle, mergeEventListsUnique(archiveCurrent, archived), { pretty:true });
+      await writeJsonToFileHandle(handle, remaining);
+      archivedEventCount += archived.length;
+      activeFilesTouched += 1;
+      archivedFiles.push(String(name));
+    }
+
+    if (snapshotEventsToPreserve.length) {
+      const snapshotArchiveHandle = await archiveDir.getFileHandle('_snapshot_events_before_compact.json', { create:true });
+      const archiveCurrent = await readEventArrayFromHandle(snapshotArchiveHandle);
+      const uniqueSnapshotEvents = mergeEventListsUnique(archiveCurrent, snapshotEventsToPreserve);
+      await writeJsonToFileHandle(snapshotArchiveHandle, uniqueSnapshotEvents, { pretty:true });
+      archivedEventCount += snapshotEventsToPreserve.length;
+      archivedFiles.push('_snapshot_events_before_compact.json');
+    }
+
+    return {
+      archivedEventCount,
+      activeFilesTouched,
+      archiveFolder: `events/archive/${folderName}`,
+      archivedFiles: [...new Set(archivedFiles)]
+    };
   };
 
   const writeSingleEventToUserFile = async (event) => {
@@ -4356,6 +4436,11 @@ main{padding:14px;overflow-x:hidden}
 
   const applySingleEventToState = (target, event) => {
     if (!target || !event) return target;
+    if (isConsolidatedEventReceipt(event)) {
+      if (!Array.isArray(target.events)) target.events = [];
+      if (event.id && !target.events.some(e => String(e.id) === String(event.id))) target.events.push(event);
+      return target;
+    }
     const type = event.type;
     let payload = event.payload;
     if ((type === 'ADD_RESOURCE' || type === 'UPDATE_RESOURCE') && payload && typeof payload === 'object') payload = normalizeLegacyResource(payload);
@@ -4440,27 +4525,30 @@ main{padding:14px;overflow-x:hidden}
 
   const pendingEventsNotInSnapshot = (snapshot, events) => {
     const inSnapshot = eventIdsSet(snapshot?.events || []);
-    return (Array.isArray(events) ? events : []).filter(e => e && e.id && !inSnapshot.has(String(e.id)));
+    return (Array.isArray(events) ? events : []).filter(e => e && e.id && !isConsolidatedEventReceipt(e) && !inSnapshot.has(String(e.id)));
   };
 
   const rebuildSnapshotFromEvents = (snapshot, events, opts={}) => {
     const baseSnapshot = normalizeImportedState(snapshot || defaultState());
     const allEvents = mergeEventListsUnique(baseSnapshot.events || [], events || []);
-    const base = normalizeImportedState({
-      ...defaultState(),
-      resources: opts.preserveSnapshotResources === false ? [] : (baseSnapshot.resources || []),
-      holidays: baseSnapshot.holidays || [],
-      events: []
-    });
-    for (const ev of allEvents) applySingleEventToState(base, ev);
-    applyDeleteTombstonesFromEvents(base, allEvents);
+    const snapshotEventIds = eventIdsSet(baseSnapshot.events || []);
+    const pending = (Array.isArray(events) ? events : [])
+      .filter(e => e && e.id && !snapshotEventIds.has(String(e.id)) && !isConsolidatedEventReceipt(e))
+      .sort((a,b) => Number(a.timestamp || 0) - Number(b.timestamp || 0));
+    const base = normalizeImportedState(deepClone(baseSnapshot));
+
+    if (opts.preserveSnapshotResources === false) base.resources = [];
+    for (const ev of pending) applySingleEventToState(base, ev);
+    applyDeleteTombstonesFromEvents(base, pending);
     base.demands = dedupeLikelyDuplicateDemands(base.demands);
-    base.events = allEvents;
+
+    base.events = compactConsolidatedEventReceipts(allEvents);
     base.meta = {
       ...(baseSnapshot.meta && typeof baseSnapshot.meta === 'object' ? baseSnapshot.meta : {}),
       rebuiltFromEventsAt: new Date().toISOString(),
       rebuiltEventCount: allEvents.length,
-      pendingEventsBeforeRebuild: pendingEventsNotInSnapshot(baseSnapshot, allEvents).length,
+      compactedEventReceiptCount: base.events.length,
+      pendingEventsBeforeRebuild: pending.length,
     };
     return normalizeImportedState(base);
   };
@@ -4548,17 +4636,51 @@ main{padding:14px;overflow-x:hidden}
       const events = mergeEventListsUnique(sharedEvents, loadLocalEventOutbox());
       const pending = pendingEventsNotInSnapshot(snapshot, events);
       const merged = rebuildSnapshotFromEvents(snapshot, events, { preserveSnapshotResources:true });
+      const consolidatedAt = new Date().toISOString();
       markAppliedEvents(merged.events || []);
-      merged.meta = { ...(merged.meta && typeof merged.meta === 'object' ? merged.meta : {}), consolidatedAt: new Date().toISOString(), consolidatedBy: userName || '', consolidatedById: userId || '', consolidatedEventCount: (merged.events||[]).length };
+      merged.meta = {
+        ...(merged.meta && typeof merged.meta === 'object' ? merged.meta : {}),
+        consolidatedAt,
+        consolidatedBy: userName || '',
+        consolidatedById: userId || '',
+        consolidatedEventCount: events.length,
+        compactedEventReceiptCount: (merged.events || []).length
+      };
       await writeJsonToFileHandle(capviewSnapshotFileHandle, normalizeImportedState(merged));
+
+      let archiveSummary = null;
+      try {
+        archiveSummary = await archiveAndClearConsolidatedEventFiles(events, { snapshotEvents: snapshot.events || [] });
+        if (archiveSummary && archiveSummary.archiveFolder) {
+          merged.meta = {
+            ...(merged.meta && typeof merged.meta === 'object' ? merged.meta : {}),
+            lastArchiveFolder: archiveSummary.archiveFolder,
+            archivedEventCount: archiveSummary.archivedEventCount || 0,
+            archivedActiveFileCount: archiveSummary.activeFilesTouched || 0
+          };
+          await writeJsonToFileHandle(capviewSnapshotFileHandle, normalizeImportedState(merged));
+        }
+      } catch (archiveError) {
+        console.warn('[ORIZON Eventos] Snapshot consolidado, mas falha ao arquivar/limpar eventos ativos:', archiveError);
+        merged.meta = {
+          ...(merged.meta && typeof merged.meta === 'object' ? merged.meta : {}),
+          lastArchiveErrorAt: new Date().toISOString(),
+          lastArchiveError: archiveError?.message || 'Falha ao arquivar eventos ativos'
+        };
+        try { await writeJsonToFileHandle(capviewSnapshotFileHandle, normalizeImportedState(merged)); } catch {}
+      }
+
       state = normalizeImportedState(merged);
       capviewEventMode.lastReadAt = new Date().toISOString();
       capviewEventMode.pendingReadCount = 0;
-      setEventModeStatus('Snapshot consolidado com ' + pending.length + ' evento(s) novo(s).');
+      const archiveText = archiveSummary?.archiveFolder
+        ? ' Arquivo: ' + archiveSummary.archiveFolder + ' (' + (archiveSummary.archivedEventCount || 0) + ' evento(s)).'
+        : '';
+      setEventModeStatus('Snapshot consolidado com ' + pending.length + ' evento(s) novo(s).' + archiveText);
       const prevSuppress = suppressDbAutoSave;
       suppressDbAutoSave = true;
       try { persist({ skipAutoSave:true }); } finally { suppressDbAutoSave = prevSuppress; }
-      toast('Snapshot consolidado. ' + pending.length + ' evento(s) novo(s) incorporado(s).');
+      toast('Snapshot consolidado. ' + pending.length + ' evento(s) novo(s) incorporado(s).' + (archiveSummary?.activeFilesTouched ? ' Eventos ativos limpos.' : ''));
       render();
       return true;
     } catch (e) {
