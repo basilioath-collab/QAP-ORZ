@@ -3847,12 +3847,69 @@ main{padding:14px;overflow-x:hidden}
     return rows;
   };
 
+  const resourceOwnerId = (resource) => String(resource?.owner_user_id || resource?.ownerUserId || '').trim();
+
+  const userIdentityForResourceName = (displayName='') => {
+    const nm = String(displayName || '').trim();
+    if (!nm) return { displayName:'', userId:'' };
+    const key = normalizedPersonName(nm);
+    const candidates = [];
+    for (const u of (scannedEventUsers || [])) {
+      if (normalizedPersonName(u?.displayName) === key && u?.userId) {
+        candidates.push({ displayName: String(u.displayName || nm).trim(), userId: String(u.userId).trim(), source:'events' });
+      }
+    }
+    for (const r of (state.resources || [])) {
+      const owner = resourceOwnerId(r);
+      if (owner && normalizedPersonName(r?.nome || r?.name) === key) {
+        candidates.push({ displayName: String(r.nome || r.name || nm).trim(), userId: owner, source:'resources' });
+      }
+    }
+    for (const ev of (state.events || [])) {
+      if (!ev || (ev.type !== 'ADD_RESOURCE' && ev.type !== 'UPDATE_RESOURCE')) continue;
+      const payload = ev.payload || {};
+      const owner = resourceOwnerId(payload);
+      if (owner && normalizedPersonName(payload?.nome || payload?.name) === key) {
+        candidates.push({ displayName: String(payload.nome || payload.name || nm).trim(), userId: owner, source:'events.payload' });
+      }
+    }
+    const unique = candidates.filter((item, idx, arr) => item.userId && arr.findIndex(x => x.userId === item.userId) === idx);
+    if (unique.length === 1) return unique[0];
+    return previewUserIdentity(nm);
+  };
+
+  const ensureResourceUserEventFile = async (resource, opts={}) => {
+    const owner = resourceOwnerId(resource);
+    const displayName = String(resource?.nome || resource?.name || '').trim();
+    if (!owner || !displayName || !sharedFolderReady()) return false;
+    try {
+      const { safeName } = await getEventFileHandleForIdentity(owner, displayName);
+      if (opts.toast !== false) toast(`Usuário ${displayName} criado em /events/${safeName}.json.`);
+      try { await scanEventFolderUsers(); } catch {}
+      return true;
+    } catch (err) {
+      console.warn('[ORIZON Usuários] Falha ao criar arquivo de eventos do recurso:', err);
+      if (opts.toast !== false) toast('Recurso salvo, mas não foi possível criar o JSON do usuário em /events.');
+      return false;
+    }
+  };
+
+  const ensureResourceUserEventFiles = async (opts={}) => {
+    if (!sharedFolderReady()) return 0;
+    let created = 0;
+    for (const resource of (state.resources || [])) {
+      if (!resourceOwnerId(resource) || !String(resource?.nome || resource?.name || '').trim()) continue;
+      if (await ensureResourceUserEventFile(resource, { toast:false })) created += 1;
+    }
+    if (created && opts.toast !== false) toast(`${created} arquivo(s) de usuário conferido(s) em /events.`);
+    return created;
+  };
+
   const ensureUserAsResource = (opts={}) => {
     try {
       if (!hasUser()) return false;
       const uid = String(userId || '').trim();
       if (!uid || uid.startsWith('sessao-local__')) return false;
-      const resourceOwnerId = (r) => String(r?.owner_user_id || r?.ownerUserId || '').trim();
       const alreadyExists = (state.resources || []).some((r) => resourceOwnerId(r) === uid);
       if (alreadyExists) return false;
       const resourceAlreadyInEvents = (state.events || []).some((ev) => {
@@ -4224,6 +4281,7 @@ main{padding:14px;overflow-x:hidden}
       persistEventFolderMeta();
       await ensureEventFolderReady({ createSnapshotIfMissing:true });
       if (opts.requireUser !== false) await ensureUserEventFileInitialized();
+      await ensureResourceUserEventFiles({ toast:false });
       try { stopDbWatcher(); } catch {}
       disableDbAutoSyncForEventMode();
       const flushed = await flushLocalEventOutbox();
@@ -7398,6 +7456,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const nome = name.value.trim();
         const validation = validateResourcePayload({ nome, tipo:type.value, vigencia_inicio:vigIni.value, vigencia_fim:vigFim.value });
         if (validation) return toast(validation);
+        const resourceUser = userIdentityForResourceName(nome);
         const payload = {
           id: generateId('resource'),
           nome,
@@ -7406,11 +7465,17 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           ativo: active.value === 'true',
           vigencia_inicio: vigIni.value || undefined,
           vigencia_fim: vigFim.value || undefined,
+          owner_user_id: resourceUser.userId,
+          owner_user_name: resourceUser.displayName || nome,
+          created_as_user: true,
         };
         dispatch('ADD_RESOURCE', payload);
+        ensureResourceUserEventFile(payload).then((created) => {
+          if (created && capviewEventMode.autoSyncEnabled !== false) setTimeout(() => eventAutoSyncTick('resource-user-file'), 250);
+        });
         name.value = ''; hours.value = String(HOURS_PER_DAY); type.value = 'Interno'; active.value = 'true'; vigIni.value=''; vigFim.value='';
         updateThirdVisibility();
-        toast('Recurso adicionado.');
+        toast(sharedFolderReady() ? 'Recurso adicionado como usuário.' : 'Recurso adicionado como usuário. Conecte a pasta ORIZONData para criar o JSON em /events.');
       };
 
       return card('Cadastrar Recurso',
@@ -7454,7 +7519,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
       for (const r of pageItems) {
         const tr = el('tr');
-        tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [r.nome]), el('div', { class:'tiny' }, [r.id]) ]));
+        tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [r.nome]) ]));
         tr.appendChild(el('td', {}, [r.tipo]));
         tr.appendChild(el('td', {}, [String(HOURS_PER_DAY)]));
         tr.appendChild(el('td', {}, [r.ativo === false ? 'Não' : 'Sim']));
