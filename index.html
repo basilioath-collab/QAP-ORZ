@@ -7519,7 +7519,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
       for (const r of pageItems) {
         const tr = el('tr');
-        tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [r.nome]), el('div', { class:'tiny' }, [r.id]) ]));
+        tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [r.nome]) ]));
         tr.appendChild(el('td', {}, [r.tipo]));
         tr.appendChild(el('td', {}, [String(HOURS_PER_DAY)]));
         tr.appendChild(el('td', {}, [r.ativo === false ? 'Não' : 'Sim']));
