@@ -3641,7 +3641,15 @@ main{padding:14px;overflow-x:hidden}
     if (!sharedFolderReady()) { toast('Selecione a pasta de eventos antes de salvar o usuário.'); return false; }
     if (!createNew && !selectedId) { toast('Selecione um usuário existente ou crie um novo.'); return false; }
 
-    const finalUser = createNew ? { displayName:nm, userId:(selectedId || previewUserIdentity(nm).userId) } : { displayName:nm, userId:selectedId };
+    let finalUser = createNew ? { displayName:nm, userId:(selectedId || previewUserIdentity(nm).userId) } : { displayName:nm, userId:selectedId };
+    if (createNew) {
+      try { await scanEventFolderUsers(); } catch {}
+      const existing = preferredExistingUserForName(nm);
+      if (existing?.userId) {
+        finalUser = { displayName: existing.displayName || nm, userId: existing.userId };
+        toast(`Usuário já existia em /events; identidade existente reutilizada: ${existing.userId}.`);
+      }
+    }
     userName = finalUser.displayName;
     userId = finalUser.userId;
     persistUserIdentity(finalUser);
@@ -3879,20 +3887,41 @@ main{padding:14px;overflow-x:hidden}
 
   const resourceOwnerId = (resource) => String(resource?.owner_user_id || resource?.ownerUserId || '').trim();
 
-  const userIdentityForResourceName = (displayName='') => {
+  const identityPriorityScore = (identity={}) => {
+    let score = 0;
+    if (String(identity.resourceId || '').trim()) score += 100;
+    const sources = Array.isArray(identity.sources) ? identity.sources : [identity.source || ''];
+    if (sources.some(src => /snapshot\.resources|events\.payload|ADD_RESOURCE|UPDATE_RESOURCE/i.test(String(src || '')))) score += 20;
+    if (sources.some(src => /events\.filename/i.test(String(src || '')))) score += 5;
+    return score;
+  };
+
+  const choosePreferredUserIdentity = (identities=[], fallbackName='') => {
+    const unique = (identities || [])
+      .filter(item => item && String(item.userId || '').trim())
+      .filter((item, idx, arr) => arr.findIndex(x => String(x.userId || '').trim() === String(item.userId || '').trim()) === idx);
+    if (!unique.length) return null;
+    return [...unique].sort((a,b) => {
+      const scoreDiff = identityPriorityScore(b) - identityPriorityScore(a);
+      if (scoreDiff) return scoreDiff;
+      return String(a.userId || '').localeCompare(String(b.userId || ''), 'pt-BR');
+    })[0] || { displayName:fallbackName, userId:'' };
+  };
+
+  const existingUserIdentitiesForName = (displayName='') => {
     const nm = String(displayName || '').trim();
-    if (!nm) return { displayName:'', userId:'' };
+    if (!nm) return [];
     const key = normalizedPersonName(nm);
     const candidates = [];
     for (const u of (scannedEventUsers || [])) {
       if (normalizedPersonName(u?.displayName) === key && u?.userId) {
-        candidates.push({ displayName: String(u.displayName || nm).trim(), userId: String(u.userId).trim(), source:'events' });
+        candidates.push({ ...u, displayName: String(u.displayName || nm).trim(), userId: String(u.userId).trim(), source:u.source || 'events' });
       }
     }
     for (const r of (state.resources || [])) {
       const owner = resourceOwnerId(r);
       if (owner && normalizedPersonName(r?.nome || r?.name) === key) {
-        candidates.push({ displayName: String(r.nome || r.name || nm).trim(), userId: owner, source:'resources' });
+        candidates.push({ displayName: String(r.nome || r.name || nm).trim(), userId: owner, resourceId:String(r.id || '').trim(), source:'resources' });
       }
     }
     for (const ev of (state.events || [])) {
@@ -3900,11 +3929,25 @@ main{padding:14px;overflow-x:hidden}
       const payload = ev.payload || {};
       const owner = resourceOwnerId(payload);
       if (owner && normalizedPersonName(payload?.nome || payload?.name) === key) {
-        candidates.push({ displayName: String(payload.nome || payload.name || nm).trim(), userId: owner, source:'events.payload' });
+        candidates.push({ displayName: String(payload.nome || payload.name || nm).trim(), userId: owner, resourceId:String(payload.id || '').trim(), source:'events.payload' });
       }
     }
-    const unique = candidates.filter((item, idx, arr) => item.userId && arr.findIndex(x => x.userId === item.userId) === idx);
-    if (unique.length === 1) return unique[0];
+    return candidates.filter((item, idx, arr) => item.userId && arr.findIndex(x => String(x.userId) === String(item.userId)) === idx);
+  };
+
+  const preferredExistingUserForName = (displayName='') => choosePreferredUserIdentity(existingUserIdentitiesForName(displayName), displayName);
+
+  const userIdentityForResourceName = (displayName='') => {
+    const nm = String(displayName || '').trim();
+    if (!nm) return { displayName:'', userId:'' };
+    const existing = existingUserIdentitiesForName(nm);
+    const preferred = choosePreferredUserIdentity(existing, nm);
+    if (preferred) {
+      if (existing.length > 1) {
+        console.warn('[ORIZON Usuários] Nome de usuário duplicado detectado; reutilizando identidade preferida para evitar novo arquivo:', { nome:nm, escolhido:preferred.userId, encontrados:existing.map(u => u.userId) });
+      }
+      return preferred;
+    }
     return previewUserIdentity(nm);
   };
 
