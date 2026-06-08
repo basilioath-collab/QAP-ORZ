@@ -98,6 +98,26 @@
     .avatar.warn{background:var(--red);cursor:pointer;position:relative}
     .avatar.warn::after{content:'Defina o usuário';position:absolute;white-space:nowrap;opacity:0;pointer-events:none;transform:translateY(6px);transition:.15s;left:50%;top:100%;padding:6px 8px;border-radius:10px;background:rgba(0,0,0,.75);color:#fff;font-size:12px;font-weight:700;translate:-50% 0}
     .avatar.warn:hover::after{opacity:1;transform:translateY(0)}
+    .notifyWrap{position:relative;display:flex;align-items:center}
+    .notifyBell{position:relative;height:42px;width:42px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .12s ease}
+    .notifyBell:hover,.notifyBell.open{background:var(--success);border-color:var(--success);color:var(--header);transform:translateY(-1px)}
+    .notifyBell.active{border-color:var(--success);box-shadow:0 0 0 3px rgba(138,212,32,.18)}
+    .notifyBadge{position:absolute;right:-3px;top:-4px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--danger);color:#fff;border:2px solid var(--header);display:none;align-items:center;justify-content:center;font-size:10px;font-weight:950;line-height:1}
+    .notifyBell.active .notifyBadge{display:flex}
+    .notifyPanel{position:absolute;right:0;top:calc(100% + 10px);width:min(360px,calc(100vw - 24px));max-height:420px;overflow:auto;background:#fff;color:var(--text);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 48px rgba(5,5,5,.24);padding:10px;z-index:80;display:none}
+    .notifyWrap.open .notifyPanel{display:block}
+    .notifyPanel::before{content:'';position:absolute;right:14px;top:-7px;width:12px;height:12px;background:#fff;border-left:1px solid var(--border);border-top:1px solid var(--border);transform:rotate(45deg)}
+    .notifyHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:4px 4px 8px;border-bottom:1px solid var(--border);margin-bottom:8px}
+    .notifyHead strong{font-size:13px;font-weight:950}
+    .notifyHead span{display:block;margin-top:2px;font-size:11px;color:var(--muted);font-weight:800}
+    .notifyClear{border:0;background:transparent;color:var(--primary);font-size:11px;font-weight:950;cursor:pointer;padding:4px 2px}
+    .notifyClear:hover{color:var(--success)}
+    .notifyItem{width:100%;border:1px solid var(--border);background:var(--surface);border-radius:14px;padding:10px;text-align:left;cursor:pointer;display:grid;gap:4px;margin-top:8px;color:var(--text)}
+    .notifyItem:hover{border-color:var(--success);background:var(--success-wash)}
+    .notifyItem .top{display:flex;align-items:center;gap:8px;font-weight:950;font-size:12px}
+    .notifyItem .dot{height:9px;width:9px;border-radius:999px;background:var(--success);flex:0 0 auto}
+    .notifyItem .sub{font-size:11px;color:var(--muted);font-weight:750;line-height:1.35}
+    .notifyEmpty{padding:14px 10px;color:var(--muted);font-size:12px;font-weight:800;text-align:center}
 
 
     nav{background:var(--surface);border-bottom:1px solid var(--border);display:flex;gap:4px;overflow:auto;padding:8px 14px}
@@ -631,6 +651,14 @@ main{padding:14px;overflow-x:hidden}
     <span class="eventFolderDot" aria-hidden="true"></span>
     <span class="eventFolderText">Conectar pasta de eventos</span>
   </button>
+
+  <div class="notifyWrap" id="notifyWrap">
+    <button class="notifyBell" id="notifyBell" type="button" aria-label="Notificações de atividades atribuídas" aria-expanded="false" title="Notificações">
+      🔔
+      <span class="notifyBadge" id="notifyBadge">0</span>
+    </button>
+    <div class="notifyPanel" id="notifyPanel" role="menu" aria-label="Atividades atribuídas"></div>
+  </div>
 
   <div class="userBox">
     <div class="meta">
@@ -1935,7 +1963,8 @@ main{padding:14px;overflow-x:hidden}
           key === DB_META_KEY ||
           key === DB_BASELINE_KEY ||
           key.startsWith('capview_') ||
-          key.startsWith('resource_planner_')
+          key.startsWith('resource_planner_') ||
+          key.startsWith('orizon_')
         ) keys.push(key);
       }
       for (const key of keys) localStorage.removeItem(key);
@@ -3588,6 +3617,7 @@ main{padding:14px;overflow-x:hidden}
       av.classList.remove('warn');
       av.title = userId ? `ID: ${userId}` : '';
     }
+    try { if (typeof updateNotificationsBell === 'function') updateNotificationsBell(); } catch {}
   };
 
   const setUser = (name) => {
@@ -6303,6 +6333,181 @@ main{padding:14px;overflow-x:hidden}
       node.appendChild(typeof ch === 'string' ? document.createTextNode(ch) : ch);
     }
     return node;
+  };
+
+  const NOTIFICATION_ACK_KEY = 'orizon_notifications_ack_v1';
+
+  const notificationUserKey = () => String(userId || userName || 'sem-usuario');
+
+  const loadNotificationAckMap = () => {
+    try {
+      const obj = JSON.parse(localStorage.getItem(NOTIFICATION_ACK_KEY) || '{}');
+      return (obj && typeof obj === 'object' && !Array.isArray(obj)) ? obj : {};
+    } catch { return {}; }
+  };
+
+  const saveNotificationAckMap = (ackMap) => {
+    try { localStorage.setItem(NOTIFICATION_ACK_KEY, JSON.stringify(ackMap || {})); } catch {}
+  };
+
+  const notificationAckSet = () => {
+    const map = loadNotificationAckMap();
+    return new Set(Array.isArray(map[notificationUserKey()]) ? map[notificationUserKey()].map(String) : []);
+  };
+
+  const saveNotificationAckSet = (set) => {
+    const map = loadNotificationAckMap();
+    map[notificationUserKey()] = [...(set || new Set())].slice(-500);
+    saveNotificationAckMap(map);
+  };
+
+  const personMatchKey = (value) => String(value || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+
+  const demandCreatorId = (demand={}) => String(
+    demand.createdById || demand.created_by_id || demand.user_id || demand.userId || ''
+  ).trim() || ownerFromLegacyResourceId(demand.id || '');
+
+  const demandCreatorName = (demand={}) => String(
+    demand.createdBy || demand.created_by || demand.user || demand.usuario || ''
+  ).trim();
+
+  const demandAssignedResourceIds = (demand={}) => {
+    const ids = new Set();
+    for (const a of demandAllocations(demand)) {
+      const rid = String(a?.resourceId || a?.responsavel_id || a?.resource_id || '').trim();
+      if (rid) ids.add(rid);
+    }
+    const direct = String(demand.responsavel_id || demand.resourceId || demand.resource_id || '').trim();
+    if (direct) ids.add(direct);
+    return [...ids];
+  };
+
+  const activeUserResourceIds = () => {
+    if (!hasUser()) return [];
+    const ids = new Set();
+    const currentUserId = String(userId || '').trim();
+    const currentNameKey = personMatchKey(userName);
+    for (const r of (state.resources || [])) {
+      const rid = String(r?.id || '').trim();
+      if (!rid) continue;
+      const ownerId = String(r?.owner_user_id || r?.ownerUserId || '').trim();
+      const resourceNameKey = personMatchKey(r?.nome || r?.name || '');
+      if ((currentUserId && ownerId === currentUserId) || (currentNameKey && resourceNameKey === currentNameKey)) ids.add(rid);
+    }
+    return [...ids];
+  };
+
+  const buildAssignedActivityNotifications = () => {
+    if (!hasUser()) return [];
+    const ownResourceIds = new Set(activeUserResourceIds().map(String));
+    if (!ownResourceIds.size) return [];
+    const acknowledged = notificationAckSet();
+    const currentUserId = String(userId || '').trim();
+    const currentNameKey = personMatchKey(userName);
+    return (state.demands || [])
+      .filter(d => d && String(d.id || '').trim())
+      .filter(d => effectiveStatus(d) !== 'Concluída')
+      .map(d => {
+        const assignedIds = demandAssignedResourceIds(d).filter(rid => ownResourceIds.has(String(rid)));
+        if (!assignedIds.length) return null;
+        const creatorId = demandCreatorId(d);
+        const creatorName = demandCreatorName(d);
+        const creatorNameKey = personMatchKey(creatorName);
+        const createdByCurrentUser = (currentUserId && creatorId === currentUserId) || (currentNameKey && creatorNameKey && creatorNameKey === currentNameKey);
+        if (createdByCurrentUser) return null;
+        const key = `assigned-demand::${d.id}`;
+        if (acknowledged.has(key)) return null;
+        return {
+          key,
+          demand: d,
+          assignedIds,
+          title: String(d.titulo || 'Atividade sem título'),
+          creator: creatorName || creatorId || 'outro usuário',
+          createdAt: d.createdAt || d.updatedAt || '',
+        };
+      })
+      .filter(Boolean)
+      .sort((a,b) => demandCreatedMs(b.demand) - demandCreatedMs(a.demand));
+  };
+
+  const acknowledgeNotifications = (keys=[]) => {
+    const ack = notificationAckSet();
+    for (const key of keys) if (key) ack.add(String(key));
+    saveNotificationAckSet(ack);
+    updateNotificationsBell();
+  };
+
+  const openNotificationDemand = (notification) => {
+    if (!notification) return;
+    acknowledgeNotifications([notification.key]);
+    activeTab = 'demands';
+    uiFilters.demandStatus = '';
+    uiFilters.demandDateStart = '';
+    uiFilters.demandDateEnd = '';
+    uiFilters.demandResourceId = notification.assignedIds?.[0] || '';
+    setDemandTitleFilter('demands', notification.title || '');
+    uiPagination.demandsPage = 1;
+    const wrap = qs('#notifyWrap');
+    const bell = qs('#notifyBell');
+    if (wrap) wrap.classList.remove('open');
+    if (bell) bell.setAttribute('aria-expanded', 'false');
+    render();
+  };
+
+  const updateNotificationsBell = () => {
+    const wrap = qs('#notifyWrap');
+    const bell = qs('#notifyBell');
+    const badge = qs('#notifyBadge');
+    const panel = qs('#notifyPanel');
+    if (!wrap || !bell || !badge || !panel) return;
+    const notifications = buildAssignedActivityNotifications();
+    const count = notifications.length;
+    bell.classList.toggle('active', count > 0);
+    bell.classList.toggle('open', wrap.classList.contains('open'));
+    badge.textContent = count > 99 ? '99+' : String(count);
+    bell.title = count ? `${count} atividade(s) nova(s) atribuída(s) a você` : 'Nenhuma nova atividade atribuída';
+    panel.innerHTML = '';
+    panel.appendChild(el('div', { class:'notifyHead' }, [
+      el('div', {}, [
+        el('strong', {}, ['Notificações']),
+        el('span', {}, [count ? `${count} atividade(s) atribuída(s) por outro usuário` : 'Sem novas atividades atribuídas'])
+      ]),
+      count ? el('button', { class:'notifyClear', type:'button', onclick:(e) => { e.stopPropagation(); acknowledgeNotifications(notifications.map(n => n.key)); toast('Notificações marcadas como lidas.'); } }, ['Marcar lidas']) : null
+    ].filter(Boolean)));
+    if (!count) {
+      panel.appendChild(el('div', { class:'notifyEmpty' }, [hasUser() ? 'Quando alguém atribuir uma demanda ao seu recurso, ela aparecerá aqui.' : 'Defina seu usuário para ver notificações.']));
+      return;
+    }
+    for (const n of notifications.slice(0, 12)) {
+      panel.appendChild(el('button', { class:'notifyItem', type:'button', onclick:() => openNotificationDemand(n) }, [
+        el('div', { class:'top' }, [el('span', { class:'dot' }, []), n.title]),
+        el('div', { class:'sub' }, [`Cadastrada por ${n.creator}${n.createdAt ? ' em ' + formatDateBR(normalizeDateLikeToISO(n.createdAt) || n.createdAt) : ''}. Clique para abrir em Demandas.`])
+      ]));
+    }
+    if (notifications.length > 12) panel.appendChild(el('div', { class:'notifyEmpty' }, [`+${notifications.length - 12} notificação(ões) adicional(is).`]));
+  };
+
+  const wireNotificationsBell = () => {
+    const wrap = qs('#notifyWrap');
+    const bell = qs('#notifyBell');
+    if (!wrap || !bell || bell.__bound) return;
+    bell.__bound = true;
+    bell.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = !wrap.classList.contains('open');
+      wrap.classList.toggle('open', open);
+      bell.setAttribute('aria-expanded', open ? 'true' : 'false');
+      updateNotificationsBell();
+    });
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) {
+        wrap.classList.remove('open');
+        bell.setAttribute('aria-expanded', 'false');
+        updateNotificationsBell();
+      }
+    });
   };
 
   const card = (title, rightNode, bodyNode) => {
@@ -10320,6 +10525,7 @@ return el('div', { class:'grid' }, [
   const render = () => {
     renderTabs();
     updateEventFolderHeaderStatus();
+    updateNotificationsBell();
     const root = qs('#app');
     root.innerHTML = '';
 
@@ -10343,7 +10549,9 @@ return el('div', { class:'grid' }, [
   };
 
   // init
+  wireNotificationsBell();
   setUser(userName);
+  updateNotificationsBell();
 
   // modal close handlers
   const dlg = qs('#dayModal');
