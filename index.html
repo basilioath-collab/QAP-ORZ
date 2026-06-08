@@ -4440,25 +4440,71 @@ main{padding:14px;overflow-x:hidden}
     return true;
   };
 
-  const fileTextOrDefault = async (handle, fallback='') => {
-    try { const file = await handle.getFile(); const txt = await file.text(); return String(txt || fallback || ''); }
-    catch { return String(fallback || ''); }
+  const fileTextOrDefault = async (handle, fallback='', opts={}) => {
+    try {
+      const file = await handle.getFile();
+      const txt = await file.text();
+      return String(txt || fallback || '');
+    } catch (err) {
+      if (opts.throwOnReadError) throw err;
+      return String(fallback || '');
+    }
   };
 
   const writeTextToFileHandle = async (handle, text) => {
-    const writable = await handle.createWritable();
-    await writable.write(String(text || ''));
-    await writable.close();
+    const expected = String(text ?? '');
+    let writable = null;
+    try {
+      writable = await handle.createWritable();
+      await writable.write(expected);
+      await writable.close();
+      writable = null;
+    } catch (err) {
+      if (writable) {
+        try {
+          if (typeof writable.abort === 'function') await writable.abort();
+          else await writable.close();
+        } catch {}
+      }
+      throw err;
+    }
+    // Confirma a gravação imediatamente. Em pastas de rede/sincronizadas, uma falha
+    // no close() pode deixar o arquivo recém-criado com 0 bytes; nesse caso mantemos
+    // o evento no outbox e não mascaramos o problema como sucesso.
+    try {
+      const file = await handle.getFile();
+      const actual = await file.text();
+      if (String(actual) !== expected) throw new Error('Conteúdo verificado difere do conteúdo gravado.');
+    } catch (err) {
+      const verifyError = new Error('Gravação não confirmada no arquivo: ' + (err?.message || 'falha de verificação'));
+      verifyError.name = 'FileWriteVerificationError';
+      verifyError.cause = err;
+      throw verifyError;
+    }
   };
   const stringifyJsonForFile = (obj, opts={}) => opts.pretty === true
     ? JSON.stringify(obj, null, 2)
     : JSON.stringify(obj);
   const writeJsonToFileHandle = async (handle, obj, opts={}) => writeTextToFileHandle(handle, stringifyJsonForFile(obj, opts));
+  const eventFileEnvelopeForIdentity = (identityId='', identityName='', events=[]) => ({
+    user: {
+      userId: String(identityId || '').trim(),
+      displayName: String(identityName || '').trim(),
+    },
+    events: Array.isArray(events) ? events : [],
+    meta: {
+      schema: 'orizon-user-events-v2',
+      initializedAt: new Date().toISOString(),
+      note: 'Arquivo de eventos do usuário; eventos ficam em events[].'
+    }
+  });
 
   const ensureEventFolderReady = async ({ createSnapshotIfMissing=true } = {}) => {
     if (!capviewDataDirHandle || !capviewEventsDirHandle || !capviewSnapshotFileHandle) throw new Error('Selecione a pasta ORIZONData primeiro.');
     if (createSnapshotIfMissing) {
-      const txt = await fileTextOrDefault(capviewSnapshotFileHandle, '');
+      let txt = '';
+      try { txt = await fileTextOrDefault(capviewSnapshotFileHandle, '', { throwOnReadError:true }); }
+      catch (err) { throw new Error('Não foi possível ler snapshot.json; nada foi sobrescrito. Reconecte a pasta ORIZONData.'); }
       if (!String(txt||'').trim()) await writeJsonToFileHandle(capviewSnapshotFileHandle, normalizeImportedState(buildDbExportObject()));
     }
     return true;
@@ -4468,8 +4514,10 @@ main{padding:14px;overflow-x:hidden}
     ensureEventUser();
     await ensureEventFolderReady({ createSnapshotIfMissing:true });
     const handle = await capviewEventsDirHandle.getFileHandle(eventSafeName() + '.json', { create:true });
-    const txt = await fileTextOrDefault(handle, '');
-    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, []);
+    let txt = '';
+    try { txt = await fileTextOrDefault(handle, '', { throwOnReadError:true }); }
+    catch (err) { throw new Error('Não foi possível ler o arquivo de eventos do usuário; nada foi sobrescrito.'); }
+    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(userId, userName, []), { pretty:true });
     return handle;
   };
 
@@ -4511,20 +4559,47 @@ main{padding:14px;overflow-x:hidden}
     await ensureEventFolderReady({ createSnapshotIfMissing:true });
     const safeName = eventSafeNameForIdentity(identityId, identityName);
     const handle = await capviewEventsDirHandle.getFileHandle(safeName + '.json', { create:true });
-    const txt = await fileTextOrDefault(handle, '');
-    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, []);
+    let txt = '';
+    try { txt = await fileTextOrDefault(handle, '', { throwOnReadError:true }); }
+    catch (err) { throw new Error('Não foi possível ler /events/' + safeName + '.json; nada foi sobrescrito.'); }
+    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(identityId, identityName, []), { pretty:true });
     return { handle, safeName };
   };
 
-  const readEventArrayFromHandle = async (handle) => {
+  const readEventFileDocument = async (handle) => {
     const txt = await fileTextOrDefault(handle, '[]');
-    if (!String(txt||'').trim()) return [];
+    if (!String(txt||'').trim()) return { raw:'', parsed:null, events:[], user:null, invalid:false };
     try {
       const parsed = JSON.parse(txt);
-      if (Array.isArray(parsed)) return parsed.filter(e => e && e.id);
-      if (parsed && Array.isArray(parsed.events)) return parsed.events.filter(e => e && e.id);
-    } catch (e) { console.warn('[ORIZON Eventos] Arquivo de eventos inválido:', handle?.name, e); }
-    return [];
+      if (Array.isArray(parsed)) return { raw:txt, parsed, events:parsed.filter(e => e && e.id), user:null, invalid:false };
+      if (parsed && typeof parsed === 'object') {
+        const user = (parsed.user && typeof parsed.user === 'object') ? parsed.user : null;
+        return { raw:txt, parsed, events:Array.isArray(parsed.events) ? parsed.events.filter(e => e && e.id) : [], user, invalid:false };
+      }
+    } catch (e) {
+      console.warn('[ORIZON Eventos] Arquivo de eventos inválido:', handle?.name, e);
+      return { raw:txt, parsed:null, events:[], user:null, invalid:true };
+    }
+    return { raw:txt, parsed:null, events:[], user:null, invalid:false };
+  };
+
+  const readEventArrayFromHandle = async (handle) => (await readEventFileDocument(handle)).events;
+
+  const writeEventArrayToHandle = async (handle, events, identityId='', identityName='', opts={}) => {
+    const current = opts.currentDoc || await readEventFileDocument(handle);
+    const existingUser = (current.user && typeof current.user === 'object') ? current.user : {};
+    const envelope = eventFileEnvelopeForIdentity(
+      identityId || existingUser.userId || existingUser.id || '',
+      identityName || existingUser.displayName || existingUser.name || '',
+      Array.isArray(events) ? events : []
+    );
+    envelope.meta = {
+      ...((current.parsed && current.parsed.meta && typeof current.parsed.meta === 'object') ? current.parsed.meta : {}),
+      ...envelope.meta,
+      updatedAt: new Date().toISOString(),
+      eventCount: envelope.events.length
+    };
+    await writeJsonToFileHandle(handle, envelope, { pretty:true });
   };
 
   const eventArchiveFolderName = (date=new Date()) => {
@@ -4549,14 +4624,15 @@ main{padding:14px;overflow-x:hidden}
     for await (const [name, handle] of capviewEventsDirHandle.entries()) {
       if (!handle || handle.kind !== 'file') continue;
       if (!String(name || '').toLowerCase().endsWith('.json')) continue;
-      const current = await readEventArrayFromHandle(handle);
+      const currentDoc = await readEventFileDocument(handle);
+      const current = currentDoc.events || [];
       const archived = current.filter(ev => ev && ev.id && consolidatedIds.has(String(ev.id)));
       if (!archived.length) continue;
       const remaining = current.filter(ev => !ev || !ev.id || !consolidatedIds.has(String(ev.id)));
       const archiveHandle = await archiveDir.getFileHandle(name, { create:true });
       const archiveCurrent = await readEventArrayFromHandle(archiveHandle);
       await writeJsonToFileHandle(archiveHandle, mergeEventListsUnique(archiveCurrent, archived), { pretty:true });
-      await writeJsonToFileHandle(handle, remaining);
+      await writeEventArrayToHandle(handle, remaining, '', '', { currentDoc });
       archivedEventCount += archived.length;
       activeFilesTouched += 1;
       archivedFiles.push(String(name));
@@ -4587,7 +4663,7 @@ main{padding:14px;overflow-x:hidden}
     if (!arr.some(e => String(e.id) === String(event.id))) {
       arr.push({ ...event, status:'pending', sourceFile:safeName + '.json' });
       arr.sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
-      await writeJsonToFileHandle(handle, arr);
+      await writeEventArrayToHandle(handle, arr, targetUserId, targetUserName);
     }
     // Verificação pós-gravação: evita falso positivo se o navegador negar escrita.
     const check = await readEventArrayFromHandle(handle);
@@ -4691,7 +4767,20 @@ main{padding:14px;overflow-x:hidden}
       for await (const [name, handle] of capviewEventsDirHandle.entries()) {
         if (!handle || handle.kind !== 'file') continue;
         if (!String(name || '').toLowerCase().endsWith('.json')) continue;
-        const user = userFromEventFilename(name);
+        const fileUser = userFromEventFilename(name);
+        let docUser = null;
+        try {
+          const doc = await readEventFileDocument(handle);
+          if (doc.user && (doc.user.userId || doc.user.displayName)) {
+            docUser = {
+              userId: String(doc.user.userId || doc.user.id || '').trim(),
+              displayName: String(doc.user.displayName || doc.user.name || '').trim(),
+              source:'events.metadata',
+              sourceFile:String(name || '').trim()
+            };
+          }
+        } catch {}
+        const user = docUser?.userId ? { ...fileUser, ...docUser, sources:[fileUser?.source, docUser.source].filter(Boolean) } : fileUser;
         if (user) users.push(user);
       }
     } catch (e) { console.warn('[ORIZON Usuários] Falha ao ler nomes dos arquivos de eventos:', e); }
@@ -12664,14 +12753,21 @@ return el('div', { class:'grid' }, [
       if (createMode) createMode.disabled = !folderReady || !!selected;
       if (nameInput) nameInput.disabled = !folderReady || !creating;
       if (existingSelect) existingSelect.disabled = !folderReady || creating || !(scannedEventUsers || []).length;
+      const matchingExisting = (creating && nm) ? preferredExistingUserForName(nm) : null;
       const existingLoginReady = !!(selected && !creating);
       const newUserReady = !!(!selected && creating && nm);
       if (saveBtn) saveBtn.disabled = !(folderReady && (existingLoginReady || newUserReady));
       if (idInput) {
         if (existingLoginReady) idInput.value = selected.userId;
         else if (newUserReady) {
-          if (!pendingNewUserIdentity || pendingNewUserIdentity.displayName !== nm) pendingNewUserIdentity = previewUserIdentity(nm);
-          idInput.value = pendingNewUserIdentity.userId;
+          if (matchingExisting?.userId) {
+            pendingNewUserIdentity = { displayName: matchingExisting.displayName || nm, userId: matchingExisting.userId };
+            idInput.value = matchingExisting.userId;
+            if (existingHint) existingHint.textContent = `Nome já encontrado em /events; ao salvar, o usuário existente será reutilizado (${matchingExisting.userId}).`;
+          } else {
+            if (!pendingNewUserIdentity || pendingNewUserIdentity.displayName !== nm) pendingNewUserIdentity = previewUserIdentity(nm);
+            idInput.value = pendingNewUserIdentity.userId;
+          }
         }
         else idInput.value = '';
       }
