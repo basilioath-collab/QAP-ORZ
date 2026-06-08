@@ -560,7 +560,22 @@ main{padding:14px;overflow-x:hidden}
   margin-top:0;
   grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
 }
-#demandsFormCard .demandPercField:has(.respAllocList:empty){
+#demandsFormCard .demandPercField .respAllocEditor{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 88px;
+  gap:8px;
+  align-items:center;
+  margin-top:0;
+}
+#demandsFormCard .demandPercField .respAllocEditor select,
+#demandsFormCard .demandPercField .respAllocEditor input{
+  width:100%;
+  min-width:0;
+}
+#demandsFormCard .demandPercField .respAllocEditor input{
+  text-align:right;
+}
+#demandsFormCard .demandPercField .respAllocEditor.is-empty{
   display:none;
 }
 #demandsFormCard .demandPercField .respAllocRow{
@@ -7991,12 +8006,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       };
 
       const respAllocList = el('div', { class:'respAllocList' });
-      const respAllocPick = el('select', { 'data-demand-create-field':'percentualResponsavel' });
-      const respAllocPctEditor = el('input', { type:'number', min:'0', max:'100', step:'5', 'data-demand-create-field':'percentualValor' });
-      const respAllocEditor = el('div', { class:'row', style:'gap:8px;align-items:end;margin-top:8px;display:none' }, [
-        el('div', { class:'field', style:'min-width:220px;flex:1' }, [el('label', {}, ['Recurso para editar']), respAllocPick]),
-        el('div', { class:'field compact' }, [el('label', {}, ['% diário']), respAllocPctEditor]),
-      ]);
+      const respAllocPick = el('select', { title:'Selecione o responsável para ajustar a dedicação diária', 'data-demand-create-field':'percentualResponsavel' });
+      const respAllocPctEditor = el('input', { type:'number', min:'0', max:'100', step:'5', placeholder:'em %', title:'Dedicação diária em %', 'data-demand-create-field':'percentualValor' });
+      const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocPctEditor]);
       respAllocPick.addEventListener('change', () => {
         const rid = String(respAllocPick.value || '');
         respAllocPctEditor.value = String(respPctById.get(rid) ?? 100);
@@ -8013,15 +8025,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         respChips.innerHTML = '';
         respAllocList.innerHTML = '';
         const ids = [...selectedRespIds];
-        respAllocEditor.style.display = 'none';
-        respAllocList.style.display = '';
+        respAllocEditor.classList.toggle('is-empty', !ids.length);
+        respAllocList.style.display = 'none';
         respAllocPick.innerHTML = '';
         for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
-        if (ids.length >= 2) {
+        if (ids.length) {
           const current = ids.includes(respAllocPick.value) ? respAllocPick.value : ids[0];
           respAllocPick.value = current;
           respAllocPctEditor.value = String(respPctById.get(current) ?? 100);
           respAllocPctEditor.setAttribute('data-demand-create-rid', current);
+        } else {
+          respAllocPctEditor.value = '';
+          respAllocPctEditor.removeAttribute('data-demand-create-rid');
         }
         for (const rid of selectedRespIds) {
           const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
@@ -8280,7 +8295,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           ]),
           el('div', { class:'row demandAllocationRow' }, [
             el('div', { class:'field demandRespField' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandPercField' }, [el('label', {}, ['Dedicação diária']), respAllocList]),
+            el('div', { class:'field demandPercField' }, [el('label', {}, ['Dedicação diária']), respAllocEditor, respAllocList]),
             el('div', { class:'field demandStatusField' }, [el('label', {}, ['Status']), status]),
           ]),
           el('div', { class:'row' }, [
