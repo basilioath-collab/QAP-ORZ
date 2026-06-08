@@ -600,6 +600,51 @@ main{padding:14px;overflow-x:hidden}
   }
 }
 
+/* --- Modal Editar Demanda: corrige largura e empilhamento dos campos de alocação --- */
+#demandEditModalBody .demandEditAllocRow{
+  align-items:flex-start;
+}
+#demandEditModalBody .demandRespField{
+  flex:2 1 360px !important;
+  min-width:280px !important;
+}
+#demandEditModalBody .demandStatusField{
+  flex:1 1 170px !important;
+  min-width:150px !important;
+}
+#demandEditModalBody .demandPercField{
+  flex:1 1 280px !important;
+  min-width:240px !important;
+}
+#demandEditModalBody .demandRespField .multiSelect{
+  min-width:0 !important;
+  width:100%;
+}
+#demandEditModalBody .demandRespField .multiSelectBox{
+  height:auto;
+  min-height:42px;
+  flex-wrap:wrap;
+  overflow:visible;
+}
+#demandEditModalBody .demandRespField .multiSelectInput{
+  min-width:140px !important;
+  flex:1 1 140px;
+}
+#demandEditModalBody .multiSelect.open{
+  z-index:500;
+}
+#demandEditModalBody .multiSelect.open .multiSelectMenu{
+  z-index:501;
+}
+@media (max-width:700px){
+  #demandEditModalBody .demandRespField,
+  #demandEditModalBody .demandStatusField,
+  #demandEditModalBody .demandPercField{
+    flex:1 1 100% !important;
+    min-width:0 !important;
+  }
+}
+
 
 .brandWrap{
     display:flex;
@@ -5859,10 +5904,10 @@ main{padding:14px;overflow-x:hidden}
         el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Prédio']), predio]),
         el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Focal']), focal]),
       ]),
-      el('div', { class:'row' }, [
-        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Responsável']), responsavel]),
-        el('div', { class:'field', style:'flex:1' }, [el('label', {}, ['Status']), status]),
-        el('div', { class:'field', style:'min-width:280px' }, [el('label', {}, ['% diário por responsável']), respAllocEditor, respAllocList]),
+      el('div', { class:'row demandEditAllocRow' }, [
+        el('div', { class:'field demandRespField' }, [el('label', {}, ['Responsável']), responsavel]),
+        el('div', { class:'field demandStatusField' }, [el('label', {}, ['Status']), status]),
+        el('div', { class:'field demandPercField' }, [el('label', {}, ['% diário por responsável']), respAllocEditor, respAllocList]),
       ]),
       el('div', { class:'row' }, [
         el('div', { class:'field' }, [el('label', {}, ['Início']), ini]),
@@ -8163,7 +8208,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
             el('div', { class:'field' }, [el('label', {}, ['Prédio']), predio]),
             el('div', { class:'field' }, [el('label', {}, ['Focal']), focal]),
             el('div', { class:'field demandRespField' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field', style:'min-width:290px' }, [el('label', {}, ['% diário por responsável']), respAllocEditor, respAllocList]),
+            el('div', { class:'field demandPercField' }, [el('label', {}, ['% diário por responsável']), respAllocEditor, respAllocList]),
             el('div', { class:'field' }, [el('label', {}, ['Prioridade']), prioridade]),
             el('div', { class:'field' }, [el('label', {}, ['Status']), status]),
           ]),
