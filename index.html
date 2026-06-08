@@ -536,17 +536,36 @@ main{padding:14px;overflow-x:hidden}
 #demandsFormCard .field{
   flex:1 1 190px;
 }
+#demandsFormCard .demandAllocationRow{
+  display:grid;
+  grid-template-columns:minmax(280px,1.35fr) minmax(260px,1fr) minmax(150px,.55fr);
+  gap:10px;
+  align-items:start;
+}
+#demandsFormCard .demandRespField,
+#demandsFormCard .demandPercField,
+#demandsFormCard .demandStatusField{
+  min-width:0 !important;
+}
 #demandsFormCard .demandRespField{
   flex:2 1 360px !important;
-  min-width:280px !important;
 }
 #demandsFormCard .demandPercField{
-  flex:1 1 290px !important;
-  min-width:240px !important;
+  flex:0 1 260px !important;
 }
 #demandsFormCard .demandPercField input{
   min-width:0 !important;
-  width:100%;
+}
+#demandsFormCard .demandPercField .respAllocList{
+  margin-top:0;
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+}
+#demandsFormCard .demandPercField:has(.respAllocList:empty){
+  display:none;
+}
+#demandsFormCard .demandPercField .respAllocRow{
+  padding:8px;
+  grid-template-columns:minmax(0,1fr) auto;
 }
 #demandsFormCard .demandRespField .multiSelect{
   min-width:0 !important;
@@ -608,10 +627,16 @@ main{padding:14px;overflow-x:hidden}
   .respAllocRow{grid-template-columns:1fr}
   .respAllocPct input{width:100% !important;min-width:0 !important}
 }
+@media (max-width: 900px){
+  #demandsFormCard .demandAllocationRow{
+    grid-template-columns:1fr;
+  }
+}
 @media (max-width: 700px){
   #demandsFormCard .field,
   #demandsFormCard .demandRespField,
-  #demandsFormCard .demandPercField{
+  #demandsFormCard .demandPercField,
+  #demandsFormCard .demandStatusField{
     flex:1 1 100% !important;
     min-width:0 !important;
   }
@@ -7990,9 +8015,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const ids = [...selectedRespIds];
         respAllocEditor.style.display = 'none';
         respAllocList.style.display = '';
-        if (!ids.length) {
-          respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione responsáveis para informar a dedicação diária.']));
-        }
         respAllocPick.innerHTML = '';
         for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
         if (ids.length >= 2) {
@@ -8249,13 +8271,17 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const body = el('div', { class:'split' }, [
         el('div', {}, [
           el('div', { class:'row' }, [
-            el('div', { class:'field' }, [el('label', {}, ['Título']), titulo]),
+            el('div', { class:'field', style:'flex:2 1 360px' }, [el('label', {}, ['Título']), titulo]),
+            el('div', { class:'field', style:'flex:1 1 180px' }, [el('label', {}, ['Prioridade']), prioridade]),
+          ]),
+          el('div', { class:'row' }, [
             el('div', { class:'field' }, [el('label', {}, ['Prédio']), predio]),
             el('div', { class:'field' }, [el('label', {}, ['Focal']), focal]),
+          ]),
+          el('div', { class:'row demandAllocationRow' }, [
             el('div', { class:'field demandRespField' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandPercField' }, [el('label', {}, ['Dedicação diária por responsável']), el('div', { class:'respAllocHint' }, ['Informe o percentual do dia reservado para cada responsável selecionado.']), respAllocList]),
-            el('div', { class:'field' }, [el('label', {}, ['Prioridade']), prioridade]),
-            el('div', { class:'field' }, [el('label', {}, ['Status']), status]),
+            el('div', { class:'field demandPercField' }, [el('label', {}, ['Dedicação diária']), respAllocList]),
+            el('div', { class:'field demandStatusField' }, [el('label', {}, ['Status']), status]),
           ]),
           el('div', { class:'row' }, [
             el('div', { class:'field' }, [el('label', {}, ['Início']), ini]),
