@@ -1318,7 +1318,9 @@ main{padding:14px;overflow-x:hidden}
 
   const normalizedPersonName = (name) => String(name || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .trim().toLowerCase().replace(/\s+/g,' ');
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim().replace(/\s+/g,' ');
 
   const ownerFromLegacyResourceId = (id) => {
     const raw = String(id || '').trim();
@@ -4037,9 +4039,12 @@ main{padding:14px;overflow-x:hidden}
 
   const identityPriorityScore = (identity={}) => {
     let score = 0;
+    if (String(identity.userId || '').trim() === String(userId || '').trim()) score += 1000;
     if (String(identity.resourceId || '').trim()) score += 100;
+    if (Number(identity.eventCount || 0) > 0) score += 60;
     const sources = Array.isArray(identity.sources) ? identity.sources : [identity.source || ''];
     if (sources.some(src => /snapshot\.resources|events\.payload|ADD_RESOURCE|UPDATE_RESOURCE/i.test(String(src || '')))) score += 20;
+    if (sources.some(src => /events\.metadata/i.test(String(src || '')))) score += 10;
     if (sources.some(src => /events\.filename/i.test(String(src || '')))) score += 5;
     return score;
   };
@@ -4553,6 +4558,7 @@ main{padding:14px;overflow-x:hidden}
       await cleanupSyntheticLegacyOwnerEventFiles();
       if (opts.requireUser !== false) await ensureUserEventFileInitialized();
       await ensureResourceUserEventFiles({ toast:false });
+      await cleanupDuplicateEmptyEventUserFiles();
       try { stopDbWatcher(); } catch {}
       disableDbAutoSyncForEventMode();
       const flushed = await flushLocalEventOutbox();
@@ -4620,6 +4626,64 @@ main{padding:14px;overflow-x:hidden}
     }
     if (removed) setEventModeStatus(`${removed} arquivo(s) legacy-owner vazio(s) removido(s) de /events.`);
     return removed;
+  };
+
+  const eventUserIdentityFromFile = async (name, handle) => {
+    const fileUser = userFromEventFilename(name);
+    let docUser = null;
+    let eventCount = 0;
+    let invalid = false;
+    try {
+      const doc = await readEventFileDocument(handle);
+      eventCount = Array.isArray(doc.events) ? doc.events.length : 0;
+      invalid = !!doc.invalid;
+      if (doc.user && (doc.user.userId || doc.user.displayName)) {
+        docUser = {
+          userId: String(doc.user.userId || doc.user.id || '').trim(),
+          displayName: String(doc.user.displayName || doc.user.name || '').trim(),
+          source:'events.metadata',
+          sourceFile:String(name || '').trim(),
+          eventCount
+        };
+      }
+    } catch { invalid = true; }
+    const user = docUser?.userId ? { ...fileUser, ...docUser, sources:[fileUser?.source, docUser.source].filter(Boolean) } : fileUser;
+    return user ? { ...user, eventCount, invalid, sourceFile:String(name || '').trim() } : null;
+  };
+
+  const cleanupDuplicateEmptyEventUserFiles = async () => {
+    if (!sharedFolderReady() || !capviewEventsDirHandle || typeof capviewEventsDirHandle.removeEntry !== 'function') return 0;
+    const byName = new Map();
+    try {
+      for await (const [name, handle] of capviewEventsDirHandle.entries()) {
+        if (!handle || handle.kind !== 'file') continue;
+        if (!String(name || '').toLowerCase().endsWith('.json')) continue;
+        if (isSyntheticLegacyOwnerEventFilename(name)) continue;
+        const user = await eventUserIdentityFromFile(name, handle);
+        const key = normalizedPersonName(user?.displayName);
+        if (!user || !user.userId || !key || isSyntheticLegacyOwnerId(user.userId)) continue;
+        if (!byName.has(key)) byName.set(key, []);
+        byName.get(key).push(user);
+      }
+      let removed = 0;
+      for (const users of byName.values()) {
+        const unique = users.filter((item, idx, arr) => arr.findIndex(x => String(x.userId) === String(item.userId)) === idx);
+        if (unique.length < 2) continue;
+        const keep = choosePreferredUserIdentity(unique) || unique[0];
+        for (const duplicate of unique) {
+          if (String(duplicate.userId) === String(keep.userId)) continue;
+          if (String(duplicate.userId) === String(userId || '').trim()) continue;
+          if (duplicate.invalid || Number(duplicate.eventCount || 0) > 0 || !duplicate.sourceFile) continue;
+          await capviewEventsDirHandle.removeEntry(duplicate.sourceFile);
+          removed += 1;
+        }
+      }
+      if (removed) setEventModeStatus(`${removed} arquivo(s) duplicado(s) vazio(s) removido(s) de /events.`);
+      return removed;
+    } catch (err) {
+      console.warn('[ORIZON Eventos] Falha ao limpar usuários duplicados vazios:', err);
+      return 0;
+    }
   };
 
   const writeEventArrayToHandle = async (handle, events, identityId='', identityName='', opts={}) => {
@@ -4807,20 +4871,7 @@ main{padding:14px;overflow-x:hidden}
       for await (const [name, handle] of capviewEventsDirHandle.entries()) {
         if (!handle || handle.kind !== 'file') continue;
         if (!String(name || '').toLowerCase().endsWith('.json')) continue;
-        const fileUser = userFromEventFilename(name);
-        let docUser = null;
-        try {
-          const doc = await readEventFileDocument(handle);
-          if (doc.user && (doc.user.userId || doc.user.displayName)) {
-            docUser = {
-              userId: String(doc.user.userId || doc.user.id || '').trim(),
-              displayName: String(doc.user.displayName || doc.user.name || '').trim(),
-              source:'events.metadata',
-              sourceFile:String(name || '').trim()
-            };
-          }
-        } catch {}
-        const user = docUser?.userId ? { ...fileUser, ...docUser, sources:[fileUser?.source, docUser.source].filter(Boolean) } : fileUser;
+        const user = await eventUserIdentityFromFile(name, handle);
         if (user && !isSyntheticLegacyOwnerId(user.userId)) users.push(user);
       }
     } catch (e) { console.warn('[ORIZON Usuários] Falha ao ler nomes dos arquivos de eventos:', e); }
@@ -4830,6 +4881,7 @@ main{padding:14px;overflow-x:hidden}
   const scanEventFolderUsers = async () => {
     await ensureEventFolderReady({ createSnapshotIfMissing:true });
     await cleanupSyntheticLegacyOwnerEventFiles();
+    await cleanupDuplicateEmptyEventUserFiles();
     const snapshot = await readSnapshotFromEventFolder();
     const sharedEvents = await readAllSharedEvents();
     const fileUsers = await scanEventFolderUserFiles();
@@ -4858,17 +4910,21 @@ main{padding:14px;overflow-x:hidden}
       if (ev.user_id && ev.user) add({ userId: ev.user_id, displayName: ev.user, source:'snapshot.events' }, { requireEventFile:true });
       if ((ev.type === 'ADD_RESOURCE' || ev.type === 'UPDATE_RESOURCE') && ev.payload) add(resourceUserRecord(ev.payload, 'snapshot.events.payload'), { requireEventFile:true });
     }
-    const users = [...byId.values()].sort((a,b) => String(a.displayName).localeCompare(String(b.displayName), 'pt-BR'));
+    const rawUsers = [...byId.values()];
     const byName = new Map();
-    for (const u of users) {
+    for (const u of rawUsers) {
       const key = normalizedPersonName(u.displayName);
       if (!key) continue;
-      if (!byName.has(key)) byName.set(key, new Set());
-      byName.get(key).add(u.userId);
+      if (!byName.has(key)) byName.set(key, []);
+      byName.get(key).push(u);
     }
     const diagnostics = [...byName.entries()]
-      .filter(([, ids]) => ids.size > 1)
-      .map(([name, ids]) => ({ type:'duplicate-name-distinct-users', name, userIds:[...ids] }));
+      .filter(([, items]) => new Set(items.map(u => String(u.userId || ''))).size > 1)
+      .map(([name, items]) => ({ type:'duplicate-name-distinct-users', name, userIds:[...new Set(items.map(u => String(u.userId || '')))] }));
+    const users = [...byName.values()]
+      .map(items => choosePreferredUserIdentity(items) || items[0])
+      .filter(Boolean)
+      .sort((a,b) => String(a.displayName).localeCompare(String(b.displayName), 'pt-BR'));
     scannedEventUsers = users;
     scannedEventDiagnostics = diagnostics;
     if (diagnostics.length) console.warn('[ORIZON Usuários] Mesmo nome com user_id diferente:', diagnostics);
