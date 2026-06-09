@@ -4505,17 +4505,26 @@ main{padding:14px;overflow-x:hidden}
     ? JSON.stringify(obj, null, 2)
     : JSON.stringify(obj);
   const writeJsonToFileHandle = async (handle, obj, opts={}) => writeTextToFileHandle(handle, stringifyJsonForFile(obj, opts));
+  const compactSharedEventForStorage = (event) => {
+    if (!event || !event.id) return null;
+    if (isConsolidatedEventReceipt(event)) return compactConsolidatedEventReceipt(event);
+    const out = { ...event };
+    delete out.sourceFile;
+    delete out.status;
+    if (out.consolidated === true && Object.prototype.hasOwnProperty.call(out, 'payload')) {
+      return compactConsolidatedEventReceipt(out);
+    }
+    return out;
+  };
+  const compactSharedEventsForStorage = (events=[]) =>
+    mergeEventListsUnique(events).map(compactSharedEventForStorage).filter(e => e && e.id);
   const eventFileEnvelopeForIdentity = (identityId='', identityName='', events=[]) => ({
     user: {
       userId: String(identityId || '').trim(),
       displayName: String(identityName || '').trim(),
     },
-    events: Array.isArray(events) ? events : [],
-    meta: {
-      schema: 'orizon-user-events-v2',
-      initializedAt: new Date().toISOString(),
-      note: 'Arquivo de eventos do usuário; eventos ficam em events[].'
-    }
+    events: compactSharedEventsForStorage(events),
+    meta: { schema: 'orizon-user-events-v2' }
   });
 
   const ensureEventFolderReady = async ({ createSnapshotIfMissing=true } = {}) => {
@@ -4536,7 +4545,7 @@ main{padding:14px;overflow-x:hidden}
     let txt = '';
     try { txt = await fileTextOrDefault(handle, '', { throwOnReadError:true }); }
     catch (err) { throw new Error('Não foi possível ler o arquivo de eventos do usuário; nada foi sobrescrito.'); }
-    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(userId, userName, []), { pretty:true });
+    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(userId, userName, []));
     return handle;
   };
 
@@ -4583,7 +4592,7 @@ main{padding:14px;overflow-x:hidden}
     let txt = '';
     try { txt = await fileTextOrDefault(handle, '', { throwOnReadError:true }); }
     catch (err) { throw new Error('Não foi possível ler /events/' + safeName + '.json; nada foi sobrescrito.'); }
-    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(identityId, identityName, []), { pretty:true });
+    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(identityId, identityName, []));
     return { handle, safeName };
   };
 
@@ -4694,13 +4703,8 @@ main{padding:14px;overflow-x:hidden}
       identityName || existingUser.displayName || existingUser.name || '',
       Array.isArray(events) ? events : []
     );
-    envelope.meta = {
-      ...((current.parsed && current.parsed.meta && typeof current.parsed.meta === 'object') ? current.parsed.meta : {}),
-      ...envelope.meta,
-      updatedAt: new Date().toISOString(),
-      eventCount: envelope.events.length
-    };
-    await writeJsonToFileHandle(handle, envelope, { pretty:true });
+    envelope.meta = { schema: 'orizon-user-events-v2' };
+    await writeJsonToFileHandle(handle, envelope);
   };
 
   const eventArchiveFolderName = (date=new Date()) => {
@@ -4732,7 +4736,7 @@ main{padding:14px;overflow-x:hidden}
       const remaining = current.filter(ev => !ev || !ev.id || !consolidatedIds.has(String(ev.id)));
       const archiveHandle = await archiveDir.getFileHandle(name, { create:true });
       const archiveCurrent = await readEventArrayFromHandle(archiveHandle);
-      await writeJsonToFileHandle(archiveHandle, mergeEventListsUnique(archiveCurrent, archived), { pretty:true });
+      await writeJsonToFileHandle(archiveHandle, mergeEventListsUnique(archiveCurrent, archived));
       await writeEventArrayToHandle(handle, remaining, '', '', { currentDoc });
       archivedEventCount += archived.length;
       activeFilesTouched += 1;
@@ -4743,7 +4747,7 @@ main{padding:14px;overflow-x:hidden}
       const snapshotArchiveHandle = await archiveDir.getFileHandle('_snapshot_events_before_compact.json', { create:true });
       const archiveCurrent = await readEventArrayFromHandle(snapshotArchiveHandle);
       const uniqueSnapshotEvents = mergeEventListsUnique(archiveCurrent, snapshotEventsToPreserve);
-      await writeJsonToFileHandle(snapshotArchiveHandle, uniqueSnapshotEvents, { pretty:true });
+      await writeJsonToFileHandle(snapshotArchiveHandle, uniqueSnapshotEvents);
       archivedEventCount += snapshotEventsToPreserve.length;
       archivedFiles.push('_snapshot_events_before_compact.json');
     }
@@ -4764,7 +4768,7 @@ main{padding:14px;overflow-x:hidden}
     const { handle, safeName } = await getEventFileHandleForIdentity(targetUserId, targetUserName);
     const arr = await readEventArrayFromHandle(handle);
     if (!arr.some(e => String(e.id) === String(event.id))) {
-      arr.push({ ...event, status:'pending', sourceFile:safeName + '.json' });
+      arr.push(compactSharedEventForStorage(event));
       arr.sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
       await writeEventArrayToHandle(handle, arr, targetUserId, targetUserName);
     }
