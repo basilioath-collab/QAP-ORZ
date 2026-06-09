@@ -1318,7 +1318,9 @@ main{padding:14px;overflow-x:hidden}
 
   const normalizedPersonName = (name) => String(name || '')
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .trim().toLowerCase().replace(/\s+/g,' ');
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim().replace(/\s+/g,' ');
 
   const ownerFromLegacyResourceId = (id) => {
     const raw = String(id || '').trim();
@@ -1332,6 +1334,19 @@ main{padding:14px;overflow-x:hidden}
     const slug = slugify(name) || 'recurso';
     return `legacy-owner::${slug}`;
   };
+
+  const isSyntheticLegacyOwnerId = (id) => {
+    const raw = String(id || '').trim().toLowerCase();
+    return raw.startsWith('legacy-owner::') || raw.startsWith('legacy-owner_') || raw.startsWith('legacy-owner-');
+  };
+
+  const isSyntheticLegacyOwnerEventFilename = (filename='') => {
+    const base = String(filename || '').trim().replace(/\.json$/i, '').toLowerCase();
+    return isSyntheticLegacyOwnerId(base);
+  };
+
+  const normalizeEventFilenameBaseToOwnerId = (filename='') =>
+    String(filename || '').trim().replace(/\.json$/i, '').replace(/^legacy-owner_/, 'legacy-owner::');
 
   const normalizeLegacyResource = (resource, opts={}) => {
     if (!resource || typeof resource !== 'object' || Array.isArray(resource)) return resource;
@@ -4024,16 +4039,19 @@ main{padding:14px;overflow-x:hidden}
 
   const identityPriorityScore = (identity={}) => {
     let score = 0;
+    if (String(identity.userId || '').trim() === String(userId || '').trim()) score += 1000;
     if (String(identity.resourceId || '').trim()) score += 100;
+    if (Number(identity.eventCount || 0) > 0) score += 60;
     const sources = Array.isArray(identity.sources) ? identity.sources : [identity.source || ''];
     if (sources.some(src => /snapshot\.resources|events\.payload|ADD_RESOURCE|UPDATE_RESOURCE/i.test(String(src || '')))) score += 20;
+    if (sources.some(src => /events\.metadata/i.test(String(src || '')))) score += 10;
     if (sources.some(src => /events\.filename/i.test(String(src || '')))) score += 5;
     return score;
   };
 
   const choosePreferredUserIdentity = (identities=[], fallbackName='') => {
     const unique = (identities || [])
-      .filter(item => item && String(item.userId || '').trim())
+      .filter(item => item && String(item.userId || '').trim() && !isSyntheticLegacyOwnerId(item.userId))
       .filter((item, idx, arr) => arr.findIndex(x => String(x.userId || '').trim() === String(item.userId || '').trim()) === idx);
     if (!unique.length) return null;
     return [...unique].sort((a,b) => {
@@ -4089,7 +4107,7 @@ main{padding:14px;overflow-x:hidden}
   const ensureResourceUserEventFile = async (resource, opts={}) => {
     const owner = resourceOwnerId(resource);
     const displayName = String(resource?.nome || resource?.name || '').trim();
-    if (!owner || !displayName || !sharedFolderReady()) return false;
+    if (!owner || isSyntheticLegacyOwnerId(owner) || !displayName || !sharedFolderReady()) return false;
     try {
       const { safeName } = await getEventFileHandleForIdentity(owner, displayName);
       if (opts.toast !== false) toast(`Usuário ${displayName} criado em /events/${safeName}.json.`);
@@ -4106,7 +4124,8 @@ main{padding:14px;overflow-x:hidden}
     if (!sharedFolderReady()) return 0;
     let created = 0;
     for (const resource of (state.resources || [])) {
-      if (!resourceOwnerId(resource) || !String(resource?.nome || resource?.name || '').trim()) continue;
+      const owner = resourceOwnerId(resource);
+      if (!owner || isSyntheticLegacyOwnerId(owner) || !String(resource?.nome || resource?.name || '').trim()) continue;
       if (await ensureResourceUserEventFile(resource, { toast:false })) created += 1;
     }
     if (created && opts.toast !== false) toast(`${created} arquivo(s) de usuário conferido(s) em /events.`);
@@ -4486,17 +4505,26 @@ main{padding:14px;overflow-x:hidden}
     ? JSON.stringify(obj, null, 2)
     : JSON.stringify(obj);
   const writeJsonToFileHandle = async (handle, obj, opts={}) => writeTextToFileHandle(handle, stringifyJsonForFile(obj, opts));
+  const compactSharedEventForStorage = (event) => {
+    if (!event || !event.id) return null;
+    if (isConsolidatedEventReceipt(event)) return compactConsolidatedEventReceipt(event);
+    const out = { ...event };
+    delete out.sourceFile;
+    delete out.status;
+    if (out.consolidated === true && Object.prototype.hasOwnProperty.call(out, 'payload')) {
+      return compactConsolidatedEventReceipt(out);
+    }
+    return out;
+  };
+  const compactSharedEventsForStorage = (events=[]) =>
+    mergeEventListsUnique(events).map(compactSharedEventForStorage).filter(e => e && e.id);
   const eventFileEnvelopeForIdentity = (identityId='', identityName='', events=[]) => ({
     user: {
       userId: String(identityId || '').trim(),
       displayName: String(identityName || '').trim(),
     },
-    events: Array.isArray(events) ? events : [],
-    meta: {
-      schema: 'orizon-user-events-v2',
-      initializedAt: new Date().toISOString(),
-      note: 'Arquivo de eventos do usuário; eventos ficam em events[].'
-    }
+    events: compactSharedEventsForStorage(events),
+    meta: { schema: 'orizon-user-events-v2' }
   });
 
   const ensureEventFolderReady = async ({ createSnapshotIfMissing=true } = {}) => {
@@ -4517,7 +4545,7 @@ main{padding:14px;overflow-x:hidden}
     let txt = '';
     try { txt = await fileTextOrDefault(handle, '', { throwOnReadError:true }); }
     catch (err) { throw new Error('Não foi possível ler o arquivo de eventos do usuário; nada foi sobrescrito.'); }
-    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(userId, userName, []), { pretty:true });
+    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(userId, userName, []));
     return handle;
   };
 
@@ -4536,8 +4564,10 @@ main{padding:14px;overflow-x:hidden}
       capviewEventMode.lastStatus = 'Pasta vinculada. Alterações seráo registradas em /events por usuário.';
       persistEventFolderMeta();
       await ensureEventFolderReady({ createSnapshotIfMissing:true });
+      await cleanupSyntheticLegacyOwnerEventFiles();
       if (opts.requireUser !== false) await ensureUserEventFileInitialized();
       await ensureResourceUserEventFiles({ toast:false });
+      await cleanupDuplicateEmptyEventUserFiles();
       try { stopDbWatcher(); } catch {}
       disableDbAutoSyncForEventMode();
       const flushed = await flushLocalEventOutbox();
@@ -4562,7 +4592,7 @@ main{padding:14px;overflow-x:hidden}
     let txt = '';
     try { txt = await fileTextOrDefault(handle, '', { throwOnReadError:true }); }
     catch (err) { throw new Error('Não foi possível ler /events/' + safeName + '.json; nada foi sobrescrito.'); }
-    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(identityId, identityName, []), { pretty:true });
+    if (!String(txt || '').trim()) await writeJsonToFileHandle(handle, eventFileEnvelopeForIdentity(identityId, identityName, []));
     return { handle, safeName };
   };
 
@@ -4585,6 +4615,86 @@ main{padding:14px;overflow-x:hidden}
 
   const readEventArrayFromHandle = async (handle) => (await readEventFileDocument(handle)).events;
 
+  const cleanupSyntheticLegacyOwnerEventFiles = async () => {
+    if (!sharedFolderReady() || !capviewEventsDirHandle || typeof capviewEventsDirHandle.removeEntry !== 'function') return 0;
+    let removed = 0;
+    try {
+      for await (const [name, handle] of capviewEventsDirHandle.entries()) {
+        if (!handle || handle.kind !== 'file') continue;
+        if (!String(name || '').toLowerCase().endsWith('.json')) continue;
+        if (!isSyntheticLegacyOwnerEventFilename(name)) continue;
+        const doc = await readEventFileDocument(handle);
+        const docUserId = String(doc.user?.userId || doc.user?.id || normalizeEventFilenameBaseToOwnerId(name)).trim();
+        const onlyLegacyOwnerEnvelope = isSyntheticLegacyOwnerId(docUserId) && !doc.invalid && !(doc.events || []).length;
+        if (!onlyLegacyOwnerEnvelope) continue;
+        await capviewEventsDirHandle.removeEntry(name);
+        removed += 1;
+      }
+    } catch (err) {
+      console.warn('[ORIZON Eventos] Falha ao limpar arquivos legacy-owner vazios:', err);
+    }
+    if (removed) setEventModeStatus(`${removed} arquivo(s) legacy-owner vazio(s) removido(s) de /events.`);
+    return removed;
+  };
+
+  const eventUserIdentityFromFile = async (name, handle) => {
+    const fileUser = userFromEventFilename(name);
+    let docUser = null;
+    let eventCount = 0;
+    let invalid = false;
+    try {
+      const doc = await readEventFileDocument(handle);
+      eventCount = Array.isArray(doc.events) ? doc.events.length : 0;
+      invalid = !!doc.invalid;
+      if (doc.user && (doc.user.userId || doc.user.displayName)) {
+        docUser = {
+          userId: String(doc.user.userId || doc.user.id || '').trim(),
+          displayName: String(doc.user.displayName || doc.user.name || '').trim(),
+          source:'events.metadata',
+          sourceFile:String(name || '').trim(),
+          eventCount
+        };
+      }
+    } catch { invalid = true; }
+    const user = docUser?.userId ? { ...fileUser, ...docUser, sources:[fileUser?.source, docUser.source].filter(Boolean) } : fileUser;
+    return user ? { ...user, eventCount, invalid, sourceFile:String(name || '').trim() } : null;
+  };
+
+  const cleanupDuplicateEmptyEventUserFiles = async () => {
+    if (!sharedFolderReady() || !capviewEventsDirHandle || typeof capviewEventsDirHandle.removeEntry !== 'function') return 0;
+    const byName = new Map();
+    try {
+      for await (const [name, handle] of capviewEventsDirHandle.entries()) {
+        if (!handle || handle.kind !== 'file') continue;
+        if (!String(name || '').toLowerCase().endsWith('.json')) continue;
+        if (isSyntheticLegacyOwnerEventFilename(name)) continue;
+        const user = await eventUserIdentityFromFile(name, handle);
+        const key = normalizedPersonName(user?.displayName);
+        if (!user || !user.userId || !key || isSyntheticLegacyOwnerId(user.userId)) continue;
+        if (!byName.has(key)) byName.set(key, []);
+        byName.get(key).push(user);
+      }
+      let removed = 0;
+      for (const users of byName.values()) {
+        const unique = users.filter((item, idx, arr) => arr.findIndex(x => String(x.userId) === String(item.userId)) === idx);
+        if (unique.length < 2) continue;
+        const keep = choosePreferredUserIdentity(unique) || unique[0];
+        for (const duplicate of unique) {
+          if (String(duplicate.userId) === String(keep.userId)) continue;
+          if (String(duplicate.userId) === String(userId || '').trim()) continue;
+          if (duplicate.invalid || Number(duplicate.eventCount || 0) > 0 || !duplicate.sourceFile) continue;
+          await capviewEventsDirHandle.removeEntry(duplicate.sourceFile);
+          removed += 1;
+        }
+      }
+      if (removed) setEventModeStatus(`${removed} arquivo(s) duplicado(s) vazio(s) removido(s) de /events.`);
+      return removed;
+    } catch (err) {
+      console.warn('[ORIZON Eventos] Falha ao limpar usuários duplicados vazios:', err);
+      return 0;
+    }
+  };
+
   const writeEventArrayToHandle = async (handle, events, identityId='', identityName='', opts={}) => {
     const current = opts.currentDoc || await readEventFileDocument(handle);
     const existingUser = (current.user && typeof current.user === 'object') ? current.user : {};
@@ -4593,13 +4703,8 @@ main{padding:14px;overflow-x:hidden}
       identityName || existingUser.displayName || existingUser.name || '',
       Array.isArray(events) ? events : []
     );
-    envelope.meta = {
-      ...((current.parsed && current.parsed.meta && typeof current.parsed.meta === 'object') ? current.parsed.meta : {}),
-      ...envelope.meta,
-      updatedAt: new Date().toISOString(),
-      eventCount: envelope.events.length
-    };
-    await writeJsonToFileHandle(handle, envelope, { pretty:true });
+    envelope.meta = { schema: 'orizon-user-events-v2' };
+    await writeJsonToFileHandle(handle, envelope);
   };
 
   const eventArchiveFolderName = (date=new Date()) => {
@@ -4631,7 +4736,7 @@ main{padding:14px;overflow-x:hidden}
       const remaining = current.filter(ev => !ev || !ev.id || !consolidatedIds.has(String(ev.id)));
       const archiveHandle = await archiveDir.getFileHandle(name, { create:true });
       const archiveCurrent = await readEventArrayFromHandle(archiveHandle);
-      await writeJsonToFileHandle(archiveHandle, mergeEventListsUnique(archiveCurrent, archived), { pretty:true });
+      await writeJsonToFileHandle(archiveHandle, mergeEventListsUnique(archiveCurrent, archived));
       await writeEventArrayToHandle(handle, remaining, '', '', { currentDoc });
       archivedEventCount += archived.length;
       activeFilesTouched += 1;
@@ -4642,7 +4747,7 @@ main{padding:14px;overflow-x:hidden}
       const snapshotArchiveHandle = await archiveDir.getFileHandle('_snapshot_events_before_compact.json', { create:true });
       const archiveCurrent = await readEventArrayFromHandle(snapshotArchiveHandle);
       const uniqueSnapshotEvents = mergeEventListsUnique(archiveCurrent, snapshotEventsToPreserve);
-      await writeJsonToFileHandle(snapshotArchiveHandle, uniqueSnapshotEvents, { pretty:true });
+      await writeJsonToFileHandle(snapshotArchiveHandle, uniqueSnapshotEvents);
       archivedEventCount += snapshotEventsToPreserve.length;
       archivedFiles.push('_snapshot_events_before_compact.json');
     }
@@ -4656,12 +4761,14 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const writeSingleEventToUserFile = async (event) => {
-    const targetUserId = String(event?.user_id || event?.userId || userId || '').trim();
+    const rawTargetUserId = String(event?.user_id || event?.userId || userId || '').trim();
+    const targetUserId = isSyntheticLegacyOwnerId(rawTargetUserId) ? String(userId || '').trim() : rawTargetUserId;
     const targetUserName = String(event?.user || event?.userName || userName || '').trim();
+    if (!targetUserId || isSyntheticLegacyOwnerId(targetUserId)) throw new Error('Evento sem usuário real; arquivo legacy-owner não será criado.');
     const { handle, safeName } = await getEventFileHandleForIdentity(targetUserId, targetUserName);
     const arr = await readEventArrayFromHandle(handle);
     if (!arr.some(e => String(e.id) === String(event.id))) {
-      arr.push({ ...event, status:'pending', sourceFile:safeName + '.json' });
+      arr.push(compactSharedEventForStorage(event));
       arr.sort((a,b) => Number(a.timestamp||0) - Number(b.timestamp||0));
       await writeEventArrayToHandle(handle, arr, targetUserId, targetUserName);
     }
@@ -4743,7 +4850,7 @@ main{padding:14px;overflow-x:hidden}
     const r = normalizeLegacyResource(resource || {});
     const owner = String(r.owner_user_id || '').trim();
     const name = String(r.nome || r.name || r.createdBy || '').trim();
-    if (!owner || !name) return null;
+    if (!owner || isSyntheticLegacyOwnerId(owner) || !name) return null;
     return { userId: owner, displayName: name, resourceId: String(r.id || ''), source, resource: r };
   };
   const displayNameFromEventFileSlug = (slug='') => String(slug || '')
@@ -4754,6 +4861,7 @@ main{padding:14px;overflow-x:hidden}
     .trim();
   const userFromEventFilename = (filename='') => {
     const base = String(filename || '').trim().replace(/\.json$/i, '');
+    if (isSyntheticLegacyOwnerEventFilename(base)) return null;
     const match = base.match(/^(.+?)__([a-z0-9]{4,})$/i);
     if (!match) return null;
     const displayName = displayNameFromEventFileSlug(match[1]);
@@ -4767,21 +4875,8 @@ main{padding:14px;overflow-x:hidden}
       for await (const [name, handle] of capviewEventsDirHandle.entries()) {
         if (!handle || handle.kind !== 'file') continue;
         if (!String(name || '').toLowerCase().endsWith('.json')) continue;
-        const fileUser = userFromEventFilename(name);
-        let docUser = null;
-        try {
-          const doc = await readEventFileDocument(handle);
-          if (doc.user && (doc.user.userId || doc.user.displayName)) {
-            docUser = {
-              userId: String(doc.user.userId || doc.user.id || '').trim(),
-              displayName: String(doc.user.displayName || doc.user.name || '').trim(),
-              source:'events.metadata',
-              sourceFile:String(name || '').trim()
-            };
-          }
-        } catch {}
-        const user = docUser?.userId ? { ...fileUser, ...docUser, sources:[fileUser?.source, docUser.source].filter(Boolean) } : fileUser;
-        if (user) users.push(user);
+        const user = await eventUserIdentityFromFile(name, handle);
+        if (user && !isSyntheticLegacyOwnerId(user.userId)) users.push(user);
       }
     } catch (e) { console.warn('[ORIZON Usuários] Falha ao ler nomes dos arquivos de eventos:', e); }
     return users;
@@ -4789,6 +4884,8 @@ main{padding:14px;overflow-x:hidden}
 
   const scanEventFolderUsers = async () => {
     await ensureEventFolderReady({ createSnapshotIfMissing:true });
+    await cleanupSyntheticLegacyOwnerEventFiles();
+    await cleanupDuplicateEmptyEventUserFiles();
     const snapshot = await readSnapshotFromEventFolder();
     const sharedEvents = await readAllSharedEvents();
     const fileUsers = await scanEventFolderUserFiles();
@@ -4817,17 +4914,21 @@ main{padding:14px;overflow-x:hidden}
       if (ev.user_id && ev.user) add({ userId: ev.user_id, displayName: ev.user, source:'snapshot.events' }, { requireEventFile:true });
       if ((ev.type === 'ADD_RESOURCE' || ev.type === 'UPDATE_RESOURCE') && ev.payload) add(resourceUserRecord(ev.payload, 'snapshot.events.payload'), { requireEventFile:true });
     }
-    const users = [...byId.values()].sort((a,b) => String(a.displayName).localeCompare(String(b.displayName), 'pt-BR'));
+    const rawUsers = [...byId.values()];
     const byName = new Map();
-    for (const u of users) {
+    for (const u of rawUsers) {
       const key = normalizedPersonName(u.displayName);
       if (!key) continue;
-      if (!byName.has(key)) byName.set(key, new Set());
-      byName.get(key).add(u.userId);
+      if (!byName.has(key)) byName.set(key, []);
+      byName.get(key).push(u);
     }
     const diagnostics = [...byName.entries()]
-      .filter(([, ids]) => ids.size > 1)
-      .map(([name, ids]) => ({ type:'duplicate-name-distinct-users', name, userIds:[...ids] }));
+      .filter(([, items]) => new Set(items.map(u => String(u.userId || ''))).size > 1)
+      .map(([name, items]) => ({ type:'duplicate-name-distinct-users', name, userIds:[...new Set(items.map(u => String(u.userId || '')))] }));
+    const users = [...byName.values()]
+      .map(items => choosePreferredUserIdentity(items) || items[0])
+      .filter(Boolean)
+      .sort((a,b) => String(a.displayName).localeCompare(String(b.displayName), 'pt-BR'));
     scannedEventUsers = users;
     scannedEventDiagnostics = diagnostics;
     if (diagnostics.length) console.warn('[ORIZON Usuários] Mesmo nome com user_id diferente:', diagnostics);
