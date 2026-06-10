@@ -1459,6 +1459,63 @@ main{padding:14px;overflow-x:hidden}
     if (String(resource.tipo || '').trim() === 'Terceiro') return HOURS_PER_DAY_THIRD;
     return HOURS_PER_DAY;
   };
+
+  const roundDemandHours = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? Math.round(Math.max(0, n) * 100) / 100 : 0;
+  };
+
+  const numberOrNull = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  const parseHoursLikeToDecimal = (value) => {
+    const raw = String(value ?? '').trim();
+    if (!raw) return null;
+    const hhmm = raw.match(/^(\d{1,3}):([0-5]\d)$/);
+    if (hhmm) return roundDemandHours(Number(hhmm[1] || 0) + (Number(hhmm[2] || 0) / 60));
+    const n = Number(raw.replace(',', '.'));
+    return Number.isFinite(n) ? roundDemandHours(n) : null;
+  };
+
+  const resourceByIdFromList = (resourceId, resources=[]) => {
+    const rid = String(resourceId || '').trim();
+    return (Array.isArray(resources) ? resources : []).find(r => String(r?.id || '').trim() === rid) || null;
+  };
+
+  const resourceHoursById = (resourceId, resources=[]) => getResourceHoursPerDay(resourceByIdFromList(resourceId, resources));
+
+  const percentToDemandHours = (percent, resourceId, resources=[]) => {
+    const pct = Number(percent);
+    if (!Number.isFinite(pct)) return 0;
+    return roundDemandHours((Math.max(0, pct) / 100) * resourceHoursById(resourceId, resources));
+  };
+
+  const demandHoursToPercent = (hours, resourceId, resources=[]) => {
+    const base = resourceHoursById(resourceId, resources);
+    if (!base) return 0;
+    return Math.round((roundDemandHours(hours) / base) * 1000) / 10;
+  };
+
+  const firstHoursLike = (...values) => {
+    for (const value of values) {
+      const parsed = parseHoursLikeToDecimal(value);
+      if (parsed !== null) return parsed;
+    }
+    return null;
+  };
+
+  const makeDemandAllocation = (resourceId, hoursRaw, resources=[]) => {
+    const rid = String(resourceId || '').trim();
+    const raw = Number(hoursRaw);
+    const horas = Number.isFinite(raw) ? roundDemandHours(raw) : NaN;
+    return {
+      resourceId: rid,
+      horas_planejadas_dia: horas,
+      percentual_diario: Number.isFinite(horas) ? demandHoursToPercent(horas, rid, resources) : NaN,
+    };
+  };
   const formatDate = (date) => {
     const d = (date instanceof Date) ? date : new Date(date);
     const z = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -1520,20 +1577,36 @@ main{padding:14px;overflow-x:hidden}
   });
 
 
-  const normalizeDemandAllocations = (demand) => {
+  const normalizeDemandAllocations = (demand, resources=[]) => {
     const out = [];
     const seen = new Set();
-    const add = (resourceId, pctRaw) => {
+    const add = (resourceId, source={}) => {
       const rid = String(resourceId || '').trim();
       if (!rid || seen.has(rid)) return;
-      const pctN = Number(pctRaw ?? demand?.percentual_diario ?? 0);
-      out.push({ resourceId: rid, percentual_diario: Number.isFinite(pctN) ? pctN : 0 });
+      const pctRaw = source?.percentual_diario ?? source?.dailyPercent ?? source?.percent ?? demand?.percentual_diario ?? demand?.dailyPercent ?? demand?.percent;
+      const pct = numberOrNull(pctRaw);
+      let horas = firstHoursLike(
+        source?.horas_planejadas_dia,
+        source?.horas_dia,
+        source?.horas,
+        source?.hours_per_day,
+        demand?.horas_planejadas_dia,
+        demand?.horas_dia
+      );
+      const hasExplicitHours = horas !== null;
+      if (horas === null) horas = percentToDemandHours(pct ?? 0, rid, resources);
+      const pctFinal = hasExplicitHours ? demandHoursToPercent(horas, rid, resources) : (pct !== null ? Math.round(Math.max(0, pct) * 10) / 10 : 0);
+      out.push({
+        resourceId: rid,
+        horas_planejadas_dia: roundDemandHours(horas),
+        percentual_diario: pctFinal,
+      });
       seen.add(rid);
     };
     if (Array.isArray(demand?.allocations)) {
-      for (const a of demand.allocations) add(a?.resourceId || a?.responsavel_id, a?.percentual_diario);
+      for (const a of demand.allocations) add(a?.resourceId || a?.responsavel_id, a);
     }
-    add(demand?.responsavel_id || demand?.resourceId, demand?.percentual_diario);
+    add(demand?.responsavel_id || demand?.resourceId, demand);
     return out;
   };
 
@@ -1562,7 +1635,7 @@ main{padding:14px;overflow-x:hidden}
     return out;
   };
 
-  const normalizeDemandsV02 = (arr, reprogrammings=[]) => {
+  const normalizeDemandsV02 = (arr, reprogrammings=[], resources=[]) => {
     const inList = Array.isArray(arr) ? arr : [];
     const grouped = new Map();
     const normTxt = (v='') => String(v || '')
@@ -1594,12 +1667,14 @@ main{padding:14px;overflow-x:hidden}
       const d = normalizeDemandBaseline({ ...raw }, reprogrammings);
       const key = makeKey(d);
       const existing = grouped.get(key);
-      const allocs = normalizeDemandAllocations(d);
+      const allocs = normalizeDemandAllocations(d, resources);
       if (!existing) {
         const firstRid = allocs[0]?.resourceId || String(d.responsavel_id || d.resourceId || '').trim();
         grouped.set(key, {
           ...d,
           responsavel_id: firstRid,
+          percentual_diario: Number(allocs[0]?.percentual_diario ?? d.percentual_diario ?? 0),
+          horas_planejadas_dia: Number(allocs[0]?.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0),
           allocations: allocs,
         });
         continue;
@@ -1608,7 +1683,7 @@ main{padding:14px;overflow-x:hidden}
       for (const a of allocs) {
         const rid = String(a.resourceId || '').trim();
         if (!rid || seen.has(rid)) continue;
-        existing.allocations.push({ resourceId: rid, percentual_diario: Number(a.percentual_diario || 0) });
+        existing.allocations.push({ ...a });
         seen.add(rid);
       }
       if (!existing.responsavel_id && existing.allocations[0]?.resourceId) existing.responsavel_id = existing.allocations[0].resourceId;
@@ -1623,7 +1698,7 @@ main{padding:14px;overflow-x:hidden}
       ...migrated,
       schemaVersion: '0.2',
       resources: Array.isArray(migrated.resources) ? migrated.resources : [],
-      demands: normalizeDemandsV02(migrated.demands, migrated.reprogrammings),
+      demands: normalizeDemandsV02(migrated.demands, migrated.reprogrammings, Array.isArray(migrated.resources) ? migrated.resources : []),
       internalActivities: Array.isArray(migrated.internalActivities) ? migrated.internalActivities : [],
       blockings: Array.isArray(migrated.blockings) ? migrated.blockings : [],
       holidays: Array.isArray(migrated.holidays) ? migrated.holidays : [],
@@ -1850,7 +1925,7 @@ main{padding:14px;overflow-x:hidden}
       String(d.data_inicio || ''),
       String(d.data_fim || ''),
       String(d.responsavel_id || d.resourceId || ''),
-      String(Number(d.percentual_diario || 0)),
+      String(Number(d.horas_planejadas_dia ?? d.horas_dia ?? 0)),
       normalizeStatus(d.status || 'Mapeada'),
       normalizeDemandTextForDedupe(d.prioridade),
       normalizeDemandTextForDedupe(d.observacoes)
@@ -1866,7 +1941,7 @@ main{padding:14px;overflow-x:hidden}
       normalizeDemandTextForDedupe(d.focal),
       String(d.data_inicio || ''),
       String(d.data_fim || ''),
-      String(Number(d.percentual_diario || 0)),
+      String(Number(d.horas_planejadas_dia ?? d.horas_dia ?? 0)),
       normalizeStatus(d.status || 'Mapeada'),
       normalizeDemandTextForDedupe(d.prioridade),
       normalizeDemandTextForDedupe(d.observacoes)
@@ -2352,7 +2427,7 @@ main{padding:14px;overflow-x:hidden}
       el('th', {}, ['Título']),
       el('th', {}, ['Responsável']),
       el('th', {}, ['Período']),
-      el('th', {}, ['%/dia']),
+      el('th', {}, ['Horas/dia']),
       el('th', {}, ['Prioridade']),
       el('th', {}, ['Status']),
     ])]));
@@ -2366,9 +2441,10 @@ main{padding:14px;overflow-x:hidden}
         d.predio || d.focal ? el('div', { class:'tiny' }, [`${(d.predio||'').trim()}${d.predio && d.focal ? ' ? ' : ''}${(d.focal||'').trim()}`.trim()]) : el('div', { class:'tiny', style:'display:none' }, [''])
       ].filter(Boolean)));
       const respName = (d.responsavel_id||'') ? (resMap[d.responsavel_id]?.nome || '-') : '-';
+      const primaryAlloc = demandAllocations(d).find(a => String(a.resourceId || '') === String(d.responsavel_id || '')) || demandAllocations(d)[0] || {};
       tr.appendChild(el('td', {}, [respName]));
       tr.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]));
-      tr.appendChild(el('td', {}, [`${Number(d.percentual_diario||0)}%`]));
+      tr.appendChild(el('td', { class:'mono' }, [decimalHoursToHHMM(primaryAlloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0)]));
       tr.appendChild(el('td', {}, [d.prioridade || '-']));
       const st = effectiveStatus(d);
       tr.appendChild(el('td', {}, [statusPill(d)]));
@@ -2567,6 +2643,13 @@ main{padding:14px;overflow-x:hidden}
   };
   const parseApontamentoHours = (value) => parseHoursInput(value);
 
+  const decimalHoursToHHMM = (value) => {
+    const totalMinutes = Math.max(0, Math.round(Number(value || 0) * 60));
+    const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const mm = String(totalMinutes % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   const isISODateString = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
 
   const sortApontamentosChronological = (items=[]) => [...items].sort((a,b) => {
@@ -2605,11 +2688,12 @@ main{padding:14px;overflow-x:hidden}
 
     const start = String(demand.data_inicio || '').trim();
     const end = String(demand.data_fim || '').trim();
-    const percent = Math.max(0, Number(demand.percentual_diario || 0));
     const resourceId = String(demand.responsavel_id || '').trim();
+    const primaryAlloc = demandAllocations(demand).find(a => String(a.resourceId || '') === resourceId) || demandAllocations(demand)[0] || {};
+    const plannedDemandHoursPerDay = Math.max(0, Number(primaryAlloc.horas_planejadas_dia || primaryAlloc.horas_dia || 0));
 
     let plannedDays = 0;
-    if (isISODateString(start) && isISODateString(end) && start <= end && percent > 0) {
+    if (isISODateString(start) && isISODateString(end) && start <= end && plannedDemandHoursPerDay > 0) {
       let cursor = isoToLocalMidnight(start);
       const limit = isoToLocalMidnight(end);
       while (cursor && limit && cursor.getTime() <= limit.getTime()) {
@@ -2623,9 +2707,7 @@ main{padding:14px;overflow-x:hidden}
       }
     }
 
-    const plannedResource = (state.resources || []).find(r => String(r.id || '') === String(resourceId || ''));
-    const plannedHoursPerDay = getResourceHoursPerDay(plannedResource);
-    const plannedHours = Math.round((plannedDays * plannedHoursPerDay * (percent / 100)) * 100) / 100;
+    const plannedHours = Math.round((plannedDays * plannedDemandHoursPerDay) * 100) / 100;
     const delta = Math.round((plannedHours - realHours) * 100) / 100; // saldo: horas planejadas restantes; negativo = acima do planejado
     const progressPct = plannedHours > 0 ? Math.round((realHours / plannedHours) * 1000) / 10 : (realHours > 0 ? 100 : 0);
     const efficiencyPct = plannedHours > 0 ? Math.round((realHours / plannedHours) * 1000) / 10 : null;
@@ -2882,11 +2964,16 @@ main{padding:14px;overflow-x:hidden}
     const responsavelIds = Array.isArray(draft.responsavelIds)
       ? [...new Set(draft.responsavelIds.map(id => String(id || '').trim()).filter(Boolean))]
       : [];
-    const respPctById = {};
+    const respHoursById = {};
+    const hoursSource = draft.respHoursById && typeof draft.respHoursById === 'object' ? draft.respHoursById : {};
     const pctSource = draft.respPctById && typeof draft.respPctById === 'object' ? draft.respPctById : {};
     for (const rid of responsavelIds) {
-      const raw = Number(pctSource[rid] ?? 100);
-      respPctById[rid] = Number.isFinite(raw) ? raw : 100;
+      const rawHours = parseHoursLikeToDecimal(hoursSource[rid]);
+      if (rawHours !== null) respHoursById[rid] = rawHours;
+      else {
+        const rawPct = Number(pctSource[rid] ?? 100);
+        respHoursById[rid] = percentToDemandHours(Number.isFinite(rawPct) ? rawPct : 100, rid, state?.resources || []);
+      }
     }
     return {
       titulo: String(draft.titulo || ''),
@@ -2898,7 +2985,7 @@ main{padding:14px;overflow-x:hidden}
       status: normalizeStatus(draft.status || (responsavelIds.length ? 'Em andamento' : 'Mapeada')),
       observacoes: String(draft.observacoes || ''),
       responsavelIds,
-      respPctById,
+      respHoursById,
       updatedAt: Number(draft.updatedAt || Date.now()),
     };
   };
@@ -2997,6 +3084,8 @@ main{padding:14px;overflow-x:hidden}
   };
 
   // paginação (não persistida)
+  let editingInternalActivityId = '';
+
   const uiPagination = {
     demandsPage: 1,
     resourcesPage: 1,
@@ -3815,7 +3904,7 @@ main{padding:14px;overflow-x:hidden}
 
 
   const demandAllocations = (demand) => {
-    const allocs = normalizeDemandAllocations(demand);
+    const allocs = normalizeDemandAllocations(demand, state.resources || []);
     return allocs.length ? allocs : [];
   };
   const internalActivitiesForResourceOnDate = (resourceId, dateObj, { onlyCapacity=true } = {}) => {
@@ -3961,9 +4050,11 @@ main{padding:14px;overflow-x:hidden}
   const validateDemandAllocationLimits = (allocations=[]) => {
     const list = Array.isArray(allocations) ? allocations : [];
     for (const a of list) {
-      const pct = Number(a?.percentual_diario ?? 0);
-      if (!Number.isFinite(pct) || pct < 0) return { ok:false, msg:'Percentual por recurso inválido (mínimo 0).' };
-      if (pct > 100) return { ok:false, msg:'Percentual por recurso não pode passar de 100%.' };
+      const rid = String(a?.resourceId || '').trim();
+      const horas = Number(a?.horas_planejadas_dia ?? a?.horas_dia ?? 0);
+      const maxHours = resourceHoursById(rid, state.resources || []);
+      if (!Number.isFinite(horas) || horas < 0) return { ok:false, msg:'Horas por recurso inválidas (use HH:MM, exemplo 03:30).' };
+      if (horas > maxHours) return { ok:false, msg:`Horas por recurso não podem passar de ${decimalHoursToHHMM(maxHours)} por dia.` };
     }
     return { ok:true };
   };
@@ -5367,26 +5458,35 @@ main{padding:14px;overflow-x:hidden}
       return Math.max(0, Number(base || 0)) + Math.max(0, Number(he || 0));
     },
 
-    dailyPercentAllocated(resourceId, dateObj) {
+    dailyDemandHoursAllocated(resourceId, dateObj) {
       const dateStr = formatDate(dateObj);
       const reason = this.nonWorkingReasonForDay(resourceId, dateObj);
 
       // Regra conservadora HE/FDS:
       // HE adiciona capacidade extra, mas NÃO libera demanda normal em dia não útil.
       // Assim, FDS/feriado/bloqueio/férias/OFF com HE aparece como HE azul, sem somar demandas do intervalo.
-      if (reason) return reason.code;
+      if (reason) return 0;
 
       let total = 0;
       for (const dem of (state.demands || [])) {
         const st = effectiveStatus(dem);
         if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) continue;
         if (!(dateStr >= dem.data_inicio && dateStr <= dem.data_fim)) continue;
-        const allocPct = demandAllocations(dem)
+        const allocHours = demandAllocations(dem)
           .filter(a => String(a.resourceId || '') === String(resourceId || ''))
-          .reduce((acc, a) => acc + Number(a.percentual_diario || 0), 0);
-        total += allocPct;
+          .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
+        total += allocHours;
       }
-      return total;
+      return roundDemandHours(total);
+    },
+
+    dailyPercentAllocated(resourceId, dateObj) {
+      const reason = this.nonWorkingReasonForDay(resourceId, dateObj);
+      if (reason) return reason.code;
+      const res = (state.resources || []).find(r => r.id === resourceId);
+      const base = getResourceHoursPerDay(res);
+      if (!base) return 0;
+      return Math.round((this.dailyDemandHoursAllocated(resourceId, dateObj) / base) * 1000) / 10;
     },
 
     freeHoursInfo(resourceId, dateObj) {
@@ -5407,8 +5507,8 @@ main{padding:14px;overflow-x:hidden}
 
       const base = blockedNoHe ? 0 : getResourceHoursPerDay(res);
       const capacity = Math.max(0, Number(base || 0)) + otHours;
-      const perc = this.dailyPercentAllocated(resourceId, dateObj);
-      const allocatedFromDemandsHH = Math.max(0, Number(perc || 0)) / 100 * getResourceHoursPerDay(res);
+      const allocatedFromDemandsHH = this.dailyDemandHoursAllocated(resourceId, dateObj);
+      const perc = demandHoursToPercent(allocatedFromDemandsHH, resourceId, state.resources || []);
       const allocatedFromInternalHH = internalActivityHoursForDay(resourceId, dateObj);
       const allocated = allocatedFromDemandsHH + allocatedFromInternalHH;
       const free = capacity - allocated;
@@ -5435,6 +5535,7 @@ main{padding:14px;overflow-x:hidden}
   const nonWorkingReasonForDay = (resourceId, dateObj) => CapacityEngine.nonWorkingReasonForDay(resourceId, dateObj);
   const baseCapacityForDay = (resourceId, dateObj) => CapacityEngine.baseCapacityForDay(resourceId, dateObj);
   const dailyCapacityWithOvertime = (resourceId, dateObj) => CapacityEngine.dailyCapacityWithOvertime(resourceId, dateObj);
+  const dailyDemandHoursAllocated = (resourceId, dateObj) => CapacityEngine.dailyDemandHoursAllocated(resourceId, dateObj);
   const dailyPercentAllocated = (resourceId, dateObj) => CapacityEngine.dailyPercentAllocated(resourceId, dateObj);
 
 
@@ -5564,7 +5665,7 @@ main{padding:14px;overflow-x:hidden}
       t.appendChild(el('thead', {}, [el('tr', {}, [
         el('th', {}, ['Título']),
         el('th', {}, ['Status']),
-        el('th', {}, ['%/dia']),
+        el('th', {}, ['Horas/dia']),
         el('th', {}, ['Prédio']),
         el('th', {}, ['Focal']),
         el('th', {}, ['Responsável']),
@@ -5577,9 +5678,9 @@ main{padding:14px;overflow-x:hidden}
         for (const d of pageItems) {
           const st = effectiveStatus(d);
           const counts = STATUS_COUNTS_IN_ALLOCATION.has(st);
-          const allocPctForResource = demandAllocations(d)
+          const allocHoursForResource = demandAllocations(d)
             .filter(a => String(a.resourceId || '') === String(resourceId || ''))
-            .reduce((acc, a) => acc + Number(a.percentual_diario || 0), 0);
+            .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
           const tr = el('tr');
           if (st === 'Atrasada') tr.classList.add('overdueRow');
           tr.appendChild(el('td', {}, [
@@ -5587,7 +5688,7 @@ main{padding:14px;overflow-x:hidden}
             el('div', { class:'tiny' }, [counts ? 'Conta na alocação' : 'Não conta na alocação'])
           ]));
           tr.appendChild(el('td', {}, [statusPill(d)]));
-          tr.appendChild(el('td', {}, [String(Math.max(0, allocPctForResource))]));
+          tr.appendChild(el('td', { class:'mono' }, [decimalHoursToHHMM(Math.max(0, allocHoursForResource))]));
           tr.appendChild(el('td', {}, [d.predio||'-']));
           tr.appendChild(el('td', {}, [d.focal||'-']));
           tr.appendChild(el('td', {}, [resourceById()[d.responsavel_id]?.nome || '-']));
@@ -5674,16 +5775,16 @@ main{padding:14px;overflow-x:hidden}
     const focal = el('input', { value: demand.focal || '', placeholder:'Ex: Fulano (Focal)', maxlength:String(INPUT_LIMITS.focal) });
 
     const selectedRespIds = new Set();
-    const respPctById = new Map();
+    const respHoursById = new Map();
     for (const a of demandAllocations(demand)) {
       const rid = String(a.resourceId || '').trim();
       if (!rid) continue;
       selectedRespIds.add(rid);
-      respPctById.set(rid, Number(a.percentual_diario ?? demand.percentual_diario ?? 100));
+      respHoursById.set(rid, Number(a.horas_planejadas_dia ?? a.horas_dia ?? percentToDemandHours(a.percentual_diario ?? demand.percentual_diario ?? 100, rid, state.resources || [])));
     }
     if (!selectedRespIds.size && demand.responsavel_id) {
       selectedRespIds.add(demand.responsavel_id);
-      respPctById.set(demand.responsavel_id, Number(demand.percentual_diario ?? 100));
+      respHoursById.set(demand.responsavel_id, firstHoursLike(demand.horas_planejadas_dia, demand.horas_dia) ?? percentToDemandHours(demand.percentual_diario ?? 100, demand.responsavel_id, state.resources || []));
     }
     const respSearch = el('input', { class:'multiSelectInput', placeholder:'Digite o nome do responsável...' });
     const respChips = el('div', { style:'display:contents' });
@@ -5712,19 +5813,19 @@ main{padding:14px;overflow-x:hidden}
     };
     const respAllocList = el('div', { class:'respAllocList' });
     const respAllocPick = el('select');
-    const respAllocPctEditor = el('input', { type:'number', min:'0', max:'100', step:'5' });
+    const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30' });
     const respAllocEditor = el('div', { class:'row', style:'gap:8px;align-items:end;margin-top:8px;display:none' }, [
       el('div', { class:'field', style:'min-width:220px;flex:1' }, [el('label', {}, ['Recurso para editar']), respAllocPick]),
-      el('div', { class:'field compact' }, [el('label', {}, ['% diário']), respAllocPctEditor]),
+      el('div', { class:'field compact' }, [el('label', {}, ['Horas/dia']), respAllocHoursEditor]),
     ]);
     respAllocPick.addEventListener('change', () => {
       const rid = String(respAllocPick.value || '');
-      respAllocPctEditor.value = String(respPctById.get(rid) ?? 100);
+      respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []));
     });
-    respAllocPctEditor.addEventListener('input', () => {
+    respAllocHoursEditor.addEventListener('input', () => {
       const rid = String(respAllocPick.value || '');
       if (!rid) return;
-      respPctById.set(rid, Number(respAllocPctEditor.value || 0));
+      respHoursById.set(rid, parseHoursInput(respAllocHoursEditor.value));
       renderApontamentos();
     });
     const renderRespChips = () => {
@@ -5734,14 +5835,14 @@ main{padding:14px;overflow-x:hidden}
       respAllocEditor.style.display = 'none';
       respAllocList.style.display = '';
       if (!ids.length) {
-        respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para informar a dedicação diária.']));
+        respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para informar as horas diárias.']));
       }
       respAllocPick.innerHTML = '';
       for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
       if (ids.length >= 2) {
         const current = ids.includes(respAllocPick.value) ? respAllocPick.value : ids[0];
         respAllocPick.value = current;
-        respAllocPctEditor.value = String(respPctById.get(current) ?? 100);
+        respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(current) ?? resourceHoursById(current, state.resources || []));
       }
       for (const rid of selectedRespIds) {
         const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
@@ -5752,16 +5853,16 @@ main{padding:14px;overflow-x:hidden}
           ev.preventDefault();
           ev.stopPropagation();
           selectedRespIds.delete(rid);
-          respPctById.delete(rid);
+          respHoursById.delete(rid);
           if (!selectedRespIds.size) status.value = 'Mapeada';
           syncMapeada();
         });
         respChips.appendChild(chip);
-        const pct = el('input', { type:'number', min:'0', max:'100', step:'5', value:String(respPctById.get(rid) ?? 100), title:'Percentual do dia reservado para este responsável' });
-        pct.addEventListener('input', () => { respPctById.set(rid, Number(pct.value || 0)); renderApontamentos(); });
+        const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), title:'Horas por dia reservadas para este responsável', placeholder:'Ex: 03:30' });
+        hours.addEventListener('input', () => { respHoursById.set(rid, parseHoursInput(hours.value)); renderApontamentos(); });
         respAllocList.appendChild(el('div', { class:'respAllocRow' }, [
           el('div', { class:'respAllocName', title:getRespName(rid) }, [getRespName(rid)]),
-          el('div', { class:'respAllocPct' }, [el('label', {}, ['% do dia reservado']), pct]),
+          el('div', { class:'respAllocPct' }, [el('label', {}, ['Horas/dia reservadas']), hours]),
         ]));
       }
     };
@@ -5769,7 +5870,7 @@ main{padding:14px;overflow-x:hidden}
     const addResponsavelChip = (rid) => {
       if (!rid || selectedRespIds.has(rid)) return;
       selectedRespIds.add(rid);
-      if (!respPctById.has(rid)) respPctById.set(rid, 100);
+      if (!respHoursById.has(rid)) respHoursById.set(rid, resourceHoursById(rid, state.resources || []));
       respSearch.value = '';
       if (normalizeStatus(status.value) === 'Mapeada') status.value = 'Em andamento';
       syncMapeada();
@@ -5873,12 +5974,13 @@ main{padding:14px;overflow-x:hidden}
 
       const allocationsForMetrics = (normalizeStatus(status.value) === 'Mapeada')
         ? []
-        : selectedResponsaveis().map(rid => ({ resourceId: rid, percentual_diario: Number(respPctById.get(rid) ?? 100) }));
+        : selectedResponsaveis().map(rid => makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []));
       const demandForMetrics = {
         ...demand,
         data_inicio: String(ini.value || demand.data_inicio || '').trim(),
         data_fim: String(fim.value || demand.data_fim || '').trim(),
         percentual_diario: Number(allocationsForMetrics[0]?.percentual_diario ?? demand.percentual_diario ?? 0),
+        horas_planejadas_dia: Number(allocationsForMetrics[0]?.horas_planejadas_dia ?? demand.horas_planejadas_dia ?? 0),
         allocations: allocationsForMetrics,
         responsavel_id: normalizeStatus(status.value) === 'Mapeada' ? '' : String(allocationsForMetrics[0]?.resourceId || demand.responsavel_id || '').trim(),
         status: normalizeStatus(status.value || demand.status)
@@ -6057,7 +6159,7 @@ main{padding:14px;overflow-x:hidden}
         const st = normalizeStatus(status.value);
         if (st === 'Mapeada') {
           selectedRespIds.clear();
-          respPctById.clear();
+          respHoursById.clear();
           respSearch.value = '';
         } else {
           if (!selectedRespIds.size) {
@@ -6065,11 +6167,11 @@ main{padding:14px;overflow-x:hidden}
               const rid = String(a.resourceId || '').trim();
               if (!rid) continue;
               selectedRespIds.add(rid);
-              if (!respPctById.has(rid)) respPctById.set(rid, Number(a.percentual_diario ?? demand.percentual_diario ?? 100));
+              if (!respHoursById.has(rid)) respHoursById.set(rid, Number(a.horas_planejadas_dia ?? a.horas_dia ?? percentToDemandHours(a.percentual_diario ?? demand.percentual_diario ?? 100, rid, state.resources || [])));
             }
             if (!selectedRespIds.size && demand.responsavel_id) {
               selectedRespIds.add(demand.responsavel_id);
-              if (!respPctById.has(demand.responsavel_id)) respPctById.set(demand.responsavel_id, Number(demand.percentual_diario ?? 100));
+              if (!respHoursById.has(demand.responsavel_id)) respHoursById.set(demand.responsavel_id, firstHoursLike(demand.horas_planejadas_dia, demand.horas_dia) ?? percentToDemandHours(demand.percentual_diario ?? 100, demand.responsavel_id, state.resources || []));
             }
           }
         }
@@ -6088,6 +6190,7 @@ main{padding:14px;overflow-x:hidden}
       data_inicio: demand.data_inicio,
       data_fim: demand.data_fim,
       percentual_diario: demand.percentual_diario,
+      horas_planejadas_dia: demand.horas_planejadas_dia,
       prioridade: demand.prioridade,
       status: demand.status,
       observacoes: demand.observacoes,
@@ -6124,7 +6227,7 @@ main{padding:14px;overflow-x:hidden}
       if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais responsáveis ou marque como Mapeada.'); return; }
       const allocations = (nextStatus === 'Mapeada')
         ? []
-        : respIds.map(rid => ({ resourceId: rid, percentual_diario: Number(respPctById.get(rid) ?? 100) }));
+        : respIds.map(rid => makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []));
       const allocValidation = validateDemandAllocationLimits(allocations);
       if (!allocValidation.ok) { toast(allocValidation.msg); return; }
       const primaryResponsavelId = allocations[0]?.resourceId || '';
@@ -6140,6 +6243,7 @@ main{padding:14px;overflow-x:hidden}
         baseline_inicio: latestDemand.baseline_inicio || latestDemand.data_inicio || iniVal,
         baseline_fim: latestDemand.baseline_fim || latestDemand.data_fim || fimVal,
         percentual_diario: Number(allocations[0]?.percentual_diario || 0),
+        horas_planejadas_dia: Number(allocations[0]?.horas_planejadas_dia || 0),
         allocations,
         prioridade: prioridade.value,
         status: nextStatus,
@@ -6159,6 +6263,7 @@ main{padding:14px;overflow-x:hidden}
         data_inicio: next.data_inicio,
         data_fim: next.data_fim,
         percentual_diario: next.percentual_diario,
+        horas_planejadas_dia: next.horas_planejadas_dia,
         prioridade: next.prioridade,
         status: next.status,
         observacoes: next.observacoes,
@@ -6201,7 +6306,7 @@ main{padding:14px;overflow-x:hidden}
       el('div', { class:'row' }, [
         el('div', { class:'field demandAllocSummaryField' }, [
           el('label', {}, ['Dedicação diária por responsável']),
-          el('div', { class:'respAllocHint' }, ['Informe quanto do dia de cada responsável fica reservado para esta demanda. Ex.: 40 significa 40% do dia.']),
+          el('div', { class:'respAllocHint' }, ['Informe em horas e minutos quanto do dia de cada responsável fica reservado. Ex.: 03:30.']),
           respAllocList
         ]),
       ]),
@@ -8184,7 +8289,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
       // Responsáveis: busca + chips (mais intuitivo que select multiple/Ctrl)
       const selectedRespIds = new Set();
-      const respPctById = new Map();
+      const respHoursById = new Map();
       const respSearch = el('input', { class:'multiSelectInput', placeholder:'Digite o nome do responsável...', 'data-demand-create-field':'responsavelBusca' });
       const respChips = el('div', { style:'display:contents' });
       const respMenu = el('div', { class:'multiSelectMenu' });
@@ -8211,7 +8316,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         if (!rid || !selectedRespIds.has(rid)) return;
         const keepScrollLeft = respBox ? respBox.scrollLeft : 0;
         selectedRespIds.delete(rid);
-        respPctById.delete(rid);
+        respHoursById.delete(rid);
         renderRespChips();
         renderRespOptions();
         restoreRespBoxScroll(keepScrollLeft, false);
@@ -8220,18 +8325,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       };
 
       const respAllocList = el('div', { class:'respAllocList' });
-      const respAllocPick = el('select', { title:'Selecione o responsável para ajustar a dedicação diária', 'data-demand-create-field':'percentualResponsavel' });
-      const respAllocPctEditor = el('input', { type:'number', min:'0', max:'100', step:'5', placeholder:'em %', title:'Dedicação diária em %', 'data-demand-create-field':'percentualValor' });
-      const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocPctEditor]);
+      const respAllocPick = el('select', { title:'Selecione o responsável para ajustar as horas diárias', 'data-demand-create-field':'horasResponsavel' });
+      const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas diárias reservadas', 'data-demand-create-field':'horasValor' });
+      const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocHoursEditor]);
       respAllocPick.addEventListener('change', () => {
         const rid = String(respAllocPick.value || '');
-        respAllocPctEditor.value = String(respPctById.get(rid) ?? 100);
-        respAllocPctEditor.setAttribute('data-demand-create-rid', rid);
+        respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []));
+        respAllocHoursEditor.setAttribute('data-demand-create-rid', rid);
       });
-      respAllocPctEditor.addEventListener('input', () => {
+      respAllocHoursEditor.addEventListener('input', () => {
         const rid = String(respAllocPick.value || '');
         if (!rid) return;
-        respPctById.set(rid, Number(respAllocPctEditor.value || 0));
+        respHoursById.set(rid, parseHoursInput(respAllocHoursEditor.value));
         persistDemandCreateDraft();
       });
       const renderRespChips = () => {
@@ -8246,11 +8351,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         if (ids.length) {
           const current = ids.includes(respAllocPick.value) ? respAllocPick.value : ids[0];
           respAllocPick.value = current;
-          respAllocPctEditor.value = String(respPctById.get(current) ?? 100);
-          respAllocPctEditor.setAttribute('data-demand-create-rid', current);
+          respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(current) ?? resourceHoursById(current, state.resources || []));
+          respAllocHoursEditor.setAttribute('data-demand-create-rid', current);
         } else {
-          respAllocPctEditor.value = '';
-          respAllocPctEditor.removeAttribute('data-demand-create-rid');
+          respAllocHoursEditor.value = '';
+          respAllocHoursEditor.removeAttribute('data-demand-create-rid');
         }
         for (const rid of selectedRespIds) {
           const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
@@ -8268,11 +8373,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
             ev.stopPropagation();
           });
           respChips.appendChild(chip);
-          const pct = el('input', { type:'number', min:'0', max:'100', step:'5', value:String(respPctById.get(rid) ?? 100), title:'Percentual do dia reservado para este responsável', 'data-demand-create-field':'percentualLinha', 'data-demand-create-rid': rid });
-          pct.addEventListener('input', () => { respPctById.set(rid, Number(pct.value || 0)); persistDemandCreateDraft(); });
+          const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), title:'Horas por dia reservadas para este responsável', placeholder:'Ex: 03:30', 'data-demand-create-field':'horasLinha', 'data-demand-create-rid': rid });
+          hours.addEventListener('input', () => { respHoursById.set(rid, parseHoursInput(hours.value)); persistDemandCreateDraft(); });
           respAllocList.appendChild(el('div', { class:'respAllocRow' }, [
             el('div', { class:'respAllocName', title:getRespName(rid) }, [getRespName(rid)]),
-            el('div', { class:'respAllocPct' }, [el('label', {}, ['% do dia reservado']), pct]),
+            el('div', { class:'respAllocPct' }, [el('label', {}, ['Horas/dia reservadas']), hours]),
           ]));
         }
         restoreRespBoxScroll(keepScrollLeft, false);
@@ -8282,7 +8387,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const keepScrollLeft = respBox ? respBox.scrollLeft : 0;
         const wasAtEnd = isRespBoxAtEnd() && document.activeElement === respSearch;
         selectedRespIds.add(rid);
-        if (!respPctById.has(rid)) respPctById.set(rid, 100);
+        if (!respHoursById.has(rid)) respHoursById.set(rid, resourceHoursById(rid, state.resources || []));
         respSearch.value = '';
         if (normalizeStatus(status.value) === 'Mapeada') status.value = 'Em andamento';
         syncMapeada();
@@ -8355,6 +8460,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const st = normalizeStatus(status.value);
         if (st === 'Mapeada') {
           selectedRespIds.clear();
+          respHoursById.clear();
           respSearch.value = '';
           // Mantém o campo habilitado: se o usuário clicar em um responsável,
           // o status muda automaticamente para Em andamento. Isso evita depender
@@ -8378,7 +8484,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         status: normalizeStatus(status.value),
         observacoes: obs.value,
         responsavelIds: selectedResponsaveis(),
-        respPctById: Object.fromEntries([...respPctById].map(([rid, pct]) => [rid, Number(pct || 0)])),
+        respHoursById: Object.fromEntries([...respHoursById].map(([rid, horas]) => [rid, Number(horas || 0)])),
       });
 
       const restoreDemandCreateDraft = (draft) => {
@@ -8393,10 +8499,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         status.value = d.status || (d.responsavelIds.length ? 'Em andamento' : 'Mapeada');
         obs.value = d.observacoes || '';
         selectedRespIds.clear();
-        respPctById.clear();
+        respHoursById.clear();
         for (const rid of d.responsavelIds) {
           selectedRespIds.add(rid);
-          respPctById.set(rid, Number(d.respPctById?.[rid] ?? 100));
+          respHoursById.set(rid, Number(d.respHoursById?.[rid] ?? resourceHoursById(rid, state.resources || [])));
         }
         if (selectedRespIds.size && normalizeStatus(status.value) === 'Mapeada') status.value = 'Em andamento';
         syncMapeada();
@@ -8464,7 +8570,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
         const allocations = (st === 'Mapeada')
           ? []
-          : respIds.map(rid => ({ resourceId: rid, percentual_diario: Number(respPctById.get(rid) ?? 100) }));
+          : respIds.map(rid => makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []));
         const allocValidation = validateDemandAllocationLimits(allocations);
         if (!allocValidation.ok) return toast(allocValidation.msg);
         const basePayload = {
@@ -8477,6 +8583,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           baseline_inicio: iniVal,
           baseline_fim: fimVal,
           percentual_diario: Number(allocations[0]?.percentual_diario || 0),
+          horas_planejadas_dia: Number(allocations[0]?.horas_planejadas_dia || 0),
           observacoes: obsVal,
           prioridade: prioridade.value,
           status: st,
@@ -8489,7 +8596,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const added = (state.demands || []).some(d => String(d.id) === String(newDemand.id));
         if (!added) return;
         clearDemandCreateDraft();
-        titulo.value=''; predio.value=''; selectedRespIds.clear(); respPctById.clear(); respSearch.value=''; focal.value=''; ini.value=''; fim.value=''; obs.value=''; prioridade.value='Média'; status.value='Mapeada';
+        titulo.value=''; predio.value=''; selectedRespIds.clear(); respHoursById.clear(); respSearch.value=''; focal.value=''; ini.value=''; fim.value=''; obs.value=''; prioridade.value='Média'; status.value='Mapeada';
         syncMapeada();
         render();
         toast('Demanda adicionada.');
@@ -8574,7 +8681,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('th', {}, ['Focal']),
         el('th', {}, ['Responsável']),
         el('th', {}, ['Período']),
-        el('th', {}, ['%/dia']),
+        el('th', {}, ['Horas/dia']),
         el('th', {}, ['Prioridade']),
         el('th', {}, ['Status']),
         el('th', {}, ['Ações']),
@@ -8607,9 +8714,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           .map(a => {
             const rid = String(a.resourceId || '').trim();
             const nm = resMap[rid]?.nome || rid || '-';
-            return `${nm}: ${Number(a.percentual_diario||0)}%`;
+            return `${nm}: ${decimalHoursToHHMM(a.horas_planejadas_dia || a.horas_dia || 0)}`;
           });
-        tr.appendChild(el('td', {}, [allocLabels.length ? allocLabels.join(' | ') : String(d.percentual_diario||0)]));
+        tr.appendChild(el('td', {}, [allocLabels.length ? allocLabels.join(' | ') : decimalHoursToHHMM(d.horas_planejadas_dia ?? d.horas_dia ?? 0)]));
         tr.appendChild(el('td', {}, [d.prioridade]));
         tr.appendChild(el('td', {}, [statusPill(d)]));
 
@@ -9852,6 +9959,25 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
 };
 
   const viewInternalActivities = () => {
+    const currentUserResource = () => {
+      const uid = String(userId || '').trim();
+      const nameKey = normalizedPersonName(userName || '');
+      return (state.resources || []).find(r => uid && resourceOwnerId(r) === uid)
+        || (state.resources || []).find(r => nameKey && normalizedPersonName(r?.nome || r?.name) === nameKey)
+        || null;
+    };
+    const editingActivity = editingInternalActivityId
+      ? (state.internalActivities || []).find(a => String(a.id) === String(editingInternalActivityId) && canManageInternalActivity(a))
+      : null;
+    if (editingInternalActivityId && !editingActivity) editingInternalActivityId = '';
+    const isEditing = !!editingActivity;
+    const setSelectValue = (selectEl, value) => {
+      const v = String(value || '');
+      if (!v) return;
+      if (![...selectEl.options].some(opt => String(opt.value) === v)) selectEl.appendChild(el('option', { value:v }, [v]));
+      selectEl.value = v;
+    };
+
     const type = el('select', {}, [
       el('option', { value:'Reunião administrativa' }, ['Reunião administrativa']),
       el('option', { value:'Treinamento' }, ['Treinamento']),
@@ -9906,24 +10032,26 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       el('option', { value:'RM' }, ['RM']),
       el('option', { value:'CAP - Ciclo de Alta Performance' }, ['CAP - Ciclo de Alta Performance']),
     ]);
-    const title = el('input', { placeholder:'Título da atividade' });
-    const resourceSel = el('select');
-    for (const r of (state.resources||[])) resourceSel.appendChild(el('option', { value:r.id }, [r.nome]));
-    const ini = el('input', { type:'date', value: todayISO() });
-    const fim = el('input', { type:'date', value: todayISO() });
-    const horas = el('input', { type:'text', inputmode:'decimal', value:'01:00', placeholder:'Ex: 01:30 ou 1.5' });
+    const title = el('input', { placeholder:'Título da atividade', value: editingActivity?.titulo || '' });
+    const ini = el('input', { type:'date', value: editingActivity?.data_inicio || todayISO() });
+    const fim = el('input', { type:'date', value: editingActivity?.data_fim || todayISO() });
+    const horas = el('input', { type:'text', inputmode:'decimal', value: isEditing ? decimalHoursToHHMM(editingActivity?.horas_dia || 0) : '01:00', placeholder:'Ex: 01:30 ou 1.5' });
     const contabiliza = el('select', {}, [el('option', { value:'true' }, ['Contabiliza capacidade']), el('option', { value:'false' }, ['Apenas informativa'])]);
-    const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) });
-    const add = () => {
-      if (!resourceSel.value) return toast('Cadastre/seleciona um recurso.');
+    const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [editingActivity?.observacoes || '']);
+    setSelectValue(type, editingActivity?.tipo);
+    contabiliza.value = editingActivity?.contabiliza_capacidade === false ? 'false' : 'true';
+    const save = () => {
+      const activeResource = currentUserResource() || (ensureUserAsResource() ? currentUserResource() : null);
+      if (!activeResource?.id) return toast('Não foi possível vincular sua atividade ao seu usuário/recurso. Confira o usuário logado.');
       if (!title.value.trim()) return toast('Informe o título da atividade interna.');
       if (!ini.value || !fim.value || fim.value < ini.value) return toast('Período inválido.');
       const hh = parseHoursInput(horas.value);
       if (!Number.isFinite(hh) || hh < 0) return toast('Horas/dia inválidas.');
       if (hh > 24) return toast('Horas/dia não pode ser maior que 24h.');
-      dispatch('ADD_INTERNAL_ACTIVITY', {
-        id: generateId('ia'),
-        resourceId: resourceSel.value,
+      const base = isEditing ? { ...editingActivity } : { id: generateId('ia') };
+      const payload = {
+        ...base,
+        resourceId: isEditing ? (editingActivity.resourceId || activeResource.id) : activeResource.id,
         tipo: type.value,
         titulo: title.value.trim(),
         data_inicio: ini.value,
@@ -9931,12 +10059,13 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         horas_dia: hh,
         contabiliza_capacidade: contabiliza.value === 'true',
         observacoes: obs.value || '',
-        owner_user_id: userId || '',
-        owner_user_name: userName || 'Sessão local',
-        created_by_id: userId || '',
-        created_by: userName || 'Sessão local',
-      });
-      title.value=''; horas.value='01:00'; obs.value='';
+        owner_user_id: editingActivity?.owner_user_id || editingActivity?.ownerUserId || userId || '',
+        owner_user_name: editingActivity?.owner_user_name || editingActivity?.ownerUserName || userName || 'Sessão local',
+        created_by_id: editingActivity?.created_by_id || editingActivity?.createdById || userId || '',
+        created_by: editingActivity?.created_by || editingActivity?.createdBy || userName || 'Sessão local',
+      };
+      dispatch(isEditing ? 'UPDATE_INTERNAL_ACTIVITY' : 'ADD_INTERNAL_ACTIVITY', payload);
+      editingInternalActivityId = '';
       uiPagination.internalActivitiesPage = 1;
       render();
     };
@@ -9962,32 +10091,38 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       onLast: () => { uiPagination.internalActivitiesPage = totalPages; render(); },
     }) : null;
     const table = el('table');
-    table.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Título','Recurso','Período','Horas/dia','Capacidade','Ação'].map(h=>el('th',{},[h])))]));
+    table.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Título','Período','Horas/dia','Capacidade','Ação'].map(h=>el('th',{},[h])))]));
     const tb = el('tbody');
     for (const a of rows) {
-      const r = (state.resources||[]).find(x=>String(x.id)===String(a.resourceId));
       const tr = el('tr');
       tr.appendChild(el('td',{},[String(a.tipo||'')]));
       tr.appendChild(el('td',{},[String(a.titulo||'')]));
-      tr.appendChild(el('td',{},[r?.nome || String(a.resourceId||'')]));
       tr.appendChild(el('td',{},[`${formatDateBR(a.data_inicio)} - ${formatDateBR(a.data_fim)}`]));
       tr.appendChild(el('td',{},[`${Number(a.horas_dia||0).toFixed(1)}h`]));
       tr.appendChild(el('td',{},[a.contabiliza_capacidade===false?'Não':'Sim']));
-      tr.appendChild(el('td',{},[button('Excluir','danger',()=>{
-        if (!canManageInternalActivity(a)) return toast('Você só pode excluir atividades internas lançadas por você.');
-        dispatch('DELETE_INTERNAL_ACTIVITY', a.id);
-        render();
-      })]));
+      tr.appendChild(el('td',{},[el('div',{class:'actionBtns'},[
+        button('Editar','',()=>{
+          if (!canManageInternalActivity(a)) return toast('Você só pode editar atividades internas lançadas por você.');
+          editingInternalActivityId = a.id;
+          render();
+        }),
+        button('Excluir','danger',()=>{
+          if (!canManageInternalActivity(a)) return toast('Você só pode excluir atividades internas lançadas por você.');
+          if (String(editingInternalActivityId) === String(a.id)) editingInternalActivityId = '';
+          dispatch('DELETE_INTERNAL_ACTIVITY', a.id);
+          render();
+        })
+      ])]));
       tb.appendChild(tr);
     }
-    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'7',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
+    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'6',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
     table.appendChild(tb);
     return el('div',{class:'grid'},[
-      card('Cadastrar atividade interna', null, el('div',{class:'grid'},[
+      card(isEditing ? 'Editar atividade interna' : 'Cadastrar atividade interna', null, el('div',{class:'grid'},[
+        el('div', { class:'tiny muted' }, ['As atividades internas são vinculadas automaticamente ao usuário atual; o campo Recurso fica oculto nesta tela.']),
         el('div',{class:'row'},[
           el('div',{class:'field'},[el('label',{},['Tipo']), type]),
           el('div',{class:'field',style:'flex:1;min-width:240px'},[el('label',{},['Título']), title]),
-          el('div',{class:'field'},[el('label',{},['Recurso']), resourceSel]),
         ]),
         el('div',{class:'row'},[
           el('div',{class:'field'},[el('label',{},['Início']), ini]),
@@ -9996,7 +10131,10 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
           el('div',{class:'field'},[el('label',{},['Controle']), contabiliza]),
         ]),
         el('div',{class:'field'},[el('label',{},['Observações']), obs]),
-        el('div',{class:'row end'},[button('Adicionar atividade','primary',add)]),
+        el('div',{class:'row end'},[
+          isEditing ? button('Cancelar edição','',()=>{ editingInternalActivityId = ''; render(); }) : null,
+          button(isEditing ? 'Salvar alterações' : 'Adicionar atividade','primary',save)
+        ].filter(Boolean)),
       ])),
       card('Atividades internas', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['Privacidade: esta lista mostra apenas as atividades internas lançadas pelo usuário atual; a capacidade continua considerando atividades contabilizáveis de todos.']),
@@ -11311,8 +11449,10 @@ return el('div', { class:'grid' }, [
     ];
     const resMap = resourceById();
     const rows = (state.demands||[]).map(d => {
-      const pct = Number(d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
       const rid = d.responsavel_id || d.resourceId || '';
+      const alloc = demandAllocations(d).find(a => String(a.resourceId || '') === String(rid || '')) || demandAllocations(d)[0] || {};
+      const pct = Number(alloc.percentual_diario ?? d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
+      const horas = Number(alloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0);
       const res = resMap[rid];
       return {
         id: d.id || '',
@@ -11323,7 +11463,7 @@ return el('div', { class:'grid' }, [
         status_base: d.status || '',
         status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
         percentual_diario: isFinite(pct) ? pct : '',
-        horas_dia: isFinite(pct) ? Number((pct / 100 * getResourceHoursPerDay(res)).toFixed(2)) : '',
+        horas_dia: isFinite(horas) ? Number(horas.toFixed(2)) : '',
         prioridade: d.prioridade || '',
         predio: d.predio || '',
         focal: d.focal || '',
@@ -11434,8 +11574,10 @@ return el('div', { class:'grid' }, [
       'observacoes','created_by','created_by_id','updated_by','updated_by_id'
     ];
     const rows = (state.demands || []).map(d => {
-      const pct = Number(d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
       const rid = d.responsavel_id || d.resourceId || '';
+      const alloc = demandAllocations(d).find(a => String(a.resourceId || '') === String(rid || '')) || demandAllocations(d)[0] || {};
+      const pct = Number(alloc.percentual_diario ?? d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
+      const horas = Number(alloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0);
       return {
         demand_id: d.id || '',
         titulo: d.titulo || d.nome || '',
@@ -11448,7 +11590,7 @@ return el('div', { class:'grid' }, [
         baseline_inicio: d.baseline_inicio || d.data_inicio || '',
         baseline_fim: d.baseline_fim || d.data_fim || '',
         percentual_diario: isFinite(pct) ? pct : '',
-        horas_dia: isFinite(pct) ? Number((pct / 100 * getResourceHoursPerDay(res)).toFixed(2)) : '',
+        horas_dia: isFinite(horas) ? Number(horas.toFixed(2)) : '',
         prioridade: d.prioridade || '',
         predio: d.predio || '',
         focal: d.focal || '',
@@ -11498,8 +11640,8 @@ return el('div', { class:'grid' }, [
       if (validDate(start) && validDate(end) && end < start) add('erro', 'data', 'demanda', id, 'periodo', 'Data fim menor que data de início.', 'Revisar período da demanda.');
       for (const a of allocations) {
         if (!resMap[a.resourceId]) add('erro', 'alocacao', 'demanda', id, 'responsavel_id', `Responsável não encontrado: ${a.resourceId || '-'}.`, 'Selecionar um recurso existente.');
-        const pct = Number(a.percentual_diario || 0);
-        if (!isFinite(pct) || pct <= 0) add('aviso', 'alocacao', 'demanda', id, 'percentual_diario', `Alocação sem percentual válido para recurso ${a.resourceId || '-'}.`, 'Informar percentual diário maior que zero.');
+        const horas = Number(a.horas_planejadas_dia || a.horas_dia || 0);
+        if (!isFinite(horas) || horas <= 0) add('aviso', 'alocacao', 'demanda', id, 'horas_planejadas_dia', `Alocação sem horas válidas para recurso ${a.resourceId || '-'}.`, 'Informar horas por dia maiores que zero.');
       }
       const rawApts = Array.isArray(d.apontamentos) ? d.apontamentos : [];
       rawApts.forEach((apt, idx) => {
@@ -11846,11 +11988,12 @@ return el('div', { class:'grid' }, [
         const rid = alloc.resourceId || '';
         const res = resMap[rid];
         const pct = Number(alloc.percentual_diario || 0);
+        const hoursPerDay = Number(alloc.horas_planejadas_dia || alloc.horas_dia || 0);
         for (const day of orizonPackDaysBetween(rangeStart, rangeEnd)) {
           const dateStr = formatDate(day);
           const reason = CapacityEngine.nonWorkingReasonForDay(rid, day);
           const elegivel = !reason;
-          const plannedHH = contaAlocacao && elegivel ? (Math.max(0, pct) / 100) * getResourceHoursPerDay(res) : 0;
+          const plannedHH = contaAlocacao && elegivel ? Math.max(0, hoursPerDay) : 0;
           rows.push({
             data: dateStr,
             ano_mes: dateStr.slice(0, 7),
@@ -12429,20 +12572,24 @@ return el('div', { class:'grid' }, [
   const exportDemandasCSV = () => {
     const headers = [
       'id','titulo','responsavel','data_inicio','data_fim','status_base','status_atual',
-      'percentual_diario','prioridade','observacoes'
+      'percentual_diario','horas_planejadas_dia','prioridade','observacoes'
     ];
-    const rows = (state.demands||[]).map(d => ({
-      id: d.id || '',
-      titulo: d.titulo || d.nome || '',
-      responsavel: d.resourceId || d.responsavel || '',
-      data_inicio: d.start || d.data_inicio || '',
-      data_fim: d.end || d.data_fim || '',
-      status_base: d.status || '',
-      status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
-      percentual_diario: (d.dailyPercent ?? d.percentual_diario ?? d.percent ?? ''),
-      prioridade: d.prioridade || '',
-      observacoes: d.obs || d.observacoes || ''
-    }));
+    const rows = (state.demands||[]).map(d => {
+      const alloc = demandAllocations(d)[0] || {};
+      return {
+        id: d.id || '',
+        titulo: d.titulo || d.nome || '',
+        responsavel: d.resourceId || d.responsavel || '',
+        data_inicio: d.start || d.data_inicio || '',
+        data_fim: d.end || d.data_fim || '',
+        status_base: d.status || '',
+        status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
+        percentual_diario: (alloc.percentual_diario ?? d.dailyPercent ?? d.percentual_diario ?? d.percent ?? ''),
+        horas_planejadas_dia: (alloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? ''),
+        prioridade: d.prioridade || '',
+        observacoes: d.obs || d.observacoes || ''
+      };
+    });
     downloadText('demandas.csv', toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
     toast('CSV de Demandas exportado.');
   };
