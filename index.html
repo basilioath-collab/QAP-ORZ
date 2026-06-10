@@ -2567,6 +2567,13 @@ main{padding:14px;overflow-x:hidden}
   };
   const parseApontamentoHours = (value) => parseHoursInput(value);
 
+  const decimalHoursToHHMM = (value) => {
+    const totalMinutes = Math.max(0, Math.round(Number(value || 0) * 60));
+    const hh = String(Math.floor(totalMinutes / 60)).padStart(2, '0');
+    const mm = String(totalMinutes % 60).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
   const isISODateString = (value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '').trim());
 
   const sortApontamentosChronological = (items=[]) => [...items].sort((a,b) => {
@@ -2997,6 +3004,8 @@ main{padding:14px;overflow-x:hidden}
   };
 
   // paginação (não persistida)
+  let editingInternalActivityId = '';
+
   const uiPagination = {
     demandsPage: 1,
     resourcesPage: 1,
@@ -9852,6 +9861,25 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
 };
 
   const viewInternalActivities = () => {
+    const currentUserResource = () => {
+      const uid = String(userId || '').trim();
+      const nameKey = normalizedPersonName(userName || '');
+      return (state.resources || []).find(r => uid && resourceOwnerId(r) === uid)
+        || (state.resources || []).find(r => nameKey && normalizedPersonName(r?.nome || r?.name) === nameKey)
+        || null;
+    };
+    const editingActivity = editingInternalActivityId
+      ? (state.internalActivities || []).find(a => String(a.id) === String(editingInternalActivityId) && canManageInternalActivity(a))
+      : null;
+    if (editingInternalActivityId && !editingActivity) editingInternalActivityId = '';
+    const isEditing = !!editingActivity;
+    const setSelectValue = (selectEl, value) => {
+      const v = String(value || '');
+      if (!v) return;
+      if (![...selectEl.options].some(opt => String(opt.value) === v)) selectEl.appendChild(el('option', { value:v }, [v]));
+      selectEl.value = v;
+    };
+
     const type = el('select', {}, [
       el('option', { value:'Reunião administrativa' }, ['Reunião administrativa']),
       el('option', { value:'Treinamento' }, ['Treinamento']),
@@ -9906,24 +9934,26 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       el('option', { value:'RM' }, ['RM']),
       el('option', { value:'CAP - Ciclo de Alta Performance' }, ['CAP - Ciclo de Alta Performance']),
     ]);
-    const title = el('input', { placeholder:'Título da atividade' });
-    const resourceSel = el('select');
-    for (const r of (state.resources||[])) resourceSel.appendChild(el('option', { value:r.id }, [r.nome]));
-    const ini = el('input', { type:'date', value: todayISO() });
-    const fim = el('input', { type:'date', value: todayISO() });
-    const horas = el('input', { type:'text', inputmode:'decimal', value:'01:00', placeholder:'Ex: 01:30 ou 1.5' });
+    const title = el('input', { placeholder:'Título da atividade', value: editingActivity?.titulo || '' });
+    const ini = el('input', { type:'date', value: editingActivity?.data_inicio || todayISO() });
+    const fim = el('input', { type:'date', value: editingActivity?.data_fim || todayISO() });
+    const horas = el('input', { type:'text', inputmode:'decimal', value: isEditing ? decimalHoursToHHMM(editingActivity?.horas_dia || 0) : '01:00', placeholder:'Ex: 01:30 ou 1.5' });
     const contabiliza = el('select', {}, [el('option', { value:'true' }, ['Contabiliza capacidade']), el('option', { value:'false' }, ['Apenas informativa'])]);
-    const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) });
-    const add = () => {
-      if (!resourceSel.value) return toast('Cadastre/seleciona um recurso.');
+    const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [editingActivity?.observacoes || '']);
+    setSelectValue(type, editingActivity?.tipo);
+    contabiliza.value = editingActivity?.contabiliza_capacidade === false ? 'false' : 'true';
+    const save = () => {
+      const activeResource = currentUserResource() || (ensureUserAsResource() ? currentUserResource() : null);
+      if (!activeResource?.id) return toast('Não foi possível vincular sua atividade ao seu usuário/recurso. Confira o usuário logado.');
       if (!title.value.trim()) return toast('Informe o título da atividade interna.');
       if (!ini.value || !fim.value || fim.value < ini.value) return toast('Período inválido.');
       const hh = parseHoursInput(horas.value);
       if (!Number.isFinite(hh) || hh < 0) return toast('Horas/dia inválidas.');
       if (hh > 24) return toast('Horas/dia não pode ser maior que 24h.');
-      dispatch('ADD_INTERNAL_ACTIVITY', {
-        id: generateId('ia'),
-        resourceId: resourceSel.value,
+      const base = isEditing ? { ...editingActivity } : { id: generateId('ia') };
+      const payload = {
+        ...base,
+        resourceId: isEditing ? (editingActivity.resourceId || activeResource.id) : activeResource.id,
         tipo: type.value,
         titulo: title.value.trim(),
         data_inicio: ini.value,
@@ -9931,12 +9961,13 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         horas_dia: hh,
         contabiliza_capacidade: contabiliza.value === 'true',
         observacoes: obs.value || '',
-        owner_user_id: userId || '',
-        owner_user_name: userName || 'Sessão local',
-        created_by_id: userId || '',
-        created_by: userName || 'Sessão local',
-      });
-      title.value=''; horas.value='01:00'; obs.value='';
+        owner_user_id: editingActivity?.owner_user_id || editingActivity?.ownerUserId || userId || '',
+        owner_user_name: editingActivity?.owner_user_name || editingActivity?.ownerUserName || userName || 'Sessão local',
+        created_by_id: editingActivity?.created_by_id || editingActivity?.createdById || userId || '',
+        created_by: editingActivity?.created_by || editingActivity?.createdBy || userName || 'Sessão local',
+      };
+      dispatch(isEditing ? 'UPDATE_INTERNAL_ACTIVITY' : 'ADD_INTERNAL_ACTIVITY', payload);
+      editingInternalActivityId = '';
       uiPagination.internalActivitiesPage = 1;
       render();
     };
@@ -9962,32 +9993,38 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       onLast: () => { uiPagination.internalActivitiesPage = totalPages; render(); },
     }) : null;
     const table = el('table');
-    table.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Título','Recurso','Período','Horas/dia','Capacidade','Ação'].map(h=>el('th',{},[h])))]));
+    table.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Título','Período','Horas/dia','Capacidade','Ação'].map(h=>el('th',{},[h])))]));
     const tb = el('tbody');
     for (const a of rows) {
-      const r = (state.resources||[]).find(x=>String(x.id)===String(a.resourceId));
       const tr = el('tr');
       tr.appendChild(el('td',{},[String(a.tipo||'')]));
       tr.appendChild(el('td',{},[String(a.titulo||'')]));
-      tr.appendChild(el('td',{},[r?.nome || String(a.resourceId||'')]));
       tr.appendChild(el('td',{},[`${formatDateBR(a.data_inicio)} - ${formatDateBR(a.data_fim)}`]));
       tr.appendChild(el('td',{},[`${Number(a.horas_dia||0).toFixed(1)}h`]));
       tr.appendChild(el('td',{},[a.contabiliza_capacidade===false?'Não':'Sim']));
-      tr.appendChild(el('td',{},[button('Excluir','danger',()=>{
-        if (!canManageInternalActivity(a)) return toast('Você só pode excluir atividades internas lançadas por você.');
-        dispatch('DELETE_INTERNAL_ACTIVITY', a.id);
-        render();
-      })]));
+      tr.appendChild(el('td',{},[el('div',{class:'actionBtns'},[
+        button('Editar','',()=>{
+          if (!canManageInternalActivity(a)) return toast('Você só pode editar atividades internas lançadas por você.');
+          editingInternalActivityId = a.id;
+          render();
+        }),
+        button('Excluir','danger',()=>{
+          if (!canManageInternalActivity(a)) return toast('Você só pode excluir atividades internas lançadas por você.');
+          if (String(editingInternalActivityId) === String(a.id)) editingInternalActivityId = '';
+          dispatch('DELETE_INTERNAL_ACTIVITY', a.id);
+          render();
+        })
+      ])]));
       tb.appendChild(tr);
     }
-    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'7',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
+    if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'6',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
     table.appendChild(tb);
     return el('div',{class:'grid'},[
-      card('Cadastrar atividade interna', null, el('div',{class:'grid'},[
+      card(isEditing ? 'Editar atividade interna' : 'Cadastrar atividade interna', null, el('div',{class:'grid'},[
+        el('div', { class:'tiny muted' }, ['As atividades internas são vinculadas automaticamente ao usuário atual; o campo Recurso fica oculto nesta tela.']),
         el('div',{class:'row'},[
           el('div',{class:'field'},[el('label',{},['Tipo']), type]),
           el('div',{class:'field',style:'flex:1;min-width:240px'},[el('label',{},['Título']), title]),
-          el('div',{class:'field'},[el('label',{},['Recurso']), resourceSel]),
         ]),
         el('div',{class:'row'},[
           el('div',{class:'field'},[el('label',{},['Início']), ini]),
@@ -9996,7 +10033,10 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
           el('div',{class:'field'},[el('label',{},['Controle']), contabiliza]),
         ]),
         el('div',{class:'field'},[el('label',{},['Observações']), obs]),
-        el('div',{class:'row end'},[button('Adicionar atividade','primary',add)]),
+        el('div',{class:'row end'},[
+          isEditing ? button('Cancelar edição','',()=>{ editingInternalActivityId = ''; render(); }) : null,
+          button(isEditing ? 'Salvar alterações' : 'Adicionar atividade','primary',save)
+        ].filter(Boolean)),
       ])),
       card('Atividades internas', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['Privacidade: esta lista mostra apenas as atividades internas lançadas pelo usuário atual; a capacidade continua considerando atividades contabilizáveis de todos.']),
