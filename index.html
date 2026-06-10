@@ -6357,9 +6357,10 @@ main{padding:14px;overflow-x:hidden}
         renderRespChips();
         renderRespOptions();
       };
-    status.addEventListener('change', () => { syncMapeada(); renderApontamentos(); });
-    [ini, fim].forEach(field => field.addEventListener('input', renderApontamentos));
+    status.addEventListener('change', () => { syncMapeada(); syncCompletionUI(); renderApontamentos(); });
+    [ini, fim, dataConclusao].forEach(field => field.addEventListener('input', () => { syncCompletionUI(); renderApontamentos(); }));
     syncMapeada();
+    syncCompletionUI();
 
     const before = {
       titulo: demand.titulo,
@@ -6495,6 +6496,7 @@ main{padding:14px;overflow-x:hidden}
           status,
           el('div', { class:'multiSelectHint' }, ['Use “Mapeada” quando ainda não houver responsável definido.'])
         ]),
+        dataConclusaoField,
       ]),
       el('div', { class:'row' }, [
         el('div', { class:'field demandAllocSummaryField' }, [
