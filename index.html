@@ -879,6 +879,19 @@ main{padding:14px;overflow-x:hidden}
     </div>
   </dialog>
 
+  <dialog id="demandConclusionModal" class="modal">
+    <div class="modalCard">
+      <div class="modalHd">
+        <div>
+          <div class="modalTitle" id="demandConclusionModalTitle">Concluir demanda</div>
+          <div class="modalSub" id="demandConclusionModalSub">Informe a data real de conclusão e um comentário.</div>
+        </div>
+        <button class="btn ghost" id="demandConclusionModalClose" type="button">Fechar ×</button>
+      </div>
+      <div class="modalBd" id="demandConclusionModalBody"></div>
+    </div>
+  </dialog>
+
   <dialog id="demandReprogramModal" class="modal">
     <div class="modalCard">
       <div class="modalHd">
@@ -2726,7 +2739,11 @@ main{padding:14px;overflow-x:hidden}
 
     let trend = 'Sem dados suficientes';
     let trendTone = 'neutral';
-    if (plannedHours > 0) {
+    if (status === 'Concluída') {
+      if (completionDate && end && completionDate < end) { trend = 'Concluída antecipadamente'; trendTone = 'ok'; }
+      else if (completionDate && end && completionDate > end) { trend = 'Concluída com atraso'; trendTone = 'danger'; }
+      else { trend = 'Concluída no prazo'; trendTone = 'ok'; }
+    } else if (plannedHours > 0) {
       if (realHours > plannedHours) { trend = 'Estourado'; trendTone = 'danger'; }
       else if (realHours >= plannedHours * 0.9) { trend = 'Atenção'; trendTone = 'warn'; }
       else if (realHours > 0) { trend = 'Dentro do planejado'; trendTone = 'ok'; }
@@ -5802,6 +5819,78 @@ main{padding:14px;overflow-x:hidden}
   };
 
   // ----------------------
+  // Conclusão de Demanda (modal dedicado)
+  // ----------------------
+  let demandConclusionModalOnConfirm = null;
+
+  const closeDemandConclusionModal = () => {
+    const dlg = qs('#demandConclusionModal');
+    if (dlg) closeDialog(dlg);
+    demandConclusionModalOnConfirm = null;
+  };
+
+  const openDemandConclusionModal = (demand, opts={}) => {
+    if (!demand) return;
+    const dlg = qs('#demandConclusionModal');
+    const body = qs('#demandConclusionModalBody');
+    if (!dlg || !body) return;
+    const latest = opts.onConfirm ? demand : ((state.demands || []).find(d => String(d.id) === String(demand.id)) || demand);
+    const title = qs('#demandConclusionModalTitle');
+    const sub = qs('#demandConclusionModalSub');
+    if (title) title.textContent = `Concluir demanda - ${latest.titulo || latest.id || ''}`;
+    if (sub) sub.textContent = 'A conclusão libera a capacidade futura sem alterar o prazo planejado original.';
+
+    const completionInput = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, value: opts.defaultDate || demandCompletionDate(latest) || todayISO() });
+    const commentInput = el('textarea', { maxlength:'360', placeholder:'Comentário da conclusão (até 360 caracteres)...' }, [String(latest.comentario_conclusao || latest.comentarioConclusao || latest.observacao_conclusao || '')]);
+    const hint = el('div', { class:'tiny muted' });
+    const counter = el('div', { class:'tiny muted', style:'text-align:right' });
+    const updateHint = () => {
+      const done = String(completionInput.value || '').trim();
+      const end = String(latest.data_fim || '').trim();
+      if (done && end && done < end) hint.textContent = `Conclusão antecipada: a capacidade após ${formatDateBR(done)} será liberada.`;
+      else if (done && end && done > end) hint.textContent = `Conclusão após o prazo planejado (${formatDateBR(end)}).`;
+      else hint.textContent = 'A data informada será usada como fim efetivo da alocação.';
+      counter.textContent = `${String(commentInput.value || '').length}/360`;
+    };
+    completionInput.addEventListener('input', updateHint);
+    commentInput.addEventListener('input', updateHint);
+
+    const save = () => {
+      const data = String(completionInput.value || '').trim();
+      const comentario = String(commentInput.value || '').trim();
+      if (!isISODateString(data)) { toast('Informe a data de conclusão.'); return; }
+      if (comentario.length > 360) { toast('Comentário de conclusão deve ter no máximo 360 caracteres.'); return; }
+      const payload = { data_conclusao:data, comentario_conclusao:comentario };
+      if (typeof demandConclusionModalOnConfirm === 'function') {
+        demandConclusionModalOnConfirm(payload);
+      } else {
+        const current = (state.demands || []).find(d => String(d.id) === String(latest.id)) || latest;
+        dispatch('UPDATE_DEMAND', {
+          ...current,
+          status: 'Concluída',
+          data_conclusao: data,
+          concluida_em: data,
+          comentario_conclusao: comentario,
+        });
+        toast('Demanda concluída. Capacidade futura liberada.');
+        render();
+      }
+      closeDemandConclusionModal();
+    };
+
+    demandConclusionModalOnConfirm = opts.onConfirm || null;
+    body.innerHTML = '';
+    body.appendChild(el('div', { class:'grid' }, [
+      el('div', { class:'tiny muted' }, [`Prazo planejado preservado: ${formatDateBR(latest.data_fim || '') || '-'}`]),
+      el('div', { class:'field' }, [el('label', {}, ['Data de conclusão']), completionInput, hint]),
+      el('div', { class:'field' }, [el('label', {}, ['Comentário da conclusão']), commentInput, counter]),
+      el('div', { class:'row end' }, [button('Cancelar', '', closeDemandConclusionModal), button('✓ Concluir demanda', 'primary', save)]),
+    ]));
+    updateHint();
+    openDialog(dlg);
+  };
+
+  // ----------------------
   // Editar Demanda (modal com justificativa opcional)
   // ----------------------
   const openDemandEditModal = (demand) => {
@@ -5962,25 +6051,8 @@ main{padding:14px;overflow-x:hidden}
     ]);
     status.value = normalizeStatus(demand.status);
 
-    const dataConclusao = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, value: demandCompletionDate(demand) || todayISO() });
-    const dataConclusaoHint = el('div', { class:'tiny muted' });
-    const dataConclusaoField = el('div', { class:'field', style:'display:none' }, [
-      el('label', {}, ['Data de conclusão']),
-      dataConclusao,
-      dataConclusaoHint
-    ]);
-    const syncCompletionUI = () => {
-      const isDone = normalizeStatus(status.value) === 'Concluída';
-      dataConclusaoField.style.display = isDone ? '' : 'none';
-      if (isDone && !dataConclusao.value) dataConclusao.value = todayISO();
-      if (isDone) {
-        const endVal = String(fim.value || demand.data_fim || '').trim();
-        const doneVal = String(dataConclusao.value || '').trim();
-        if (doneVal && endVal && doneVal < endVal) dataConclusaoHint.textContent = `Conclusão antecipada: capacidade futura será liberada após ${formatDateBR(doneVal)} sem alterar o prazo planejado.`;
-        else if (doneVal && endVal && doneVal > endVal) dataConclusaoHint.textContent = `Conclusão após o prazo planejado (${formatDateBR(endVal)}).`;
-        else dataConclusaoHint.textContent = 'A data de conclusão encerra a alocação planejada na capacidade.';
-      }
-    };
+    let conclusaoDraft = demandCompletionDate(demand) || '';
+    let comentarioConclusaoDraft = String(demand.comentario_conclusao || demand.comentarioConclusao || demand.observacao_conclusao || '');
 
     const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [demand.observacoes || '']);
 
@@ -6048,7 +6120,7 @@ main{padding:14px;overflow-x:hidden}
         allocations: allocationsForMetrics,
         responsavel_id: normalizeStatus(status.value) === 'Mapeada' ? '' : String(allocationsForMetrics[0]?.resourceId || demand.responsavel_id || '').trim(),
         status: normalizeStatus(status.value || demand.status),
-        data_conclusao: normalizeStatus(status.value) === 'Concluída' ? String(dataConclusao.value || '').trim() : ''
+        data_conclusao: normalizeStatus(status.value) === 'Concluída' ? conclusaoDraft : ''
       };
       const execMetrics = demandExecutionMetrics(demandForMetrics, apontamentos);
       const fmtSignedMetricHours = (h) => {
@@ -6067,6 +6139,7 @@ main{padding:14px;overflow-x:hidden}
       const progressLabel = `${execMetrics.progressPct}%`;
       const trendColor = execMetrics.trendTone === 'danger' ? 'var(--danger)' : (execMetrics.trendTone === 'warn' ? 'var(--alert)' : (execMetrics.trendTone === 'ok' ? 'var(--success)' : 'var(--muted)'));
       const trendBg = execMetrics.trendTone === 'danger' ? 'var(--danger-soft)' : (execMetrics.trendTone === 'warn' ? 'var(--warning-soft)' : (execMetrics.trendTone === 'ok' ? 'var(--success-soft)' : 'var(--surface)'));
+      const isConcluded = normalizeStatus(status.value) === 'Concluída';
       const metricCard = (label, value, hint='', extraStyle='') => el('div', { style:`border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface);${extraStyle}` }, [
         el('div', { class:'tiny muted' }, [label]),
         el('div', { class:'mono', style:'font-weight:950;font-size:18px' }, [value]),
@@ -6081,7 +6154,7 @@ main{padding:14px;overflow-x:hidden}
         el('div', { style:`border:1px solid var(--border);border-radius:14px;padding:10px;background:${trendBg}` }, [
           el('div', { class:'tiny muted' }, ['Tendência']),
           el('div', { style:`font-weight:950;font-size:16px;color:${trendColor}` }, [execMetrics.trend]),
-          el('div', { class:'tiny muted', style:'margin-top:2px' }, ['baseado nas horas realizadas'])
+          el('div', { class:'tiny muted', style:'margin-top:2px' }, [isConcluded ? 'baseado na data de conclusão' : 'baseado nas horas realizadas'])
         ]),
         metricCard('Etapas', String(etapasUnicas.size), 'tipos documentais'),
         el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface)' }, [
@@ -6092,8 +6165,7 @@ main{padding:14px;overflow-x:hidden}
       ]);
       aptList.appendChild(metrics);
 
-      const completionDateValue = String(dataConclusao.value || demandCompletionDate(demand) || '').trim();
-      const isConcluded = normalizeStatus(status.value) === 'Concluída';
+      const completionDateValue = String(conclusaoDraft || demandCompletionDate(demand) || '').trim();
       const isEarly = isConcluded && completionDateValue && String(fim.value || demand.data_fim || '') && completionDateValue < String(fim.value || demand.data_fim || '');
       const isLate = isConcluded && completionDateValue && String(fim.value || demand.data_fim || '') && completionDateValue > String(fim.value || demand.data_fim || '');
       const conclusionTone = isEarly ? 'var(--success-soft)' : (isLate ? 'var(--danger-soft)' : 'var(--surface)');
@@ -6106,15 +6178,18 @@ main{padding:14px;overflow-x:hidden}
           ? 'As horas apontadas já atingiram o planejado. Se a entrega acabou, conclua a demanda para liberar capacidade futura.'
           : 'Quando a entrega terminar, conclua a demanda informando a data real para liberar a capacidade futura.');
       const completionActions = [];
-      if (!isConcluded) {
-        completionActions.push(button('Concluir demanda', 'primary', () => {
-          status.value = 'Concluída';
-          dataConclusao.value = ultimo?.data || todayISO();
-          syncCompletionUI();
-          renderApontamentos();
-          toast('Data de conclusão preenchida. Clique em Salvar alterações para persistir.');
-        }));
-      }
+      completionActions.push(iconButton(isConcluded ? 'Editar conclusão' : 'Conclusão', '✓', 'primary', () => {
+        openDemandConclusionModal(demandForMetrics, {
+          defaultDate: completionDateValue || ultimo?.data || todayISO(),
+          onConfirm: ({ data_conclusao, comentario_conclusao }) => {
+            status.value = 'Concluída';
+            conclusaoDraft = data_conclusao;
+            comentarioConclusaoDraft = comentario_conclusao;
+            renderApontamentos();
+            toast('Conclusão preenchida. Clique em Salvar alterações para persistir.');
+          }
+        });
+      }));
       const completionPanel = el('div', { style:`border:1px solid var(--border);border-radius:16px;padding:12px;background:${conclusionTone};display:grid;gap:8px;margin:0 0 12px` }, [
         el('div', { style:'display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap' }, [
           el('div', {}, [
@@ -6329,10 +6404,13 @@ main{padding:14px;overflow-x:hidden}
         status: nextStatus,
       });
       if (demandValidation) { toast(demandValidation); return; }
-      const conclusaoVal = String(dataConclusao.value || '').trim();
+      if (nextStatus === 'Concluída' && !conclusaoDraft) {
+        toast('Use o botão ✓ Conclusão para informar data e comentário antes de salvar como Concluída.');
+        return;
+      }
+      const conclusaoVal = String(conclusaoDraft || '').trim();
       if (nextStatus === 'Concluída') {
-        if (!isISODateString(conclusaoVal)) { toast('Informe a data de conclusão.'); return; }
-        if (iniVal && conclusaoVal < iniVal) { toast('Data de conclusão não pode ser anterior ao início da demanda.'); return; }
+        if (!isISODateString(conclusaoVal)) { toast('Informe a data de conclusão pelo botão Conclusão.'); return; }
       }
       const respIds = (nextStatus === 'Mapeada') ? [] : selectedResponsaveis();
       if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais responsáveis ou marque como Mapeada.'); return; }
@@ -6360,6 +6438,7 @@ main{padding:14px;overflow-x:hidden}
         status: nextStatus,
         data_conclusao: nextStatus === 'Concluída' ? conclusaoVal : '',
         concluida_em: nextStatus === 'Concluída' ? conclusaoVal : '',
+        comentario_conclusao: nextStatus === 'Concluída' ? comentarioConclusaoDraft : '',
         observacoes: obsVal,
         apontamentos: normalizeDemandApontamentos({ apontamentos }),
         last_edit_by: userName,
@@ -6380,6 +6459,7 @@ main{padding:14px;overflow-x:hidden}
         prioridade: next.prioridade,
         status: next.status,
         data_conclusao: next.data_conclusao,
+        comentario_conclusao: next.comentario_conclusao,
         observacoes: next.observacoes,
         apontamentos: normalizeDemandApontamentos(next)
       };
@@ -8861,6 +8941,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           el('div', { class:'actionBtns' }, [
             iconButton('Editar', '✎', '', edit),
             iconButton('Reprogramar', '↻', '', reprogram),
+            iconButton('Conclusão', '✓', 'primary', () => openDemandConclusionModal(primaryDemand)),
             iconButton('Apontamento', '📝', 'primary', apontamento),
             iconButton('Excluir', '🗑', 'danger', del),
           ])
@@ -11264,6 +11345,14 @@ return el('div', { class:'grid' }, [
   edlg.addEventListener('click', (e) => { if (e.target === edlg) { try{ edlg.close(); }catch{ edlg.removeAttribute('open'); } } });
   edlg.addEventListener('close', syncModalBlur);
   edlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ edlg.close(); }catch{ edlg.removeAttribute('open'); } syncModalBlur(); });
+
+  const cdlg = qs('#demandConclusionModal');
+  if (cdlg) {
+    qs('#demandConclusionModalClose').addEventListener('click', closeDemandConclusionModal);
+    cdlg.addEventListener('click', (e) => { if (e.target === cdlg) closeDemandConclusionModal(); });
+    cdlg.addEventListener('close', syncModalBlur);
+    cdlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDemandConclusionModal(); });
+  }
 
 	  const rpd = qs('#demandReprogramModal');
 	  if (rpd) {
