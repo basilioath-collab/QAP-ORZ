@@ -6313,7 +6313,6 @@ main{padding:14px;overflow-x:hidden}
       resetApontamentoForm();
       renderApontamentos();
     };
-    renderApontamentos();
 
     saveAptBtn = button('Adicionar etapa', 'primary', upsertApontamento);
     cancelAptBtn = button('Cancelar edição', '', () => { resetApontamentoForm(); });
@@ -6515,6 +6514,14 @@ main{padding:14px;overflow-x:hidden}
     ]));
 
     openDialog(dlg);
+    setTimeout(() => {
+      try { renderApontamentos(); }
+      catch (err) {
+        console.error('[ORIZON] Falha ao renderizar card de apontamento no modal de edição:', err);
+        aptList.innerHTML = '';
+        aptList.appendChild(el('div', { class:'pill bad' }, ['Não foi possível carregar o card de apontamento.']));
+      }
+    }, 0);
   };
 
   // ----------------------
@@ -6525,13 +6532,15 @@ main{padding:14px;overflow-x:hidden}
     const dlg = qs('#demandStagesModal');
     if (!dlg || !demand) return;
 
-    qs('#demandStagesModalTitle').textContent = `Apontamento - ${demand.titulo}`;
+    let workingDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+
+    qs('#demandStagesModalTitle').textContent = `Apontamento - ${workingDemand.titulo}`;
     qs('#demandStagesModalSub').textContent = 'Cadastre a atividade realizada nesta demanda.';
 
     const body = qs('#demandStagesModalBody');
     body.innerHTML = '';
 
-    let apontamentos = normalizeDemandApontamentos(demand);
+    let apontamentos = normalizeDemandApontamentos(workingDemand);
     const data = el('input', { type:'date', value: todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const etapa = el('select');
     for (const step of PROJECT_STEP_OPTIONS) etapa.appendChild(el('option', { value:step }, [step]));
@@ -6560,6 +6569,53 @@ main{padding:14px;overflow-x:hidden}
       const ultimo = apontamentos.length ? apontamentos[apontamentos.length - 1] : null;
       summary.textContent = `${apontamentos.length} apontamento(s) - ${fmtHours(totalHoras)}h realizadas - Ultimo: ${ultimo ? `${formatDateBR(ultimo.data)} / ${ultimo.etapa}` : '-'}.`;
 
+      const completionDate = demandCompletionDate(workingDemand);
+      const execMetrics = demandExecutionMetrics({ ...workingDemand, apontamentos }, apontamentos);
+      const isConcluded = normalizeStatus(workingDemand.status) === 'Concluída';
+      const plannedEnd = String(workingDemand.data_fim || '').trim();
+      const isEarly = isConcluded && completionDate && plannedEnd && completionDate < plannedEnd;
+      const isLate = isConcluded && completionDate && plannedEnd && completionDate > plannedEnd;
+      const controlTone = isEarly ? 'var(--success-soft)' : (isLate ? 'var(--danger-soft)' : (isConcluded ? 'var(--success-soft)' : 'var(--surface)'));
+      const controlTitle = isConcluded
+        ? (isEarly ? '✓ Concluída antecipadamente' : (isLate ? '✓ Concluída com atraso' : '✓ Concluída no prazo'))
+        : (execMetrics.realHours >= execMetrics.plannedHours && execMetrics.plannedHours > 0 ? '✓ Planejado atingido' : 'Controle de execução');
+      const controlHint = isConcluded
+        ? `Data real: ${formatDateBR(completionDate)}. O prazo planejado (${formatDateBR(plannedEnd)}) fica preservado e a capacidade futura é liberada.`
+        : 'Acompanhe planejado x realizado e conclua a demanda quando a entrega terminar.';
+      const miniMetric = (label, value, hint='') => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:#fff' }, [
+        el('div', { class:'tiny muted' }, [label]),
+        el('div', { class:'mono', style:'font-weight:950;font-size:18px' }, [value]),
+        el('div', { class:'tiny muted', style:'margin-top:2px' }, [hint])
+      ]);
+      history.appendChild(el('div', { style:`border:1px solid var(--border);border-radius:16px;padding:12px;background:${controlTone};display:grid;gap:10px;margin:0 0 12px` }, [
+        el('div', { style:'display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap' }, [
+          el('div', {}, [
+            el('div', { style:'font-weight:950' }, [controlTitle]),
+            el('div', { class:'tiny muted', style:'margin-top:3px' }, [controlHint]),
+            workingDemand.comentario_conclusao ? el('div', { class:'tiny muted', style:'margin-top:6px' }, [`Comentário: ${workingDemand.comentario_conclusao}`]) : null,
+          ]),
+          iconButton(isConcluded ? 'Editar conclusão' : 'Conclusão', '✓', 'primary', () => {
+            openDemandConclusionModal({ ...workingDemand, apontamentos }, {
+              defaultDate: completionDate || ultimo?.data || todayISO(),
+              onConfirm: ({ data_conclusao, comentario_conclusao }) => {
+                persistApontamentos('Demanda concluída. Capacidade futura liberada.', {
+                  status: 'Concluída',
+                  data_conclusao,
+                  concluida_em: data_conclusao,
+                  comentario_conclusao,
+                });
+              }
+            });
+          })
+        ]),
+        el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px' }, [
+          miniMetric('Planejado original', `${decimalHoursToHHMM(execMetrics.plannedHours)}h`, `${execMetrics.plannedDays} dia(s) úteis`),
+          miniMetric(isConcluded ? 'Planejado até conclusão' : 'Planejado até hoje', `${decimalHoursToHHMM(isConcluded ? execMetrics.effectivePlannedHours : execMetrics.plannedUntilTodayHours)}h`, isConcluded ? `${execMetrics.effectivePlannedDays} dia(s) úteis` : `${execMetrics.plannedUntilTodayDays} dia(s) úteis`),
+          miniMetric('Realizado', `${decimalHoursToHHMM(execMetrics.realHours)}h`, `${apontamentos.length} apontamento(s)`),
+          miniMetric('Tendência', execMetrics.trend, isConcluded ? 'baseado na conclusão' : 'baseado nas horas'),
+        ])
+      ]));
+
       if (!apontamentos.length) {
         history.appendChild(el('div', { style:'padding:14px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:var(--surface)' }, [
           'Nenhum apontamento cadastrado para esta demanda.'
@@ -6569,7 +6625,7 @@ main{padding:14px;overflow-x:hidden}
 
       const list = el('div', { style:'display:flex;flex-direction:column;gap:8px;margin-top:8px' });
       for (const a of [...apontamentos].reverse().slice(0, 8)) {
-        const flags = apontamentoWindowFlags(demand, a);
+        const flags = apontamentoWindowFlags(workingDemand, a);
         const windowBadges = [
           flags.early ? el('span', { class:'pill warn', title:'Apontamento antes da data de início planejada.' }, ['Execução antecipada']) : null,
           flags.late ? el('span', { class:'pill bad', title:'Apontamento depois do prazo atual da demanda.' }, ['Fora do prazo']) : null,
@@ -6605,15 +6661,17 @@ main{padding:14px;overflow-x:hidden}
       history.appendChild(list);
     };
 
-    const persistApontamentos = (message) => {
+    const persistApontamentos = (message, patch={}) => {
       apontamentos = normalizeDemandApontamentos({ apontamentos });
-      dispatch('UPDATE_DEMAND', {
-        ...demand,
+      workingDemand = {
+        ...workingDemand,
+        ...patch,
         apontamentos,
         last_edit_by: userName,
         last_edit_at: Date.now(),
-        last_edit_justification: 'Apontamento registrado pela aba Demandas.',
-      });
+        last_edit_justification: patch.status === 'Concluída' ? 'Conclusão registrada pela aba Demandas.' : 'Apontamento registrado pela aba Demandas.',
+      };
+      dispatch('UPDATE_DEMAND', workingDemand);
       renderHistory();
       toast(message);
       render();
@@ -6623,7 +6681,7 @@ main{padding:14px;overflow-x:hidden}
       const nextData = String(data.value || '').trim();
       const nextEtapa = normalizeProjectStep(etapa.value);
       const nextHoras = parseApontamentoHours(horas.value);
-      const validation = validateApontamentoInput({ data: nextData, etapa: nextEtapa, horas: nextHoras }, demand);
+      const validation = validateApontamentoInput({ data: nextData, etapa: nextEtapa, horas: nextHoras }, workingDemand);
       if (validation) { toast(validation); return; }
       const obsValidation = validateTextLimit(obs.value, 'Observação do apontamento', INPUT_LIMITS.shortNote);
       if (obsValidation) { toast(obsValidation); return; }
@@ -6675,9 +6733,9 @@ main{padding:14px;overflow-x:hidden}
 
     body.appendChild(el('div', { class:'grid' }, [
       el('div', { class:'hint' }, [
-        el('b', {}, [demand.titulo || 'Demanda']),
+        el('b', {}, [workingDemand.titulo || 'Demanda']),
         el('div', { class:'tiny muted', style:'margin-top:4px' }, [
-          `${formatDateBR(demand.data_inicio)} -> ${formatDateBR(demand.data_fim)} - ${demand.prioridade || 'Media'} - ${effectiveStatus(demand)}`
+          `${formatDateBR(workingDemand.data_inicio)} -> ${formatDateBR(workingDemand.data_fim)} - ${workingDemand.prioridade || 'Media'} - ${effectiveStatus(workingDemand)}`
         ]),
         el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Apontamentos antes do início planejado são permitidos e contabilizados como execução antecipada.'])
       ]),
