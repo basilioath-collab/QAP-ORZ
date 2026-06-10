@@ -5711,7 +5711,7 @@ main{padding:14px;overflow-x:hidden}
             ])
           ]));
           trIa.appendChild(el('td', {}, [el('span', { class:'statusPill s-andamento' }, [el('span', { class:'sDot' }), 'Atividade interna'])]));
-          trIa.appendChild(el('td', { class:'mono' }, [String(Math.round((capFinal > 0 ? (iaHours / capFinal) * 100 : 0) * 10) / 10)]));
+          trIa.appendChild(el('td', { class:'mono' }, [decimalHoursToHHMM(iaHours)]));
           trIa.appendChild(el('td', {}, ['-']));
           trIa.appendChild(el('td', {}, ['-']));
           trIa.appendChild(el('td', {}, [res?.nome || '-']));
