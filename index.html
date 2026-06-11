@@ -879,19 +879,6 @@ main{padding:14px;overflow-x:hidden}
     </div>
   </dialog>
 
-  <dialog id="demandConclusionModal" class="modal">
-    <div class="modalCard">
-      <div class="modalHd">
-        <div>
-          <div class="modalTitle" id="demandConclusionModalTitle">Concluir demanda</div>
-          <div class="modalSub" id="demandConclusionModalSub">Informe a data real de conclusão e um comentário.</div>
-        </div>
-        <button class="btn ghost" id="demandConclusionModalClose" type="button">Fechar ×</button>
-      </div>
-      <div class="modalBd" id="demandConclusionModalBody"></div>
-    </div>
-  </dialog>
-
   <dialog id="demandReprogramModal" class="modal">
     <div class="modalCard">
       <div class="modalHd">
@@ -2705,45 +2692,29 @@ main{padding:14px;overflow-x:hidden}
     const primaryAlloc = demandAllocations(demand).find(a => String(a.resourceId || '') === resourceId) || demandAllocations(demand)[0] || {};
     const plannedDemandHoursPerDay = Math.max(0, Number(primaryAlloc.horas_planejadas_dia || primaryAlloc.horas_dia || 0));
 
-    const countEligibleDays = (rangeEnd) => {
-      let days = 0;
-      if (isISODateString(start) && isISODateString(rangeEnd) && start <= rangeEnd && plannedDemandHoursPerDay > 0) {
-        let cursor = isoToLocalMidnight(start);
-        const limit = isoToLocalMidnight(rangeEnd);
-        while (cursor && limit && cursor.getTime() <= limit.getTime()) {
-          const dateStr = formatDate(cursor);
-          let eligible = !isWeekend(cursor) && !isHoliday(dateStr);
-          if (eligible && resourceId) eligible = !nonWorkingReasonForDay(resourceId, cursor);
-          if (eligible) days++;
-          cursor.setDate(cursor.getDate() + 1);
+    let plannedDays = 0;
+    if (isISODateString(start) && isISODateString(end) && start <= end && plannedDemandHoursPerDay > 0) {
+      let cursor = isoToLocalMidnight(start);
+      const limit = isoToLocalMidnight(end);
+      while (cursor && limit && cursor.getTime() <= limit.getTime()) {
+        const dateStr = formatDate(cursor);
+        let eligible = !isWeekend(cursor) && !isHoliday(dateStr);
+        if (eligible && resourceId) {
+          eligible = !nonWorkingReasonForDay(resourceId, cursor);
         }
+        if (eligible) plannedDays++;
+        cursor.setDate(cursor.getDate() + 1);
       }
-      return days;
-    };
-
-    const completionDate = demandCompletionDate(demand);
-    const status = normalizeStatus(demand.status);
-    const effectiveEnd = (status === 'Concluída' && completionDate) ? completionDate : end;
-    const today = todayISO();
-    const untilTodayEnd = isISODateString(end) ? (today < start ? '' : (today < end ? today : end)) : end;
-    const plannedDays = countEligibleDays(end);
-    const effectivePlannedDays = countEligibleDays(effectiveEnd);
-    const plannedUntilTodayDays = countEligibleDays(untilTodayEnd);
+    }
 
     const plannedHours = Math.round((plannedDays * plannedDemandHoursPerDay) * 100) / 100;
-    const effectivePlannedHours = Math.round((effectivePlannedDays * plannedDemandHoursPerDay) * 100) / 100;
-    const plannedUntilTodayHours = Math.round((plannedUntilTodayDays * plannedDemandHoursPerDay) * 100) / 100;
     const delta = Math.round((plannedHours - realHours) * 100) / 100; // saldo: horas planejadas restantes; negativo = acima do planejado
     const progressPct = plannedHours > 0 ? Math.round((realHours / plannedHours) * 1000) / 10 : (realHours > 0 ? 100 : 0);
     const efficiencyPct = plannedHours > 0 ? Math.round((realHours / plannedHours) * 1000) / 10 : null;
 
     let trend = 'Sem dados suficientes';
     let trendTone = 'neutral';
-    if (status === 'Concluída') {
-      if (completionDate && end && completionDate < end) { trend = 'Concluída antecipadamente'; trendTone = 'ok'; }
-      else if (completionDate && end && completionDate > end) { trend = 'Concluída com atraso'; trendTone = 'danger'; }
-      else { trend = 'Concluída no prazo'; trendTone = 'ok'; }
-    } else if (plannedHours > 0) {
+    if (plannedHours > 0) {
       if (realHours > plannedHours) { trend = 'Estourado'; trendTone = 'danger'; }
       else if (realHours >= plannedHours * 0.9) { trend = 'Atenção'; trendTone = 'warn'; }
       else if (realHours > 0) { trend = 'Dentro do planejado'; trendTone = 'ok'; }
@@ -2752,8 +2723,6 @@ main{padding:14px;overflow-x:hidden}
 
     return {
       plannedHours,
-      effectivePlannedHours,
-      plannedUntilTodayHours,
       realHours,
       delta,
       progressPct,
@@ -2761,10 +2730,6 @@ main{padding:14px;overflow-x:hidden}
       trend,
       trendTone,
       plannedDays,
-      effectivePlannedDays,
-      plannedUntilTodayDays,
-      completionDate,
-      effectiveEnd,
       apontamentosCount: apontamentos.length,
       windowSummary: demandApontamentoWindowSummary(demand, apontamentos),
       windowClassification: demandWindowClassification(demand, apontamentos),
@@ -2963,32 +2928,6 @@ main{padding:14px;overflow-x:hidden}
     // Atrasada começa no DIA SEGUINTE ao prazo (HOJE > data_fim)
     if (prazo && todayISO() > prazo) return 'Atrasada';
     return base;
-  };
-
-  const demandCompletionDate = (demand={}) => normalizeDateLikeToISO(
-    demand.data_conclusao || demand.dataConclusao || demand.concluida_em || demand.concluded_at || demand.completed_at || ''
-  );
-
-  const demandEffectiveAllocationEnd = (demand={}) => {
-    const end = String(demand.data_fim || '').trim();
-    if (normalizeStatus(demand.status) !== 'Concluída') return end;
-    return demandCompletionDate(demand) || end;
-  };
-
-  const demandCountsInAllocationOnDate = (demand={}, dateStr='') => {
-    const st = effectiveStatus(demand);
-    if (STATUS_COUNTS_IN_ALLOCATION.has(st)) return true;
-    if (st !== 'Concluída') return false;
-    const completion = demandCompletionDate(demand);
-    if (!completion) return false;
-    return String(dateStr || '') <= completion;
-  };
-
-  const demandOverlapsAllocationRange = (demand={}, start='', end='') => {
-    const ini = String(demand.data_inicio || '').trim();
-    const fim = demandEffectiveAllocationEnd(demand);
-    if (!ini || !fim) return false;
-    return !(fim < start || ini > end);
   };
 
   const overdueTooltip = (demand) => {
@@ -5530,9 +5469,9 @@ main{padding:14px;overflow-x:hidden}
 
       let total = 0;
       for (const dem of (state.demands || [])) {
-        if (!demandCountsInAllocationOnDate(dem, dateStr)) continue;
-        const allocationEnd = demandEffectiveAllocationEnd(dem);
-        if (!(dateStr >= dem.data_inicio && dateStr <= allocationEnd)) continue;
+        const st = effectiveStatus(dem);
+        if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) continue;
+        if (!(dateStr >= dem.data_inicio && dateStr <= dem.data_fim)) continue;
         const allocHours = demandAllocations(dem)
           .filter(a => String(a.resourceId || '') === String(resourceId || ''))
           .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
@@ -5618,7 +5557,7 @@ main{padding:14px;overflow-x:hidden}
     return (state.demands||[]).filter(d => {
       const hasResource = demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId || ''));
       if (!hasResource) return false;
-      return demandCountsInAllocationOnDate(d, dateStr) && dateStr >= d.data_inicio && dateStr <= demandEffectiveAllocationEnd(d);
+      return dateStr >= d.data_inicio && dateStr <= d.data_fim;
     });
   };
 
@@ -5738,7 +5677,7 @@ main{padding:14px;overflow-x:hidden}
       } else {
         for (const d of pageItems) {
           const st = effectiveStatus(d);
-          const counts = demandCountsInAllocationOnDate(d, dateStr);
+          const counts = STATUS_COUNTS_IN_ALLOCATION.has(st);
           const allocHoursForResource = demandAllocations(d)
             .filter(a => String(a.resourceId || '') === String(resourceId || ''))
             .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
@@ -5815,78 +5754,6 @@ main{padding:14px;overflow-x:hidden}
     };
 
     renderDayModal();
-    openDialog(dlg);
-  };
-
-  // ----------------------
-  // Conclusão de Demanda (modal dedicado)
-  // ----------------------
-  let demandConclusionModalOnConfirm = null;
-
-  const closeDemandConclusionModal = () => {
-    const dlg = qs('#demandConclusionModal');
-    if (dlg) closeDialog(dlg);
-    demandConclusionModalOnConfirm = null;
-  };
-
-  const openDemandConclusionModal = (demand, opts={}) => {
-    if (!demand) return;
-    const dlg = qs('#demandConclusionModal');
-    const body = qs('#demandConclusionModalBody');
-    if (!dlg || !body) return;
-    const latest = opts.onConfirm ? demand : ((state.demands || []).find(d => String(d.id) === String(demand.id)) || demand);
-    const title = qs('#demandConclusionModalTitle');
-    const sub = qs('#demandConclusionModalSub');
-    if (title) title.textContent = `Concluir demanda - ${latest.titulo || latest.id || ''}`;
-    if (sub) sub.textContent = 'A conclusão libera a capacidade futura sem alterar o prazo planejado original.';
-
-    const completionInput = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, value: opts.defaultDate || demandCompletionDate(latest) || todayISO() });
-    const commentInput = el('textarea', { maxlength:'360', placeholder:'Comentário da conclusão (até 360 caracteres)...' }, [String(latest.comentario_conclusao || latest.comentarioConclusao || latest.observacao_conclusao || '')]);
-    const hint = el('div', { class:'tiny muted' });
-    const counter = el('div', { class:'tiny muted', style:'text-align:right' });
-    const updateHint = () => {
-      const done = String(completionInput.value || '').trim();
-      const end = String(latest.data_fim || '').trim();
-      if (done && end && done < end) hint.textContent = `Conclusão antecipada: a capacidade após ${formatDateBR(done)} será liberada.`;
-      else if (done && end && done > end) hint.textContent = `Conclusão após o prazo planejado (${formatDateBR(end)}).`;
-      else hint.textContent = 'A data informada será usada como fim efetivo da alocação.';
-      counter.textContent = `${String(commentInput.value || '').length}/360`;
-    };
-    completionInput.addEventListener('input', updateHint);
-    commentInput.addEventListener('input', updateHint);
-
-    const save = () => {
-      const data = String(completionInput.value || '').trim();
-      const comentario = String(commentInput.value || '').trim();
-      if (!isISODateString(data)) { toast('Informe a data de conclusão.'); return; }
-      if (comentario.length > 360) { toast('Comentário de conclusão deve ter no máximo 360 caracteres.'); return; }
-      const payload = { data_conclusao:data, comentario_conclusao:comentario };
-      if (typeof demandConclusionModalOnConfirm === 'function') {
-        demandConclusionModalOnConfirm(payload);
-      } else {
-        const current = (state.demands || []).find(d => String(d.id) === String(latest.id)) || latest;
-        dispatch('UPDATE_DEMAND', {
-          ...current,
-          status: 'Concluída',
-          data_conclusao: data,
-          concluida_em: data,
-          comentario_conclusao: comentario,
-        });
-        toast('Demanda concluída. Capacidade futura liberada.');
-        render();
-      }
-      closeDemandConclusionModal();
-    };
-
-    demandConclusionModalOnConfirm = opts.onConfirm || null;
-    body.innerHTML = '';
-    body.appendChild(el('div', { class:'grid' }, [
-      el('div', { class:'tiny muted' }, [`Prazo planejado preservado: ${formatDateBR(latest.data_fim || '') || '-'}`]),
-      el('div', { class:'field' }, [el('label', {}, ['Data de conclusão']), completionInput, hint]),
-      el('div', { class:'field' }, [el('label', {}, ['Comentário da conclusão']), commentInput, counter]),
-      el('div', { class:'row end' }, [button('Cancelar', '', closeDemandConclusionModal), button('✓ Concluir demanda', 'primary', save)]),
-    ]));
-    updateHint();
     openDialog(dlg);
   };
 
@@ -6051,9 +5918,6 @@ main{padding:14px;overflow-x:hidden}
     ]);
     status.value = normalizeStatus(demand.status);
 
-    let conclusaoDraft = demandCompletionDate(demand) || '';
-    let comentarioConclusaoDraft = String(demand.comentario_conclusao || demand.comentarioConclusao || demand.observacao_conclusao || '');
-
     const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [demand.observacoes || '']);
 
     const just = el('textarea', { placeholder:'Justificativa (opcional)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
@@ -6119,8 +5983,7 @@ main{padding:14px;overflow-x:hidden}
         horas_planejadas_dia: Number(allocationsForMetrics[0]?.horas_planejadas_dia ?? demand.horas_planejadas_dia ?? 0),
         allocations: allocationsForMetrics,
         responsavel_id: normalizeStatus(status.value) === 'Mapeada' ? '' : String(allocationsForMetrics[0]?.resourceId || demand.responsavel_id || '').trim(),
-        status: normalizeStatus(status.value || demand.status),
-        data_conclusao: normalizeStatus(status.value) === 'Concluída' ? conclusaoDraft : ''
+        status: normalizeStatus(status.value || demand.status)
       };
       const execMetrics = demandExecutionMetrics(demandForMetrics, apontamentos);
       const fmtSignedMetricHours = (h) => {
@@ -6139,7 +6002,6 @@ main{padding:14px;overflow-x:hidden}
       const progressLabel = `${execMetrics.progressPct}%`;
       const trendColor = execMetrics.trendTone === 'danger' ? 'var(--danger)' : (execMetrics.trendTone === 'warn' ? 'var(--alert)' : (execMetrics.trendTone === 'ok' ? 'var(--success)' : 'var(--muted)'));
       const trendBg = execMetrics.trendTone === 'danger' ? 'var(--danger-soft)' : (execMetrics.trendTone === 'warn' ? 'var(--warning-soft)' : (execMetrics.trendTone === 'ok' ? 'var(--success-soft)' : 'var(--surface)'));
-      const isConcluded = normalizeStatus(status.value) === 'Concluída';
       const metricCard = (label, value, hint='', extraStyle='') => el('div', { style:`border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface);${extraStyle}` }, [
         el('div', { class:'tiny muted' }, [label]),
         el('div', { class:'mono', style:'font-weight:950;font-size:18px' }, [value]),
@@ -6154,7 +6016,7 @@ main{padding:14px;overflow-x:hidden}
         el('div', { style:`border:1px solid var(--border);border-radius:14px;padding:10px;background:${trendBg}` }, [
           el('div', { class:'tiny muted' }, ['Tendência']),
           el('div', { style:`font-weight:950;font-size:16px;color:${trendColor}` }, [execMetrics.trend]),
-          el('div', { class:'tiny muted', style:'margin-top:2px' }, [isConcluded ? 'baseado na data de conclusão' : 'baseado nas horas realizadas'])
+          el('div', { class:'tiny muted', style:'margin-top:2px' }, ['baseado nas horas realizadas'])
         ]),
         metricCard('Etapas', String(etapasUnicas.size), 'tipos documentais'),
         el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface)' }, [
@@ -6164,47 +6026,6 @@ main{padding:14px;overflow-x:hidden}
         ]),
       ]);
       aptList.appendChild(metrics);
-
-      const completionDateValue = String(conclusaoDraft || demandCompletionDate(demand) || '').trim();
-      const isEarly = isConcluded && completionDateValue && String(fim.value || demand.data_fim || '') && completionDateValue < String(fim.value || demand.data_fim || '');
-      const isLate = isConcluded && completionDateValue && String(fim.value || demand.data_fim || '') && completionDateValue > String(fim.value || demand.data_fim || '');
-      const conclusionTone = isEarly ? 'var(--success-soft)' : (isLate ? 'var(--danger-soft)' : 'var(--surface)');
-      const conclusionTitle = isConcluded
-        ? (isEarly ? 'Concluída antecipadamente' : (isLate ? 'Concluída com atraso' : 'Concluída no prazo'))
-        : (execMetrics.realHours >= execMetrics.plannedHours && execMetrics.plannedHours > 0 ? 'Planejado atingido' : 'Controle de conclusão');
-      const conclusionHint = isConcluded
-        ? `Conclusão: ${formatDateBR(completionDateValue)}. Prazo planejado preservado: ${formatDateBR(fim.value || demand.data_fim)}.`
-        : (execMetrics.realHours >= execMetrics.plannedHours && execMetrics.plannedHours > 0
-          ? 'As horas apontadas já atingiram o planejado. Se a entrega acabou, conclua a demanda para liberar capacidade futura.'
-          : 'Quando a entrega terminar, conclua a demanda informando a data real para liberar a capacidade futura.');
-      const completionActions = [];
-      completionActions.push(iconButton(isConcluded ? 'Editar conclusão' : 'Conclusão', '✓', 'primary', () => {
-        openDemandConclusionModal(demandForMetrics, {
-          defaultDate: completionDateValue || ultimo?.data || todayISO(),
-          onConfirm: ({ data_conclusao, comentario_conclusao }) => {
-            status.value = 'Concluída';
-            conclusaoDraft = data_conclusao;
-            comentarioConclusaoDraft = comentario_conclusao;
-            renderApontamentos();
-            toast('Conclusão preenchida. Clique em Salvar alterações para persistir.');
-          }
-        });
-      }));
-      const completionPanel = el('div', { style:`border:1px solid var(--border);border-radius:16px;padding:12px;background:${conclusionTone};display:grid;gap:8px;margin:0 0 12px` }, [
-        el('div', { style:'display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap' }, [
-          el('div', {}, [
-            el('div', { style:'font-weight:950' }, [conclusionTitle]),
-            el('div', { class:'tiny muted', style:'margin-top:3px' }, [conclusionHint]),
-          ]),
-          el('div', { class:'row', style:'gap:8px' }, completionActions),
-        ]),
-        el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px' }, [
-          metricCard('Planejado original', `${decimalHoursToHHMM(execMetrics.plannedHours)}h`, `${execMetrics.plannedDays} dia(s) úteis`),
-          metricCard(isConcluded ? 'Planejado até conclusão' : 'Planejado até hoje', `${decimalHoursToHHMM(isConcluded ? execMetrics.effectivePlannedHours : execMetrics.plannedUntilTodayHours)}h`, isConcluded ? `${execMetrics.effectivePlannedDays} dia(s) úteis` : `${execMetrics.plannedUntilTodayDays} dia(s) úteis`),
-          metricCard('Realizado', `${decimalHoursToHHMM(execMetrics.realHours)}h`, `${apontamentos.length} apontamento(s)`),
-        ]),
-      ]);
-      aptList.appendChild(completionPanel);
 
       if (!apontamentos.length) {
         aptList.appendChild(el('div', { style:'padding:14px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:var(--surface)' }, [
@@ -6313,6 +6134,7 @@ main{padding:14px;overflow-x:hidden}
       resetApontamentoForm();
       renderApontamentos();
     };
+    renderApontamentos();
 
     saveAptBtn = button('Adicionar etapa', 'primary', upsertApontamento);
     cancelAptBtn = button('Cancelar edição', '', () => { resetApontamentoForm(); });
@@ -6356,31 +6178,9 @@ main{padding:14px;overflow-x:hidden}
         renderRespChips();
         renderRespOptions();
       };
-    const safeSyncMapeada = () => {
-      try { syncMapeada(); }
-      catch (err) {
-        console.error('[ORIZON] Falha ao sincronizar responsáveis no modal de edição:', err);
-        try {
-          respChips.innerHTML = '';
-          respAllocList.innerHTML = '';
-          respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Não foi possível carregar os responsáveis desta demanda.']));
-        } catch {}
-      }
-    };
-    const safeRenderApontamentos = () => {
-      try { renderApontamentos(); }
-      catch (err) {
-        console.error('[ORIZON] Falha ao renderizar card de apontamento no modal de edição:', err);
-        try {
-          aptList.innerHTML = '';
-          aptList.appendChild(el('div', { class:'pill bad' }, ['Não foi possível carregar o card de apontamento.']));
-        } catch {}
-      }
-    };
-    status.addEventListener('change', () => { safeSyncMapeada(); safeRenderApontamentos(); });
-    const editReactiveFields = [ini, fim].filter(Boolean);
-    editReactiveFields.forEach(field => field.addEventListener('input', safeRenderApontamentos));
-    safeSyncMapeada();
+    status.addEventListener('change', () => { syncMapeada(); renderApontamentos(); });
+    [ini, fim].forEach(field => field.addEventListener('input', renderApontamentos));
+    syncMapeada();
 
     const before = {
       titulo: demand.titulo,
@@ -6393,7 +6193,6 @@ main{padding:14px;overflow-x:hidden}
       horas_planejadas_dia: demand.horas_planejadas_dia,
       prioridade: demand.prioridade,
       status: demand.status,
-      data_conclusao: demandCompletionDate(demand),
       observacoes: demand.observacoes,
       apontamentos: normalizeDemandApontamentos(demand)
     };
@@ -6424,14 +6223,6 @@ main{padding:14px;overflow-x:hidden}
         status: nextStatus,
       });
       if (demandValidation) { toast(demandValidation); return; }
-      if (nextStatus === 'Concluída' && !conclusaoDraft) {
-        toast('Use o botão ✓ Conclusão para informar data e comentário antes de salvar como Concluída.');
-        return;
-      }
-      const conclusaoVal = String(conclusaoDraft || '').trim();
-      if (nextStatus === 'Concluída') {
-        if (!isISODateString(conclusaoVal)) { toast('Informe a data de conclusão pelo botão Conclusão.'); return; }
-      }
       const respIds = (nextStatus === 'Mapeada') ? [] : selectedResponsaveis();
       if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais responsáveis ou marque como Mapeada.'); return; }
       const allocations = (nextStatus === 'Mapeada')
@@ -6456,9 +6247,6 @@ main{padding:14px;overflow-x:hidden}
         allocations,
         prioridade: prioridade.value,
         status: nextStatus,
-        data_conclusao: nextStatus === 'Concluída' ? conclusaoVal : '',
-        concluida_em: nextStatus === 'Concluída' ? conclusaoVal : '',
-        comentario_conclusao: nextStatus === 'Concluída' ? comentarioConclusaoDraft : '',
         observacoes: obsVal,
         apontamentos: normalizeDemandApontamentos({ apontamentos }),
         last_edit_by: userName,
@@ -6478,8 +6266,6 @@ main{padding:14px;overflow-x:hidden}
         horas_planejadas_dia: next.horas_planejadas_dia,
         prioridade: next.prioridade,
         status: next.status,
-        data_conclusao: next.data_conclusao,
-        comentario_conclusao: next.comentario_conclusao,
         observacoes: next.observacoes,
         apontamentos: normalizeDemandApontamentos(next)
       };
@@ -6516,7 +6302,6 @@ main{padding:14px;overflow-x:hidden}
           status,
           el('div', { class:'multiSelectHint' }, ['Use “Mapeada” quando ainda não houver responsável definido.'])
         ]),
-        dataConclusaoField,
       ]),
       el('div', { class:'row' }, [
         el('div', { class:'field demandAllocSummaryField' }, [
@@ -6535,7 +6320,6 @@ main{padding:14px;overflow-x:hidden}
     ]));
 
     openDialog(dlg);
-    setTimeout(safeRenderApontamentos, 0);
   };
 
   // ----------------------
@@ -6546,15 +6330,13 @@ main{padding:14px;overflow-x:hidden}
     const dlg = qs('#demandStagesModal');
     if (!dlg || !demand) return;
 
-    let workingDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
-
-    qs('#demandStagesModalTitle').textContent = `Apontamento - ${workingDemand.titulo}`;
+    qs('#demandStagesModalTitle').textContent = `Apontamento - ${demand.titulo}`;
     qs('#demandStagesModalSub').textContent = 'Cadastre a atividade realizada nesta demanda.';
 
     const body = qs('#demandStagesModalBody');
     body.innerHTML = '';
 
-    let apontamentos = normalizeDemandApontamentos(workingDemand);
+    let apontamentos = normalizeDemandApontamentos(demand);
     const data = el('input', { type:'date', value: todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const etapa = el('select');
     for (const step of PROJECT_STEP_OPTIONS) etapa.appendChild(el('option', { value:step }, [step]));
@@ -6583,53 +6365,6 @@ main{padding:14px;overflow-x:hidden}
       const ultimo = apontamentos.length ? apontamentos[apontamentos.length - 1] : null;
       summary.textContent = `${apontamentos.length} apontamento(s) - ${fmtHours(totalHoras)}h realizadas - Ultimo: ${ultimo ? `${formatDateBR(ultimo.data)} / ${ultimo.etapa}` : '-'}.`;
 
-      const completionDate = demandCompletionDate(workingDemand);
-      const execMetrics = demandExecutionMetrics({ ...workingDemand, apontamentos }, apontamentos);
-      const isConcluded = normalizeStatus(workingDemand.status) === 'Concluída';
-      const plannedEnd = String(workingDemand.data_fim || '').trim();
-      const isEarly = isConcluded && completionDate && plannedEnd && completionDate < plannedEnd;
-      const isLate = isConcluded && completionDate && plannedEnd && completionDate > plannedEnd;
-      const controlTone = isEarly ? 'var(--success-soft)' : (isLate ? 'var(--danger-soft)' : (isConcluded ? 'var(--success-soft)' : 'var(--surface)'));
-      const controlTitle = isConcluded
-        ? (isEarly ? '✓ Concluída antecipadamente' : (isLate ? '✓ Concluída com atraso' : '✓ Concluída no prazo'))
-        : (execMetrics.realHours >= execMetrics.plannedHours && execMetrics.plannedHours > 0 ? '✓ Planejado atingido' : 'Controle de execução');
-      const controlHint = isConcluded
-        ? `Data real: ${formatDateBR(completionDate)}. O prazo planejado (${formatDateBR(plannedEnd)}) fica preservado e a capacidade futura é liberada.`
-        : 'Acompanhe planejado x realizado e conclua a demanda quando a entrega terminar.';
-      const miniMetric = (label, value, hint='') => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:#fff' }, [
-        el('div', { class:'tiny muted' }, [label]),
-        el('div', { class:'mono', style:'font-weight:950;font-size:18px' }, [value]),
-        el('div', { class:'tiny muted', style:'margin-top:2px' }, [hint])
-      ]);
-      history.appendChild(el('div', { style:`border:1px solid var(--border);border-radius:16px;padding:12px;background:${controlTone};display:grid;gap:10px;margin:0 0 12px` }, [
-        el('div', { style:'display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap' }, [
-          el('div', {}, [
-            el('div', { style:'font-weight:950' }, [controlTitle]),
-            el('div', { class:'tiny muted', style:'margin-top:3px' }, [controlHint]),
-            workingDemand.comentario_conclusao ? el('div', { class:'tiny muted', style:'margin-top:6px' }, [`Comentário: ${workingDemand.comentario_conclusao}`]) : null,
-          ]),
-          iconButton(isConcluded ? 'Editar conclusão' : 'Conclusão', '✓', 'primary', () => {
-            openDemandConclusionModal({ ...workingDemand, apontamentos }, {
-              defaultDate: completionDate || ultimo?.data || todayISO(),
-              onConfirm: ({ data_conclusao, comentario_conclusao }) => {
-                persistApontamentos('Demanda concluída. Capacidade futura liberada.', {
-                  status: 'Concluída',
-                  data_conclusao,
-                  concluida_em: data_conclusao,
-                  comentario_conclusao,
-                });
-              }
-            });
-          })
-        ]),
-        el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px' }, [
-          miniMetric('Planejado original', `${decimalHoursToHHMM(execMetrics.plannedHours)}h`, `${execMetrics.plannedDays} dia(s) úteis`),
-          miniMetric(isConcluded ? 'Planejado até conclusão' : 'Planejado até hoje', `${decimalHoursToHHMM(isConcluded ? execMetrics.effectivePlannedHours : execMetrics.plannedUntilTodayHours)}h`, isConcluded ? `${execMetrics.effectivePlannedDays} dia(s) úteis` : `${execMetrics.plannedUntilTodayDays} dia(s) úteis`),
-          miniMetric('Realizado', `${decimalHoursToHHMM(execMetrics.realHours)}h`, `${apontamentos.length} apontamento(s)`),
-          miniMetric('Tendência', execMetrics.trend, isConcluded ? 'baseado na conclusão' : 'baseado nas horas'),
-        ])
-      ]));
-
       if (!apontamentos.length) {
         history.appendChild(el('div', { style:'padding:14px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:var(--surface)' }, [
           'Nenhum apontamento cadastrado para esta demanda.'
@@ -6639,7 +6374,7 @@ main{padding:14px;overflow-x:hidden}
 
       const list = el('div', { style:'display:flex;flex-direction:column;gap:8px;margin-top:8px' });
       for (const a of [...apontamentos].reverse().slice(0, 8)) {
-        const flags = apontamentoWindowFlags(workingDemand, a);
+        const flags = apontamentoWindowFlags(demand, a);
         const windowBadges = [
           flags.early ? el('span', { class:'pill warn', title:'Apontamento antes da data de início planejada.' }, ['Execução antecipada']) : null,
           flags.late ? el('span', { class:'pill bad', title:'Apontamento depois do prazo atual da demanda.' }, ['Fora do prazo']) : null,
@@ -6675,17 +6410,15 @@ main{padding:14px;overflow-x:hidden}
       history.appendChild(list);
     };
 
-    const persistApontamentos = (message, patch={}) => {
+    const persistApontamentos = (message) => {
       apontamentos = normalizeDemandApontamentos({ apontamentos });
-      workingDemand = {
-        ...workingDemand,
-        ...patch,
+      dispatch('UPDATE_DEMAND', {
+        ...demand,
         apontamentos,
         last_edit_by: userName,
         last_edit_at: Date.now(),
-        last_edit_justification: patch.status === 'Concluída' ? 'Conclusão registrada pela aba Demandas.' : 'Apontamento registrado pela aba Demandas.',
-      };
-      dispatch('UPDATE_DEMAND', workingDemand);
+        last_edit_justification: 'Apontamento registrado pela aba Demandas.',
+      });
       renderHistory();
       toast(message);
       render();
@@ -6695,7 +6428,7 @@ main{padding:14px;overflow-x:hidden}
       const nextData = String(data.value || '').trim();
       const nextEtapa = normalizeProjectStep(etapa.value);
       const nextHoras = parseApontamentoHours(horas.value);
-      const validation = validateApontamentoInput({ data: nextData, etapa: nextEtapa, horas: nextHoras }, workingDemand);
+      const validation = validateApontamentoInput({ data: nextData, etapa: nextEtapa, horas: nextHoras }, demand);
       if (validation) { toast(validation); return; }
       const obsValidation = validateTextLimit(obs.value, 'Observação do apontamento', INPUT_LIMITS.shortNote);
       if (obsValidation) { toast(obsValidation); return; }
@@ -6747,9 +6480,9 @@ main{padding:14px;overflow-x:hidden}
 
     body.appendChild(el('div', { class:'grid' }, [
       el('div', { class:'hint' }, [
-        el('b', {}, [workingDemand.titulo || 'Demanda']),
+        el('b', {}, [demand.titulo || 'Demanda']),
         el('div', { class:'tiny muted', style:'margin-top:4px' }, [
-          `${formatDateBR(workingDemand.data_inicio)} -> ${formatDateBR(workingDemand.data_fim)} - ${workingDemand.prioridade || 'Media'} - ${effectiveStatus(workingDemand)}`
+          `${formatDateBR(demand.data_inicio)} -> ${formatDateBR(demand.data_fim)} - ${demand.prioridade || 'Media'} - ${effectiveStatus(demand)}`
         ]),
         el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Apontamentos antes do início planejado são permitidos e contabilizados como execução antecipada.'])
       ]),
@@ -9013,7 +8746,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           el('div', { class:'actionBtns' }, [
             iconButton('Editar', '✎', '', edit),
             iconButton('Reprogramar', '↻', '', reprogram),
-            iconButton('Conclusão', '✓', 'primary', () => openDemandConclusionModal(primaryDemand)),
             iconButton('Apontamento', '📝', 'primary', apontamento),
             iconButton('Excluir', '🗑', 'danger', del),
           ])
@@ -9390,10 +9122,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     const occPct = cap > 0 ? (alloc / cap) * 100 : 0;
     const demandsCount = (state.demands||[]).filter(d => {
       if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId))) return false;
+      const st = effectiveStatus(d);
+      if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) return false;
       const monthStart = `${y}-${String(m0+1).padStart(2,'0')}-01`;
       const lastDay = String(new Date(y, m0+1, 0).getDate()).padStart(2,'0');
       const monthEnd = `${y}-${String(m0+1).padStart(2,'0')}-${lastDay}`;
-      return demandOverlapsAllocationRange(d, monthStart, monthEnd);
+      return String(d.data_inicio||'') <= monthEnd && String(d.data_fim||'') >= monthStart;
     }).length;
     return {
       y, m0,
@@ -11418,14 +11152,6 @@ return el('div', { class:'grid' }, [
   edlg.addEventListener('close', syncModalBlur);
   edlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ edlg.close(); }catch{ edlg.removeAttribute('open'); } syncModalBlur(); });
 
-  const cdlg = qs('#demandConclusionModal');
-  if (cdlg) {
-    qs('#demandConclusionModalClose').addEventListener('click', closeDemandConclusionModal);
-    cdlg.addEventListener('click', (e) => { if (e.target === cdlg) closeDemandConclusionModal(); });
-    cdlg.addEventListener('close', syncModalBlur);
-    cdlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDemandConclusionModal(); });
-  }
-
 	  const rpd = qs('#demandReprogramModal');
 	  if (rpd) {
 	    qs('#demandReprogramModalClose').addEventListener('click', () => { try{ rpd.close(); }catch{ rpd.removeAttribute('open'); } syncModalBlur(); });
@@ -11719,7 +11445,7 @@ return el('div', { class:'grid' }, [
   const buildDemandasExportData = () => {
     const headers = [
       'id','titulo','responsavel','data_inicio','data_fim','status_base','status_atual',
-      'percentual_diario','horas_dia','data_conclusao','prioridade','predio','focal','observacoes'
+      'percentual_diario','horas_dia','prioridade','predio','focal','observacoes'
     ];
     const resMap = resourceById();
     const rows = (state.demands||[]).map(d => {
@@ -11738,7 +11464,6 @@ return el('div', { class:'grid' }, [
         status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
         percentual_diario: isFinite(pct) ? pct : '',
         horas_dia: isFinite(horas) ? Number(horas.toFixed(2)) : '',
-        data_conclusao: demandCompletionDate(d),
         prioridade: d.prioridade || '',
         predio: d.predio || '',
         focal: d.focal || '',
@@ -11845,7 +11570,7 @@ return el('div', { class:'grid' }, [
     const resMap = resourceById();
     const headers = [
       'demand_id','titulo','status_base','status_atual','responsavel_id','responsavel','data_inicio','data_fim',
-      'baseline_inicio','baseline_fim','percentual_diario','horas_dia','data_conclusao','prioridade','predio','focal',
+      'baseline_inicio','baseline_fim','percentual_diario','horas_dia','prioridade','predio','focal',
       'observacoes','created_by','created_by_id','updated_by','updated_by_id'
     ];
     const rows = (state.demands || []).map(d => {
@@ -11866,7 +11591,6 @@ return el('div', { class:'grid' }, [
         baseline_fim: d.baseline_fim || d.data_fim || '',
         percentual_diario: isFinite(pct) ? pct : '',
         horas_dia: isFinite(horas) ? Number(horas.toFixed(2)) : '',
-        data_conclusao: demandCompletionDate(d),
         prioridade: d.prioridade || '',
         predio: d.predio || '',
         focal: d.focal || '',
@@ -12255,12 +11979,11 @@ return el('div', { class:'grid' }, [
     for (const d of (state.demands || [])) {
       const start = String(d.data_inicio || d.start || '').trim();
       const end = String(d.data_fim || d.end || '').trim();
-      const allocationEnd = demandEffectiveAllocationEnd(d) || end;
-      if (!isISODateString(start) || !isISODateString(end) || allocationEnd < ctx.periodStart || start > ctx.periodEnd) continue;
+      if (!isISODateString(start) || !isISODateString(end) || end < ctx.periodStart || start > ctx.periodEnd) continue;
       const rangeStart = start < ctx.periodStart ? ctx.periodStart : start;
-      const rangeEnd = allocationEnd > ctx.periodEnd ? ctx.periodEnd : allocationEnd;
-      if (rangeEnd < rangeStart) continue;
+      const rangeEnd = end > ctx.periodEnd ? ctx.periodEnd : end;
       const statusAtual = effectiveStatus ? effectiveStatus(d) : (d.status || '');
+      const contaAlocacao = STATUS_COUNTS_IN_ALLOCATION.has(statusAtual);
       for (const alloc of demandAllocations(d)) {
         const rid = alloc.resourceId || '';
         const res = resMap[rid];
@@ -12270,7 +11993,6 @@ return el('div', { class:'grid' }, [
           const dateStr = formatDate(day);
           const reason = CapacityEngine.nonWorkingReasonForDay(rid, day);
           const elegivel = !reason;
-          const contaAlocacao = demandCountsInAllocationOnDate(d, dateStr);
           const plannedHH = contaAlocacao && elegivel ? Math.max(0, hoursPerDay) : 0;
           rows.push({
             data: dateStr,
@@ -12850,7 +12572,7 @@ return el('div', { class:'grid' }, [
   const exportDemandasCSV = () => {
     const headers = [
       'id','titulo','responsavel','data_inicio','data_fim','status_base','status_atual',
-      'percentual_diario','horas_planejadas_dia','data_conclusao','prioridade','observacoes'
+      'percentual_diario','horas_planejadas_dia','prioridade','observacoes'
     ];
     const rows = (state.demands||[]).map(d => {
       const alloc = demandAllocations(d)[0] || {};
@@ -12864,7 +12586,6 @@ return el('div', { class:'grid' }, [
         status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
         percentual_diario: (alloc.percentual_diario ?? d.dailyPercent ?? d.percentual_diario ?? d.percent ?? ''),
         horas_planejadas_dia: (alloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? ''),
-        data_conclusao: demandCompletionDate(d),
         prioridade: d.prioridade || '',
         observacoes: d.obs || d.observacoes || ''
       };
@@ -13510,8 +13231,7 @@ qs('#userName').addEventListener('keydown', (e) => {
 
   window.addEventListener('load', async () => {
     try {
-      const swVersion = '2026-06-11-edit-fix-2';
-      const registration = await navigator.serviceWorker.register(`./sw.js?v=${swVersion}`, { scope: './', updateViaCache:'none' });
+      const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
 
       // Procura atualização quando o app abre.
       try { await registration.update(); } catch {}
