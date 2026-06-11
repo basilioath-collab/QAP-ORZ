@@ -905,6 +905,19 @@ main{padding:14px;overflow-x:hidden}
     </div>
   </dialog>
 
+  <dialog id="demandCompleteModal" class="modal">
+    <div class="modalCard">
+      <div class="modalHd">
+        <div>
+          <div class="modalTitle" id="demandCompleteModalTitle">Concluir demanda</div>
+          <div class="modalSub" id="demandCompleteModalSub">Informe a data real e uma justificativa rápida.</div>
+        </div>
+        <button class="btn ghost" id="demandCompleteModalClose" type="button">Fechar ×</button>
+      </div>
+      <div class="modalBd" id="demandCompleteModalBody"></div>
+    </div>
+  </dialog>
+
   <dialog id="resourceEditModal" class="modal">
     <div class="modalCard">
       <div class="modalHd">
@@ -2966,12 +2979,15 @@ main{padding:14px;overflow-x:hidden}
     return st === 'Concluída' && !!demandCompletionDate(demand);
   };
 
-  const completeDemand = (demand, completionDate=todayISO(), { apontamentosOverride=null, message='Demanda concluída.' } = {}) => {
+  const completeDemand = (demand, completionDate=todayISO(), { apontamentosOverride=null, justification='', message='Demanda concluída.' } = {}) => {
     if (!demand?.id) return false;
     const doneAt = String(completionDate || todayISO()).trim();
+    const reason = String(justification || '').trim();
     const dateValidation = validateDateYearLimit(doneAt, 'Data de conclusão');
     if (dateValidation) { toast(dateValidation); return false; }
     if (!isISODateString(doneAt)) { toast('Informe uma data válida para concluir a demanda.'); return false; }
+    const reasonValidation = validateTextLimit(reason, 'Justificativa da conclusão', INPUT_LIMITS.justification, { required:true });
+    if (reasonValidation) { toast(reasonValidation); return false; }
     const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
     const apontamentos = Array.isArray(apontamentosOverride)
       ? normalizeDemandApontamentos({ apontamentos: apontamentosOverride })
@@ -2983,10 +2999,12 @@ main{padding:14px;overflow-x:hidden}
       concluida_em: doneAt,
       concluida_por: userName || 'Sessão local',
       concluida_por_id: userId || '',
+      concluida_justificativa: reason,
+      motivo_conclusao: reason,
       apontamentos,
       last_edit_by: userName,
       last_edit_at: Date.now(),
-      last_edit_justification: `Demanda concluída em ${formatDateBR(doneAt)}.`,
+      last_edit_justification: `Demanda concluída em ${formatDateBR(doneAt)}. Justificativa: ${reason}`,
     });
     toast(message);
     return true;
@@ -5823,9 +5841,14 @@ main{padding:14px;overflow-x:hidden}
   const openDemandEditModal = (demand) => {
     const dlg = qs('#demandEditModal');
     const resMap = resourceById();
+    const editCompleted = isDemandCompleted(demand);
+    const editCompletedAt = demandCompletionDate(demand);
+    const editCompletionReason = String(demand.concluida_justificativa || demand.motivo_conclusao || '').trim();
 
     qs('#demandEditModalTitle').textContent = `Editar demanda - ${demand.titulo}`;
-    qs('#demandEditModalSub').textContent = 'Justificativa opcional (fica registrada no histórico se preenchida).';
+    qs('#demandEditModalSub').textContent = editCompleted
+      ? 'Demanda concluída: apontamentos em modo somente leitura.'
+      : 'Justificativa opcional (fica registrada no histórico se preenchida).';
 
     const body = qs('#demandEditModalBody');
     body.innerHTML = '';
@@ -6122,7 +6145,7 @@ main{padding:14px;overflow-x:hidden}
                 badge(a.etapa),
                 el('span', { class:'mono', style:'font-weight:950' }, [`${fmtHours(a.horas || 0)}h`])
               ]),
-              el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
+              editCompleted ? null : el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
                 iconButton('Editar', '✎', '', () => {
                   editingAptId = String(a.id);
                   aptData.value = a.data || todayISO();
@@ -6153,6 +6176,7 @@ main{padding:14px;overflow-x:hidden}
     };
 
     const upsertApontamento = () => {
+      if (editCompleted) { toast('Demanda concluída: não é possível lançar novos apontamentos.'); return; }
       const data = String(aptData.value || '').trim();
       const etapa = normalizeProjectStep(aptEtapa.value);
       const horas = parseApontamentoHours(aptHoras.value);
@@ -6196,14 +6220,17 @@ main{padding:14px;overflow-x:hidden}
     };
     renderApontamentos();
 
-    saveAptBtn = button('Adicionar etapa', 'primary', upsertApontamento);
-    cancelAptBtn = button('Cancelar edição', '', () => { resetApontamentoForm(); });
-    cancelAptBtn.style.display = 'none';
+    saveAptBtn = editCompleted ? null : button('Adicionar etapa', 'primary', upsertApontamento);
+    cancelAptBtn = editCompleted ? null : button('Cancelar edição', '', () => { resetApontamentoForm(); });
+    if (cancelAptBtn) cancelAptBtn.style.display = 'none';
 
     const apontamentosBox = el('div', { class:'field', style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff' }, [
       el('label', {}, ['Etapas do projeto / apontamento real']),
-      el('div', { class:'tiny muted', style:'margin-bottom:10px' }, ['Registre horas reais gastas por documento/atividade. Não soma novamente na capacidade planejada.']),
-      el('div', { class:'row' }, [
+      el('div', { class:'tiny muted', style:'margin-bottom:10px' }, [editCompleted
+        ? `Demanda concluída em ${formatDateBR(editCompletedAt)}${editCompletionReason ? ` - Justificativa: ${editCompletionReason}` : ''}. Apontamentos bloqueados para edição.`
+        : 'Registre horas reais gastas por documento/atividade. Não soma novamente na capacidade planejada.'
+      ]),
+      editCompleted ? null : el('div', { class:'row' }, [
         el('div', { class:'field', style:'min-width:150px;flex:0 0 150px' }, [el('label', {}, ['Data']), aptData]),
         el('div', { class:'field', style:'min-width:170px;flex:0 0 170px' }, [el('label', {}, ['Etapa']), aptEtapa]),
         el('div', { class:'field', style:'min-width:130px;flex:0 0 130px' }, [el('label', {}, ['Horas gastas']), aptHoras]),
@@ -6383,15 +6410,113 @@ main{padding:14px;overflow-x:hidden}
   };
 
   // ----------------------
-  // Reprogramar Demanda (modal: novo prazo final + justificativa obrigatória)
+  // Concluir Demanda (modal: data real + justificativa obrigatória)
   // ----------------------
+  const openDemandCompletionModal = (demand, { apontamentosOverride=null, onCompleted=null } = {}) => {
+    const dlg = qs('#demandCompleteModal');
+    if (!dlg || !demand) return;
+
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandCompleted(latest)) {
+      toast('Demanda já está concluída.');
+      return;
+    }
+
+    const plannedEnd = String(latest.data_fim || '').trim();
+    const defaultDate = todayISO();
+    const apontamentos = Array.isArray(apontamentosOverride)
+      ? normalizeDemandApontamentos({ apontamentos: apontamentosOverride })
+      : normalizeDemandApontamentos(latest);
+
+    qs('#demandCompleteModalTitle').textContent = `Concluir demanda - ${latest.titulo || 'Demanda'}`;
+    qs('#demandCompleteModalSub').textContent = 'Informe a data real e uma justificativa rápida para encerrar a demanda.';
+
+    const body = qs('#demandCompleteModalBody');
+    body.innerHTML = '';
+
+    const doneDate = el('input', { type:'date', value: defaultDate, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const reason = el('textarea', { placeholder:'Ex: Entrega validada antes do prazo planejado.', maxlength:String(INPUT_LIMITS.justification), style:'min-height:96px' });
+    const dateErr = el('div', { class:'inlineError', style:'display:none' }, ['Informe uma data de conclusão válida.']);
+    const reasonErr = el('div', { class:'inlineError', style:'display:none' }, ['Informe uma justificativa para concluir a demanda.']);
+    const preview = el('div', { class:'hint' });
+
+    const renderPreview = () => {
+      const doneAt = String(doneDate.value || '').trim();
+      const isEarly = isISODateString(doneAt) && isISODateString(plannedEnd) && doneAt < plannedEnd;
+      const isLate = isISODateString(doneAt) && isISODateString(plannedEnd) && doneAt > plannedEnd;
+      preview.innerHTML = '';
+      preview.appendChild(el('div', {}, [
+        el('b', {}, [latest.titulo || 'Demanda']),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, [
+          `Planejado: ${formatDateBR(latest.data_inicio)} → ${formatDateBR(latest.data_fim)} | Apontamentos preservados: ${apontamentos.length} (${fmtHours(apontamentos.reduce((acc,a)=>acc+Number(a.horas||0),0))}h)`
+        ]),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, [
+          isEarly
+            ? `Conclusão antecipada: a alocação passará a contar somente até ${formatDateBR(doneAt)}.`
+            : (isLate ? `Conclusão após o prazo planejado: a data real será registrada como ${formatDateBR(doneAt)}.` : 'A conclusão registrará a data real e bloqueará novos apontamentos nessa demanda.')
+        ])
+      ]));
+    };
+
+    const validate = () => {
+      const doneAt = String(doneDate.value || '').trim();
+      const dateMsg = validateDateYearLimit(doneAt, 'Data de conclusão') || (!isISODateString(doneAt) ? 'Informe uma data de conclusão válida.' : '');
+      const reasonMsg = validateTextLimit(reason.value, 'Justificativa da conclusão', INPUT_LIMITS.justification, { required:true });
+      dateErr.textContent = dateMsg || '';
+      reasonErr.textContent = reasonMsg || '';
+      dateErr.style.display = dateMsg ? '' : 'none';
+      reasonErr.style.display = reasonMsg ? '' : 'none';
+      doneDate.closest('.field')?.classList.toggle('invalid', !!dateMsg);
+      reason.closest('.field')?.classList.toggle('invalid', !!reasonMsg);
+      return !dateMsg && !reasonMsg;
+    };
+
+    doneDate.addEventListener('change', () => { renderPreview(); validate(); });
+    reason.addEventListener('input', validate);
+
+    const confirmConclusion = () => {
+      if (!validate()) return;
+      if (!apontamentos.length && !confirm('Concluir sem nenhum apontamento de horas?')) return;
+      const ok = completeDemand(latest, doneDate.value, {
+        apontamentosOverride: apontamentos,
+        justification: reason.value,
+        message: 'Demanda concluída.',
+      });
+      if (!ok) return;
+      closeDialog(dlg);
+      if (typeof onCompleted === 'function') onCompleted();
+      render();
+    };
+
+    body.appendChild(el('div', { class:'grid', style:'gap:12px' }, [
+      preview,
+      el('div', { class:'row', style:'align-items:flex-start' }, [
+        el('div', { class:'field', style:'min-width:170px;flex:0 0 170px' }, [el('label', {}, ['Data de conclusão']), doneDate, dateErr]),
+        el('div', { class:'field', style:'flex:1;min-width:260px' }, [el('label', {}, ['Justificativa rápida']), reason, reasonErr]),
+      ]),
+      el('div', { class:'row', style:'justify-content:flex-end;gap:10px' }, [
+        button('Cancelar', '', () => closeDialog(dlg)),
+        button('Confirmar conclusão', 'primary', confirmConclusion),
+      ])
+    ]));
+
+    renderPreview();
+    openDialog(dlg);
+    setTimeout(() => { try { reason.focus(); } catch {} }, 0);
+  };
 
   const openDemandStagesModal = (demand) => {
     const dlg = qs('#demandStagesModal');
     if (!dlg || !demand) return;
 
-    qs('#demandStagesModalTitle').textContent = `Apontamento - ${demand.titulo}`;
-    qs('#demandStagesModalSub').textContent = 'Cadastre a atividade realizada nesta demanda.';
+    const completed = isDemandCompleted(demand);
+    const completedAt = demandCompletionDate(demand);
+    const completionReason = String(demand.concluida_justificativa || demand.motivo_conclusao || '').trim();
+
+    qs('#demandStagesModalTitle').textContent = completed ? `Apontamentos - ${demand.titulo}` : `Apontamento - ${demand.titulo}`;
+    qs('#demandStagesModalSub').textContent = completed
+      ? 'Demanda concluída: apontamentos disponíveis apenas para visualização.'
+      : 'Cadastre a atividade realizada nesta demanda.';
 
     const body = qs('#demandStagesModalBody');
     body.innerHTML = '';
@@ -6446,7 +6571,7 @@ main{padding:14px;overflow-x:hidden}
               el('div', { class:'mono', style:'font-weight:950;margin-top:2px' }, [`${fmtHours(a.horas || 0)}h`]),
               windowBadges.length ? el('div', { class:'row', style:'gap:6px;flex-wrap:wrap;margin-top:6px' }, windowBadges) : null
             ]),
-            el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
+            completed ? null : el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
               iconButton('Editar', '✎', '', () => {
                 editingAptId = String(a.id);
                 data.value = a.data || todayISO();
@@ -6495,6 +6620,7 @@ main{padding:14px;overflow-x:hidden}
     );
 
     const saveCurrentApontamentoDraft = () => {
+      if (completed) { toast('Demanda concluída: apontamentos disponíveis apenas para visualização.'); return false; }
       const nextData = String(data.value || '').trim();
       const nextEtapa = normalizeProjectStep(etapa.value);
       const nextHoras = parseApontamentoHours(horas.value);
@@ -6538,6 +6664,7 @@ main{padding:14px;overflow-x:hidden}
     };
 
     const save = () => {
+      if (completed) { toast('Demanda concluída: não é possível lançar novos apontamentos.'); return; }
       const nextData = String(data.value || '').trim();
       const nextEtapa = normalizeProjectStep(etapa.value);
       const nextHoras = parseApontamentoHours(horas.value);
@@ -6552,34 +6679,26 @@ main{padding:14px;overflow-x:hidden}
     };
 
     const concludeFromModal = () => {
-      const doneAt = String(data.value || todayISO()).trim();
-      const dateValidation = validateDateYearLimit(doneAt, 'Data de conclusão');
-      if (dateValidation) { toast(dateValidation); return; }
-      if (!isISODateString(doneAt)) { toast('Informe uma data válida para concluir a demanda.'); return; }
+      if (completed) { toast('Demanda já está concluída.'); return; }
       if (formHasPendingApontamento() && !saveCurrentApontamentoDraft()) return;
       apontamentos = normalizeDemandApontamentos({ apontamentos });
-      if (!apontamentos.length && !confirm('Concluir sem nenhum apontamento de horas?')) return;
-      persistApontamentos('Demanda concluída.', {
-        status: 'Concluída',
-        data_fim_real: doneAt,
-        concluida_em: doneAt,
-        concluida_por: userName || 'Sessao local',
-        concluida_por_id: userId || '',
+      openDemandCompletionModal(demand, {
+        apontamentosOverride: apontamentos,
+        onCompleted: () => closeDialog(dlg),
       });
-      closeDialog(dlg);
     };
 
-    saveBtn = button('Salvar apontamento', 'primary', save);
-    const concludeBtn = button('Concluir demanda', '', concludeFromModal, { title:'Conclui a demanda na data informada e preserva as horas apontadas.' });
-    cancelBtn = button('Cancelar edicao', '', () => { resetForm(); });
-    cancelBtn.style.display = 'none';
+    saveBtn = completed ? null : button('Salvar apontamento', 'primary', save);
+    const concludeBtn = completed ? null : button('Concluir demanda', '', concludeFromModal, { title:'Conclui a demanda na data informada e preserva as horas apontadas.' });
+    cancelBtn = completed ? null : button('Cancelar edicao', '', () => { resetForm(); });
+    if (cancelBtn) cancelBtn.style.display = 'none';
 
     const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:10px' }, [
       button('Fechar', '', () => closeDialog(dlg)),
       cancelBtn,
       concludeBtn,
       saveBtn,
-    ]);
+    ].filter(Boolean));
 
     body.appendChild(el('div', { class:'grid' }, [
       el('div', { class:'hint' }, [
@@ -6587,26 +6706,28 @@ main{padding:14px;overflow-x:hidden}
         el('div', { class:'tiny muted', style:'margin-top:4px' }, [
           `${formatDateBR(demand.data_inicio)} -> ${formatDateBR(demand.data_fim)} - ${demand.prioridade || 'Media'} - ${effectiveStatus(demand)}`
         ]),
-        el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Apontamentos antes do início planejado são permitidos e contabilizados como execução antecipada.'])
+        completed ? el('div', { class:'tiny muted', style:'margin-top:4px' }, [
+          `Concluída em ${formatDateBR(completedAt)}${completionReason ? ` - Justificativa: ${completionReason}` : ''}. Novos apontamentos ficam bloqueados.`
+        ]) : el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Apontamentos antes do início planejado são permitidos e contabilizados como execução antecipada.'])
       ]),
       el('div', { class:'field', style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:#fff' }, [
         el('label', {}, ['Etapas do projeto / apontamento real']),
-        el('div', { class:'tiny muted' }, ['Registre horas reais gastas por documento/atividade. Nao altera a capacidade planejada.'])
+        el('div', { class:'tiny muted' }, [completed ? 'Demanda concluída: os apontamentos abaixo estão bloqueados para edição.' : 'Registre horas reais gastas por documento/atividade. Nao altera a capacidade planejada.'])
       ]),
-      el('div', { class:'row' }, [
+      completed ? null : el('div', { class:'row' }, [
         el('div', { class:'field', style:'min-width:150px;flex:0 0 150px' }, [el('label', {}, ['Data']), data]),
         el('div', { class:'field', style:'min-width:180px;flex:0 0 180px' }, [el('label', {}, ['Etapa / atividade']), etapa]),
         el('div', { class:'field', style:'min-width:130px;flex:0 0 130px' }, [el('label', {}, ['Horas gastas']), horas]),
       ]),
-      el('div', { class:'field' }, [el('label', {}, ['Observacao']), obs]),
+      completed ? null : el('div', { class:'field' }, [el('label', {}, ['Observacao']), obs]),
       summary,
       history,
       footer
-    ]));
+    ].filter(Boolean)));
 
     renderHistory();
     openDialog(dlg);
-    setTimeout(() => { try { horas.focus(); } catch {} }, 0);
+    if (!completed) setTimeout(() => { try { horas.focus(); } catch {} }, 0);
   };
 
   const openDemandReprogramModal = (demand) => {
@@ -7177,7 +7298,8 @@ main{padding:14px;overflow-x:hidden}
     const s = isObj ? effectiveStatus(statusOrDemand) : normalizeStatus(statusOrDemand);
     const key = (s === 'Em andamento') ? 'andamento' : (s === 'Atrasada') ? 'atrasada' : (s === 'Concluída') ? 'concluida' : (s === 'Mapeada') ? 'mapeada' : (s === 'Congelada') ? 'congelada' : 'planejada';
     const completedAt = isObj ? demandCompletionDate(statusOrDemand) : '';
-    const title = isObj ? (overdueTooltip(statusOrDemand) || (completedAt ? `Concluída em ${formatDateBR(completedAt)}.` : '')) : '';
+    const completionReason = isObj ? String(statusOrDemand.concluida_justificativa || statusOrDemand.motivo_conclusao || '').trim() : '';
+    const title = isObj ? (overdueTooltip(statusOrDemand) || (completedAt ? `Concluída em ${formatDateBR(completedAt)}.${completionReason ? ` Justificativa: ${completionReason}` : ''}` : '')) : '';
     const children = [
       el('span', { class:'sDot' }, []),
     ];
@@ -8842,10 +8964,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
         const conclude = () => {
           const latest = (state.demands || []).find(item => String(item.id) === String(primaryDemand.id)) || primaryDemand;
-          const apontamentos = normalizeDemandApontamentos(latest);
-          if (!apontamentos.length && !confirm('Concluir sem nenhum apontamento de horas?')) return;
-          completeDemand(latest, todayISO(), { message:'Demanda concluída.' });
-          render();
+          openDemandCompletionModal(latest);
         };
 
         const del = () => {
@@ -11284,6 +11403,14 @@ return el('div', { class:'grid' }, [
     sdlg.addEventListener('click', (e) => { if (e.target === sdlg) closeDialog(sdlg); });
     sdlg.addEventListener('close', syncModalBlur);
     sdlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(sdlg); });
+  }
+
+  const cdlg = qs('#demandCompleteModal');
+  if (cdlg) {
+    qs('#demandCompleteModalClose').addEventListener('click', () => closeDialog(cdlg));
+    cdlg.addEventListener('click', (e) => { if (e.target === cdlg) closeDialog(cdlg); });
+    cdlg.addEventListener('close', syncModalBlur);
+    cdlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(cdlg); });
   }
 
   const rdlg = qs('#resourceEditModal');
