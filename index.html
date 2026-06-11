@@ -6360,6 +6360,7 @@ main{padding:14px;overflow-x:hidden}
     const editReactiveFields = [ini, fim].filter(Boolean);
     editReactiveFields.forEach(field => field.addEventListener('input', renderApontamentos));
     syncMapeada();
+    syncCompletionUI();
 
     const before = {
       titulo: demand.titulo,
@@ -6495,6 +6496,7 @@ main{padding:14px;overflow-x:hidden}
           status,
           el('div', { class:'multiSelectHint' }, ['Use “Mapeada” quando ainda não houver responsável definido.'])
         ]),
+        dataConclusaoField,
       ]),
       el('div', { class:'row' }, [
         el('div', { class:'field demandAllocSummaryField' }, [
