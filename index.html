@@ -6356,11 +6356,31 @@ main{padding:14px;overflow-x:hidden}
         renderRespChips();
         renderRespOptions();
       };
-    status.addEventListener('change', () => { syncMapeada(); renderApontamentos(); });
+    const safeSyncMapeada = () => {
+      try { syncMapeada(); }
+      catch (err) {
+        console.error('[ORIZON] Falha ao sincronizar responsáveis no modal de edição:', err);
+        try {
+          respChips.innerHTML = '';
+          respAllocList.innerHTML = '';
+          respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Não foi possível carregar os responsáveis desta demanda.']));
+        } catch {}
+      }
+    };
+    const safeRenderApontamentos = () => {
+      try { renderApontamentos(); }
+      catch (err) {
+        console.error('[ORIZON] Falha ao renderizar card de apontamento no modal de edição:', err);
+        try {
+          aptList.innerHTML = '';
+          aptList.appendChild(el('div', { class:'pill bad' }, ['Não foi possível carregar o card de apontamento.']));
+        } catch {}
+      }
+    };
+    status.addEventListener('change', () => { safeSyncMapeada(); safeRenderApontamentos(); });
     const editReactiveFields = [ini, fim].filter(Boolean);
-    editReactiveFields.forEach(field => field.addEventListener('input', renderApontamentos));
-    syncMapeada();
-    syncCompletionUI();
+    editReactiveFields.forEach(field => field.addEventListener('input', safeRenderApontamentos));
+    safeSyncMapeada();
 
     const before = {
       titulo: demand.titulo,
@@ -6515,14 +6535,7 @@ main{padding:14px;overflow-x:hidden}
     ]));
 
     openDialog(dlg);
-    setTimeout(() => {
-      try { renderApontamentos(); }
-      catch (err) {
-        console.error('[ORIZON] Falha ao renderizar card de apontamento no modal de edição:', err);
-        aptList.innerHTML = '';
-        aptList.appendChild(el('div', { class:'pill bad' }, ['Não foi possível carregar o card de apontamento.']));
-      }
-    }, 0);
+    setTimeout(safeRenderApontamentos, 0);
   };
 
   // ----------------------
@@ -13497,7 +13510,7 @@ qs('#userName').addEventListener('keydown', (e) => {
 
   window.addEventListener('load', async () => {
     try {
-      const swVersion = '2026-06-11-edit-fix';
+      const swVersion = '2026-06-11-edit-fix-2';
       const registration = await navigator.serviceWorker.register(`./sw.js?v=${swVersion}`, { scope: './', updateViaCache:'none' });
 
       // Procura atualização quando o app abre.
