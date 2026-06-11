@@ -5845,7 +5845,7 @@ main{padding:14px;overflow-x:hidden}
     const editCompletedAt = demandCompletionDate(demand);
     const editCompletionReason = String(demand.concluida_justificativa || demand.motivo_conclusao || '').trim();
 
-    qs('#demandEditModalTitle').textContent = `Editar demanda - ${demand.titulo}`;
+    qs('#demandEditModalTitle').textContent = `${editCompleted ? 'Visualizar demanda' : 'Editar demanda'} - ${demand.titulo}`;
     qs('#demandEditModalSub').textContent = editCompleted
       ? 'Demanda concluída: apontamentos em modo somente leitura.'
       : 'Justificativa opcional (fica registrada no histórico se preenchida).';
@@ -5928,11 +5928,11 @@ main{padding:14px;overflow-x:hidden}
         respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(current) ?? resourceHoursById(current, state.resources || []));
       }
       for (const rid of selectedRespIds) {
-        const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
-          el('span', {}, [getRespName(rid)]),
-          el('button', { type:'button', title:'Remover responsável', 'data-remove-rid': rid }, ['×'])
-        ]);
-        chip.querySelector('button').addEventListener('mousedown', (ev) => {
+        const chipChildren = [el('span', {}, [getRespName(rid)])];
+        if (!editCompleted) chipChildren.push(el('button', { type:'button', title:'Remover responsável', 'data-remove-rid': rid }, ['×']));
+        const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, chipChildren);
+        const removeBtn = chip.querySelector('button');
+        if (removeBtn) removeBtn.addEventListener('mousedown', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
           selectedRespIds.delete(rid);
@@ -5941,16 +5941,17 @@ main{padding:14px;overflow-x:hidden}
           syncMapeada();
         });
         respChips.appendChild(chip);
-        const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), title:'Horas por dia reservadas para este responsável', placeholder:'Ex: 03:30' });
-        hours.addEventListener('input', () => { respHoursById.set(rid, parseHoursInput(hours.value)); renderApontamentos(); });
+        const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), title:'Horas por dia reservadas para este responsável', placeholder:'Ex: 03:30', disabled: editCompleted ? 'true' : undefined });
+        if (!editCompleted) hours.addEventListener('input', () => { respHoursById.set(rid, parseHoursInput(hours.value)); renderApontamentos(); });
         respAllocList.appendChild(el('div', { class:'respAllocRow' }, [
           el('div', { class:'respAllocName', title:getRespName(rid) }, [getRespName(rid)]),
           el('div', { class:'respAllocPct' }, [el('label', {}, ['Horas/dia reservadas']), hours]),
         ]));
       }
     };
-    const openRespMenu = () => { responsavel.classList.add('open'); renderRespOptions(); };
+    const openRespMenu = () => { if (editCompleted) return; responsavel.classList.add('open'); renderRespOptions(); };
     const addResponsavelChip = (rid) => {
+      if (editCompleted) return;
       if (!rid || selectedRespIds.has(rid)) return;
       selectedRespIds.add(rid);
       if (!respHoursById.has(rid)) respHoursById.set(rid, resourceHoursById(rid, state.resources || []));
@@ -5960,6 +5961,7 @@ main{padding:14px;overflow-x:hidden}
       openRespMenu();
     };
     respMenu.addEventListener('mousedown', (ev) => {
+      if (editCompleted) return;
       const opt = ev.target.closest('.multiSelectOption');
       if (!opt) return;
       ev.preventDefault();
@@ -5969,6 +5971,7 @@ main{padding:14px;overflow-x:hidden}
     respSearch.addEventListener('input', openRespMenu);
     respSearch.addEventListener('focus', openRespMenu);
     respSearch.addEventListener('keydown', (ev) => {
+      if (editCompleted) return;
       if (ev.key === 'Backspace' && !respSearch.value && selectedRespIds.size) {
         selectedRespIds.delete([...selectedRespIds].at(-1));
         if (!selectedRespIds.size) status.value = 'Mapeada';
@@ -5977,6 +5980,7 @@ main{padding:14px;overflow-x:hidden}
       if (ev.key === 'Escape') closeRespMenu();
     });
     responsavel.addEventListener('mousedown', (ev) => {
+      if (editCompleted) return;
       if (ev.target.closest('.multiSelectOption') || ev.target.closest('[data-remove-rid]')) return;
       setTimeout(() => { try { respSearch.focus(); openRespMenu(); } catch {} }, 0);
     });
@@ -6000,6 +6004,13 @@ main{padding:14px;overflow-x:hidden}
       el('option', { value:'Congelada' }, ['Congelada']),
     ]);
     status.value = normalizeStatus(demand.status);
+    if (!editCompleted) {
+      const concludedOpt = [...status.options].find(opt => opt.value === 'Concluída');
+      if (concludedOpt) {
+        concludedOpt.disabled = true;
+        concludedOpt.title = 'Use o botão Concluir demanda para informar data real e justificativa.';
+      }
+    }
 
     const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [demand.observacoes || '']);
 
@@ -6269,6 +6280,16 @@ main{padding:14px;overflow-x:hidden}
     [ini, fim].forEach(field => field.addEventListener('input', renderApontamentos));
     syncMapeada();
 
+    if (editCompleted) {
+      [titulo, predio, focal, ini, fim, prioridade, status, obs, just, respSearch, respAllocPick, respAllocHoursEditor]
+        .filter(Boolean)
+        .forEach(field => {
+          field.disabled = true;
+          field.classList?.add('locked');
+        });
+      responsavel.classList.add('locked');
+    }
+
     const before = {
       titulo: demand.titulo,
       predio: demand.predio,
@@ -6288,9 +6309,11 @@ main{padding:14px;overflow-x:hidden}
     let saveBtn = null;
 
 	    const save = () => {
+      if (editCompleted) { toast('Demanda concluída: edição bloqueada.'); return; }
       const justification = (just.value || '').trim();
 
       const nextStatus = normalizeStatus(status.value);
+      if (nextStatus === 'Concluída') { toast('Use o botão Concluir demanda para informar data real e justificativa.'); return; }
       if (nextStatus === 'Atrasada') { toast('Status Atrasada ? automático. Selecione outro status.'); return; }
       const titleVal = (titulo.value || '').trim();
       const predioVal = (predio.value || '').trim();
@@ -6363,11 +6386,11 @@ main{padding:14px;overflow-x:hidden}
       toast('Demanda atualizada.');
     };
 
-	    saveBtn = button('Salvar alterações', 'primary', save);
+	    saveBtn = editCompleted ? null : button('Salvar alterações', 'primary', save);
 	    const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:10px' }, [
-      button('Cancelar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
+      button(editCompleted ? 'Fechar' : 'Cancelar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
 	      saveBtn,
-    ]);
+    ].filter(Boolean));
 
     body.appendChild(el('div', { class:'grid' }, [
       el('div', { class:'row' }, [
@@ -8979,8 +9002,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
         tr.appendChild(el('td', {}, [
           el('div', { class:'actionBtns' }, [
-            iconButton('Editar', '✎', '', edit),
-            iconButton('Reprogramar', '↻', '', reprogram),
+            iconButton(effectiveStatus(primaryDemand) === 'Concluída' ? 'Visualizar' : 'Editar', effectiveStatus(primaryDemand) === 'Concluída' ? '👁' : '✎', '', edit),
+            effectiveStatus(primaryDemand) === 'Concluída' ? null : iconButton('Reprogramar', '↻', '', reprogram),
             iconButton('Apontamento', '📝', 'primary', apontamento),
             effectiveStatus(primaryDemand) === 'Concluída' ? null : iconButton('Concluir demanda', '✓', '', conclude),
             iconButton('Excluir', '🗑', 'danger', del),
