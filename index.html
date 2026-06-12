@@ -1140,7 +1140,7 @@ main{padding:14px;overflow-x:hidden}
   const DB_PATH_KEY = 'capview_db_network_path';
   const DB_META_KEY = 'capview_db_meta';
   const DB_BASELINE_KEY = 'capview_db_baseline';
-  const APP_SCHEMA_VERSION = '0.2.3-demand-metrics';
+  const APP_SCHEMA_VERSION = '0.2.4-window-pauses';
   const HOURS_PER_DAY = 9; // Interno: 9h/dia
   const HOURS_PER_DAY_THIRD = 8; // Terceiro: 8h/dia
   const PAGE_SIZE = 10; // itens por página (Demandas e Recursos)
@@ -1404,6 +1404,10 @@ main{padding:14px;overflow-x:hidden}
     for (const ia of (Array.isArray(obj.internalActivities) ? obj.internalActivities : [])) {
       if (ia.resourceId) ia.resourceId = mapVal(ia.resourceId);
       if (ia.recurso_id) ia.recurso_id = mapVal(ia.recurso_id);
+    }
+    for (const wp of (Array.isArray(obj.windowPauses) ? obj.windowPauses : [])) {
+      if (wp.resourceId) wp.resourceId = mapVal(wp.resourceId);
+      if (wp.resource_id) wp.resource_id = mapVal(wp.resource_id);
     }
     for (const ev of (Array.isArray(obj.events) ? obj.events : [])) {
       const p = ev && ev.payload;
@@ -1713,6 +1717,7 @@ main{padding:14px;overflow-x:hidden}
       resources: Array.isArray(migrated.resources) ? migrated.resources : [],
       demands: normalizeDemandsV02(migrated.demands, migrated.reprogrammings, Array.isArray(migrated.resources) ? migrated.resources : []),
       internalActivities: Array.isArray(migrated.internalActivities) ? migrated.internalActivities : [],
+      windowPauses: Array.isArray(migrated.windowPauses) ? migrated.windowPauses : [],
       blockings: Array.isArray(migrated.blockings) ? migrated.blockings : [],
       holidays: Array.isArray(migrated.holidays) ? migrated.holidays : [],
       reprogrammings: Array.isArray(migrated.reprogrammings) ? migrated.reprogrammings : [],
@@ -1728,7 +1733,7 @@ main{padding:14px;overflow-x:hidden}
   };
 
 
-  const DB_COLLECTION_KEYS = ['resources','demands','internalActivities','blockings','holidays','reprogrammings','overtimes','events'];
+  const DB_COLLECTION_KEYS = ['resources','demands','internalActivities','windowPauses','blockings','holidays','reprogrammings','overtimes','events'];
   const stableStringify = (value) => {
     const seen = new WeakSet();
     const sortAny = (v) => {
@@ -2585,6 +2590,7 @@ main{padding:14px;overflow-x:hidden}
     resources: [],
     demands: [],
     internalActivities: [],
+    windowPauses: [],
     blockings: [],
     holidays: [],
     reprogrammings: [],
@@ -4019,9 +4025,41 @@ main{padding:14px;overflow-x:hidden}
       return dateStr >= ini && dateStr <= fim;
     });
   };
-  const internalActivityHoursForDay = (resourceId, dateObj) => {
+  const internalActivityHoursForDay = (resourceId, dateObj, opts={}) => {
+    const excludeId = String(opts.excludeId || '').trim();
     return internalActivitiesForResourceOnDate(resourceId, dateObj, { onlyCapacity:true })
+      .filter(a => !excludeId || String(a?.id || '') !== excludeId)
       .reduce((acc, a) => acc + Math.max(0, Number(a?.horas_dia || a?.horas || 0)), 0);
+  };
+
+  const windowPauseResourceId = (pause={}) => String(pause.resourceId || pause.resource_id || pause.recurso_id || '').trim();
+  const windowPauseDemandId = (pause={}) => String(pause.demandId || pause.demand_id || pause.demanda_id || '').trim();
+  const windowPauseDate = (pause={}) => normalizeDateLikeToISO(pause.date || pause.data || pause.data_pausa || '');
+  const windowPauseFor = (demandId, resourceId, dateStr) => {
+    const did = String(demandId || '').trim();
+    const rid = String(resourceId || '').trim();
+    const dt = String(dateStr || '').trim();
+    if (!did || !rid || !dt) return null;
+    return (state.windowPauses || []).find(p =>
+      windowPauseDemandId(p) === did &&
+      windowPauseResourceId(p) === rid &&
+      windowPauseDate(p) === dt
+    ) || null;
+  };
+  const isDemandAllocationPausedOnDate = (demand, resourceId, dateStr) => !!windowPauseFor(demand?.id, resourceId, dateStr);
+  const demandHoursForResourceOnDate = (demand, resourceId, dateStr, { ignorePause=false } = {}) => {
+    if (!demand || !demandCountsInAllocationOnDate(demand, dateStr)) return 0;
+    if (!ignorePause && isDemandAllocationPausedOnDate(demand, resourceId, dateStr)) return 0;
+    return demandAllocations(demand)
+      .filter(a => String(a.resourceId || '') === String(resourceId || ''))
+      .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
+  };
+  const pausedDemandHoursForDay = (resourceId, dateObj) => {
+    const dateStr = typeof dateObj === 'string' ? dateObj : formatDate(dateObj);
+    return (state.demands || []).reduce((acc, demand) => {
+      if (!isDemandAllocationPausedOnDate(demand, resourceId, dateStr)) return acc;
+      return acc + Math.max(0, demandHoursForResourceOnDate(demand, resourceId, dateStr, { ignorePause:true }));
+    }, 0);
   };
 
   const ownerFromInternalActivityId = (id) => {
@@ -4411,6 +4449,7 @@ main{padding:14px;overflow-x:hidden}
       'REPROGRAM_DEMAND',
       'ADD_RESOURCE','UPDATE_RESOURCE','EDIT_RESOURCE','DELETE_RESOURCE',
       'ADD_BLOCKING','DELETE_BLOCKING',
+      'ADD_WINDOW_PAUSE','DELETE_WINDOW_PAUSE',
       'ADD_HOLIDAY','DELETE_HOLIDAY',
       'ADD_OVERTIME','DELETE_OVERTIME',
       'ADD_INTERNAL_ACTIVITY','UPDATE_INTERNAL_ACTIVITY','DELETE_INTERNAL_ACTIVITY',
@@ -4435,6 +4474,9 @@ main{padding:14px;overflow-x:hidden}
     );
     target.blockings = (target.blockings || []).filter(b =>
       String(b.recurso_id || b.resourceId || '') !== id
+    );
+    target.windowPauses = (target.windowPauses || []).filter(p =>
+      String(p.resourceId || p.resource_id || '') !== id
     );
   };
 
@@ -4488,6 +4530,21 @@ main{padding:14px;overflow-x:hidden}
       case 'DELETE_INTERNAL_ACTIVITY':
         state.internalActivities = (state.internalActivities||[]).filter(x => String(x.id) !== String(payload));
         break;
+      case 'ADD_WINDOW_PAUSE': {
+        const date = normalizeDateLikeToISO(payload?.date || payload?.data || '');
+        const demandId = String(payload?.demandId || payload?.demand_id || '').trim();
+        const resourceId = String(payload?.resourceId || payload?.resource_id || payload?.recurso_id || '').trim();
+        if (!date || !demandId || !resourceId || windowPauseFor(demandId, resourceId, date)) { didMutate = false; break; }
+        const stamped = applyCreateMeta({ ...payload, id: payload?.id || generateId('wp'), demandId, resourceId, date });
+        state.windowPauses.unshift(stamped);
+        eventPayload = stamped;
+        break;
+      }
+      case 'DELETE_WINDOW_PAUSE': {
+        const id = (payload && typeof payload === 'object') ? payload.id : payload;
+        state.windowPauses = (state.windowPauses||[]).filter(p => String(p.id) !== String(id));
+        break;
+      }
       case 'UPDATE_DEMAND': {
         const prev = (state.demands||[]).find(d => d.id === payload.id);
         const stamped = applyUpdateMeta(normalizeDemandBaseline({ ...payload, baseline_inicio: payload.baseline_inicio || prev?.baseline_inicio, baseline_fim: payload.baseline_fim || prev?.baseline_fim }), prev);
@@ -4497,9 +4554,12 @@ main{padding:14px;overflow-x:hidden}
       }
       case 'DELETE_DEMAND':
         state.demands = (state.demands||[]).filter(d => String(d.id) !== String(payload));
+        state.windowPauses = (state.windowPauses||[]).filter(p => windowPauseDemandId(p) !== String(payload));
         break;
       case 'DELETE_DEMANDS': {
-        state.demands = (state.demands||[]).filter(d => !demandMatchesDeletePayload(d, payload));
+        const removedIds = new Set((state.demands||[]).filter(d => demandMatchesDeletePayload(d, payload)).map(d => String(d.id)));
+        state.demands = (state.demands||[]).filter(d => !removedIds.has(String(d.id)));
+        state.windowPauses = (state.windowPauses||[]).filter(p => !removedIds.has(windowPauseDemandId(p)));
         break;
       }
       case 'REPROGRAM_DEMAND': {
@@ -4551,6 +4611,7 @@ main{padding:14px;overflow-x:hidden}
 
     if (!didMutate) {
       if (type === 'ADD_DEMAND') toast('Demanda ja cadastrada; duplicidade ignorada.');
+      if (type === 'ADD_WINDOW_PAUSE') toast('Janela já pausada para esta demanda, recurso e data.');
       return;
     }
 
@@ -4589,9 +4650,16 @@ main{padding:14px;overflow-x:hidden}
         case 'ADD_INTERNAL_ACTIVITY': rebuilt.internalActivities.push(payload); break;
         case 'UPDATE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.map(x => x.id === payload.id ? payload : x); break;
         case 'DELETE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.filter(x => String(x.id) !== String(payload)); break;
+        case 'ADD_WINDOW_PAUSE': rebuilt.windowPauses.push(payload); break;
+        case 'DELETE_WINDOW_PAUSE': { const id = (payload && typeof payload==='object') ? payload.id : payload; rebuilt.windowPauses = rebuilt.windowPauses.filter(p => String(p.id) !== String(id)); break; }
         case 'UPDATE_DEMAND': rebuilt.demands = rebuilt.demands.map(d => d.id === payload.id ? normalizeDemandBaseline(payload) : d); break;
-        case 'DELETE_DEMAND': rebuilt.demands = rebuilt.demands.filter(d => String(d.id) !== String(payload)); break;
-        case 'DELETE_DEMANDS': rebuilt.demands = rebuilt.demands.filter(d => !demandMatchesDeletePayload(d, payload)); break;
+        case 'DELETE_DEMAND': rebuilt.demands = rebuilt.demands.filter(d => String(d.id) !== String(payload)); rebuilt.windowPauses = rebuilt.windowPauses.filter(p => windowPauseDemandId(p) !== String(payload)); break;
+        case 'DELETE_DEMANDS': {
+          const removedIds = new Set(rebuilt.demands.filter(d => demandMatchesDeletePayload(d, payload)).map(d => String(d.id)));
+          rebuilt.demands = rebuilt.demands.filter(d => !removedIds.has(String(d.id)));
+          rebuilt.windowPauses = rebuilt.windowPauses.filter(p => !removedIds.has(windowPauseDemandId(p)));
+          break;
+        }
         case 'REPROGRAM_DEMAND':
           rebuilt.reprogrammings.push(payload.reprogramming);
           rebuilt.demands = rebuilt.demands.map(d => {
@@ -5129,8 +5197,15 @@ main{padding:14px;overflow-x:hidden}
       case 'ADD_DEMAND': case 'UPDATE_DEMAND': target.demands = upsert(target.demands, normalizeDemandBaseline(payload)); break;
       case 'ADD_INTERNAL_ACTIVITY': case 'UPDATE_INTERNAL_ACTIVITY': target.internalActivities = upsert(target.internalActivities, payload); break;
       case 'DELETE_INTERNAL_ACTIVITY': target.internalActivities = (target.internalActivities||[]).filter(x => String(x.id) !== String(payload)); break;
-      case 'DELETE_DEMAND': target.demands = (target.demands||[]).filter(d => String(d.id) !== String(payload)); break;
-      case 'DELETE_DEMANDS': target.demands = (target.demands||[]).filter(d => !demandMatchesDeletePayload(d, payload)); break;
+      case 'ADD_WINDOW_PAUSE': target.windowPauses = upsert(target.windowPauses, payload); break;
+      case 'DELETE_WINDOW_PAUSE': { const id = (payload && typeof payload==='object') ? payload.id : payload; target.windowPauses = (target.windowPauses||[]).filter(p => String(p.id) !== String(id)); break; }
+      case 'DELETE_DEMAND': target.demands = (target.demands||[]).filter(d => String(d.id) !== String(payload)); target.windowPauses = (target.windowPauses||[]).filter(p => windowPauseDemandId(p) !== String(payload)); break;
+      case 'DELETE_DEMANDS': {
+        const removedIds = new Set((target.demands||[]).filter(d => demandMatchesDeletePayload(d, payload)).map(d => String(d.id)));
+        target.demands = (target.demands||[]).filter(d => !removedIds.has(String(d.id)));
+        target.windowPauses = (target.windowPauses||[]).filter(p => !removedIds.has(windowPauseDemandId(p)));
+        break;
+      }
       case 'REPROGRAM_DEMAND': {
         if (payload?.reprogramming) target.reprogrammings = upsert(target.reprogrammings, payload.reprogramming);
         target.demands = (target.demands||[]).map(d => {
@@ -5182,12 +5257,14 @@ main{padding:14px;overflow-x:hidden}
     if (deletedDemandIds.size) {
       target.demands = (target.demands || []).filter(d => !deletedDemandIds.has(String(d.id)));
       target.reprogrammings = (target.reprogrammings || []).filter(rp => !deletedDemandIds.has(String(rp.demanda_id || rp.demandId || '')));
+      target.windowPauses = (target.windowPauses || []).filter(p => !deletedDemandIds.has(windowPauseDemandId(p)));
     }
     if (deletedDemandGroupKeys.size || deletedLogicalGroupIds.size) {
-      target.demands = (target.demands || []).filter(d =>
-        !deletedDemandGroupKeys.has(demandDisplayGroupKey(d)) &&
-        !deletedLogicalGroupIds.has(String(d.logical_group_id || ''))
-      );
+      const removedIds = new Set((target.demands || [])
+        .filter(d => deletedDemandGroupKeys.has(demandDisplayGroupKey(d)) || deletedLogicalGroupIds.has(String(d.logical_group_id || '')))
+        .map(d => String(d.id)));
+      target.demands = (target.demands || []).filter(d => !removedIds.has(String(d.id)));
+      target.windowPauses = (target.windowPauses || []).filter(p => !removedIds.has(windowPauseDemandId(p)));
     }
     for (const id of deletedResourceIds) removeResourceCascade(target, { id });
     return target;
@@ -5431,6 +5508,7 @@ main{padding:14px;overflow-x:hidden}
     state.blockings = mergeUnionById(state.blockings, incoming.blockings, 'blocking');
     state.overtimes = mergeUnionById(state.overtimes, incoming.overtimes, 'he');
     state.reprogrammings = mergeUnionById(state.reprogrammings, incoming.reprogrammings, 'reprogram');
+    state.windowPauses = mergeUnionById(state.windowPauses, incoming.windowPauses, 'window-pause');
 
     // Events: concatena, mas garante IDs únicos
     const evT = Array.isArray(state.events) ? state.events : [];
@@ -5550,10 +5628,7 @@ main{padding:14px;overflow-x:hidden}
       let total = 0;
       for (const dem of (state.demands || [])) {
         if (!demandCountsInAllocationOnDate(dem, dateStr)) continue;
-        const allocHours = demandAllocations(dem)
-          .filter(a => String(a.resourceId || '') === String(resourceId || ''))
-          .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
-        total += allocHours;
+        total += demandHoursForResourceOnDate(dem, resourceId, dateStr);
       }
       return roundDemandHours(total);
     },
@@ -5598,10 +5673,11 @@ main{padding:14px;overflow-x:hidden}
       else if (free <= capacity * 0.2) cls = 'bg-mid';
       else cls = 'bg-ok';
 
+      const pausedFromDemandsHH = pausedDemandHoursForDay(resourceId, dateObj);
       const tag = this.isHoliday(dateStr) ? 'FER' :
-        ((isWeekend(dateObj) && otHours > 0) ? `HE ${otHours}h` : (perc > 0 ? `-${allocated.toFixed(1)}h` : 'livre'));
+        ((isWeekend(dateObj) && otHours > 0) ? `HE ${otHours}h` : (allocated > 0 ? `-${allocated.toFixed(1)}h` : (pausedFromDemandsHH > 0 ? `pausa +${pausedFromDemandsHH.toFixed(1)}h` : 'livre')));
 
-      return { dateStr, capacity, allocated, allocatedFromDemandsHH, allocatedFromInternalHH, free, tag, cls, eligible: true, overtime: otInfo };
+      return { dateStr, capacity, allocated, allocatedFromDemandsHH, allocatedFromInternalHH, pausedFromDemandsHH, free, tag, cls, eligible: true, overtime: otInfo };
     }
   };
 
@@ -5673,6 +5749,7 @@ main{padding:14px;overflow-x:hidden}
     const capFinal = Number(freeInfoDay.capacity || 0);
     const allocFromDemandsHH = Number(freeInfoDay.allocatedFromDemandsHH || 0);
     const allocFromInternalHH = Number(freeInfoDay.allocatedFromInternalHH || 0);
+    const pausedFromDemandsHH = Number(freeInfoDay.pausedFromDemandsHH || 0);
     const allocTotalHH = Number(freeInfoDay.allocated || 0);
     const allocTotalPct = capFinal > 0 ? (allocTotalHH / capFinal) * 100 : 0;
 
@@ -5688,6 +5765,9 @@ main{padding:14px;overflow-x:hidden}
         summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `Atividade interna: ${allocFromInternalHH.toFixed(1)}h`]));
         summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `${internalActivities.length} atividade(s) interna(s)`]));
       }
+      if (pausedFromDemandsHH > 0) {
+        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-he' }), `Janelas pausadas: +${pausedFromDemandsHH.toFixed(1)}h livres`]));
+      }
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-ok' }), `Demandas: ${allocFromDemandsHH.toFixed(1)}h`]));
     } else if (heInfo.total <= 0) {
       const reasonDotClass = nonWorkingReason?.label === 'FER' ? 'bg-holiday' :
@@ -5702,7 +5782,7 @@ main{padding:14px;overflow-x:hidden}
       el('div', { class:'tiny muted' }, [
         nonWorkingReason
           ? 'Dia não útil: demandas normais do intervalo não são contabilizadas nem listadas neste card. Quando existir HE, apenas a HE aparece.'
-          : 'Obs: para a capacidade do dashboard, só contam status: ',
+          : 'Obs: pausas de janela retiram apenas a demanda pausada deste recurso/data, mantendo a capacidade diária disponível para atividades internas. Para a capacidade do dashboard, só contam status: ',
         !nonWorkingReason ? el('b', {}, ['Em andamento']) : null,
         !nonWorkingReason ? ' e ' : null,
         !nonWorkingReason ? el('b', {}, ['Atrasada']) : null,
@@ -5711,6 +5791,10 @@ main{padding:14px;overflow-x:hidden}
     ]);
 
     const body = qs('#dayModalBody');
+    const refreshDayModal = () => {
+      try { dlg.close(); } catch {}
+      setTimeout(() => openDayDetails(resourceId, dateObj), 0);
+    };
 
     const renderDayModal = () => {
       body.innerHTML = '';
@@ -5748,29 +5832,52 @@ main{padding:14px;overflow-x:hidden}
         el('th', {}, ['Focal']),
         el('th', {}, ['Responsável']),
         el('th', {}, ['Período']),
+        el('th', {}, ['Ações']),
       ])]));
       const tb = el('tbody');
       if (pageItems.length === 0 && heInfo.items.length === 0) {
-        tb.appendChild(el('tr', {}, [el('td', { colspan:'7', style:'padding:16px;text-align:center;color:var(--muted)' }, [nonWorkingReason ? 'Nenhuma alocação contabilizada neste dia.' : 'Sem demandas nesse dia.'])]));
+        tb.appendChild(el('tr', {}, [el('td', { colspan:'8', style:'padding:16px;text-align:center;color:var(--muted)' }, [nonWorkingReason ? 'Nenhuma alocação contabilizada neste dia.' : 'Sem demandas nesse dia.'])]));
       } else {
         for (const d of pageItems) {
           const st = effectiveStatus(d);
           const counts = demandCountsInAllocationOnDate(d, dateStr);
-          const allocHoursForResource = demandAllocations(d)
-            .filter(a => String(a.resourceId || '') === String(resourceId || ''))
-            .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
+          const pause = windowPauseFor(d.id, resourceId, dateStr);
+          const paused = !!pause;
+          const allocHoursForResource = demandHoursForResourceOnDate(d, resourceId, dateStr, { ignorePause:true });
+          const countedHoursForResource = paused ? 0 : allocHoursForResource;
           const tr = el('tr');
           if (st === 'Atrasada') tr.classList.add('overdueRow');
           tr.appendChild(el('td', {}, [
             el('div', { style:'font-weight:950' }, [d.titulo]),
-            el('div', { class:'tiny' }, [counts ? 'Conta na alocação' : 'Não conta na alocação'])
+            el('div', { class:'tiny' }, [paused ? `Janela pausada nesta data (+${decimalHoursToHHMM(allocHoursForResource)} livres)` : (counts ? 'Conta na alocação' : 'Não conta na alocação')])
           ]));
-          tr.appendChild(el('td', {}, [statusPill(d)]));
-          tr.appendChild(el('td', { class:'mono' }, [decimalHoursToHHMM(Math.max(0, allocHoursForResource))]));
+          tr.appendChild(el('td', {}, [paused ? el('span', { class:'statusPill s-congelada' }, [el('span', { class:'sDot' }), 'Janela pausada']) : statusPill(d)]));
+          tr.appendChild(el('td', { class:'mono' }, [paused ? `${decimalHoursToHHMM(countedHoursForResource)} / ${decimalHoursToHHMM(Math.max(0, allocHoursForResource))}` : decimalHoursToHHMM(Math.max(0, allocHoursForResource))]));
           tr.appendChild(el('td', {}, [d.predio||'-']));
           tr.appendChild(el('td', {}, [d.focal||'-']));
           tr.appendChild(el('td', {}, [resourceById()[d.responsavel_id]?.nome || '-']));
           tr.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]));
+          tr.appendChild(el('td', {}, [
+            button(paused ? 'Retomar janela' : 'Pausar janela', paused ? '' : 'ghost', () => {
+              if (paused) {
+                dispatch('DELETE_WINDOW_PAUSE', pause.id);
+                toast('Janela retomada para esta demanda/data.');
+              } else {
+                dispatch('ADD_WINDOW_PAUSE', {
+                  id: generateId('wp'),
+                  demandId: d.id,
+                  resourceId,
+                  date: dateStr,
+                  horas_liberadas: roundDemandHours(allocHoursForResource),
+                  titulo_demanda: d.titulo || '',
+                  recurso_nome: res?.nome || '',
+                  motivo: 'Pausa manual de janela'
+                });
+                toast(`Janela pausada: ${decimalHoursToHHMM(allocHoursForResource)} liberadas neste dia.`);
+              }
+              refreshDayModal();
+            }, { title: paused ? 'Volta a contabilizar esta demanda nesta data.' : 'Remove somente esta demanda da ocupação desta data, sem bloquear a capacidade do recurso.' })
+          ]));
           tb.appendChild(tr);
         }
 
@@ -5794,6 +5901,7 @@ main{padding:14px;overflow-x:hidden}
           trIa.appendChild(el('td', {}, ['-']));
           trIa.appendChild(el('td', {}, [res?.nome || '-']));
           trIa.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(ia.data_inicio || dateStr)} - ${formatDateBR(ia.data_fim || ia.data_inicio || dateStr)}`]));
+          trIa.appendChild(el('td', {}, ['-']));
           tb.appendChild(trIa);
         }
 
@@ -5810,6 +5918,7 @@ main{padding:14px;overflow-x:hidden}
           trHe.appendChild(el('td', {}, [x.focal || '-']));
           trHe.appendChild(el('td', {}, [resourceById()[x.resourceId || resourceId]?.nome || (x.resourceId === '__ALL__' ? 'Todos' : '-')]));
           trHe.appendChild(el('td', { class:'mono tiny' }, [formatDateBR(x.date || dateStr)]));
+          trHe.appendChild(el('td', {}, ['-']));
           tb.appendChild(trHe);
         }
       }
@@ -10308,6 +10417,19 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       const hh = parseHoursInput(horas.value);
       if (!Number.isFinite(hh) || hh < 0) return toast('Horas/dia inválidas.');
       if (hh > 24) return toast('Horas/dia não pode ser maior que 24h.');
+      if (contabiliza.value === 'true') {
+        let cursor = isoToLocalMidnight(ini.value);
+        const limit = isoToLocalMidnight(fim.value);
+        while (cursor && limit && cursor.getTime() <= limit.getTime()) {
+          const info = CapacityEngine.freeHoursInfo(activeResource.id, cursor);
+          const currentWithoutEditing = isEditing ? internalActivityHoursForDay(activeResource.id, cursor, { excludeId: editingActivity.id }) : internalActivityHoursForDay(activeResource.id, cursor);
+          const available = Math.max(0, Number(info.capacity || 0) - Number(info.allocatedFromDemandsHH || 0) - currentWithoutEditing);
+          if (hh > available + 1e-9) {
+            return toast(`Sem janela suficiente em ${formatDateBR(formatDate(cursor))}: disponível ${decimalHoursToHHMM(available)} dentro da capacidade diária.`);
+          }
+          cursor.setDate(cursor.getDate() + 1);
+        }
+      }
       const base = isEditing ? { ...editingActivity } : { id: generateId('ia') };
       const payload = {
         ...base,
@@ -12109,7 +12231,7 @@ return el('div', { class:'grid' }, [
   const buildOrizonPackFactCapacidadeDiaRecursoData = (ctx=buildOrizonPackAnaliseContext()) => {
     const headers = [
       'data','ano_mes','semana_inicio','resource_id','recurso','tipo_recurso','horas_dia_recurso',
-      'capacidade_total_hh','alocado_demandas_hh','alocado_internas_hh','alocado_total_hh',
+      'capacidade_total_hh','alocado_demandas_hh','alocado_internas_hh','pausado_demandas_hh','alocado_total_hh',
       'livre_hh','overcap_hh','pct_ocupacao','pct_livre','he_hh','elegivel','motivo_nao_util','tag','classe'
     ];
     const rows = [];
@@ -12121,6 +12243,7 @@ return el('div', { class:'grid' }, [
         const cap = Number(info.capacity || 0);
         const allocDem = Number(info.allocatedFromDemandsHH || 0);
         const allocInt = Number(info.allocatedFromInternalHH || 0);
+        const pausedDem = Number(info.pausedFromDemandsHH || 0);
         const alloc = Number(info.allocated || 0);
         const free = Number(info.free || 0);
         const he = Number(info.overtime?.total || 0);
@@ -12136,6 +12259,7 @@ return el('div', { class:'grid' }, [
           capacidade_total_hh: Number(cap.toFixed(2)),
           alocado_demandas_hh: Number(allocDem.toFixed(2)),
           alocado_internas_hh: Number(allocInt.toFixed(2)),
+          pausado_demandas_hh: Number(pausedDem.toFixed(2)),
           alocado_total_hh: Number(alloc.toFixed(2)),
           livre_hh: Number(free.toFixed(2)),
           overcap_hh: Number(Math.max(0, -free).toFixed(2)),
@@ -12240,7 +12364,7 @@ return el('div', { class:'grid' }, [
     const resMap = resourceById();
     const headers = [
       'data','ano_mes','semana_inicio','demand_id','demanda','status_atual','resource_id','recurso',
-      'percentual_diario','horas_planejadas_dia','conta_alocacao','elegivel_capacidade',
+      'percentual_diario','horas_planejadas_dia','horas_pausadas_dia','conta_alocacao','janela_pausada','elegivel_capacidade',
       'motivo_nao_util','data_inicio','data_fim','baseline_inicio','baseline_fim','predio','focal','prioridade'
     ];
     const rows = [];
@@ -12261,7 +12385,9 @@ return el('div', { class:'grid' }, [
           const dateStr = formatDate(day);
           const reason = CapacityEngine.nonWorkingReasonForDay(rid, day);
           const elegivel = !reason;
-          const contaAlocacao = contaAlocacaoStatus && demandCountsInAllocationOnDate(d, dateStr);
+          const paused = isDemandAllocationPausedOnDate(d, rid, dateStr);
+          const contaAlocacao = contaAlocacaoStatus && demandCountsInAllocationOnDate(d, dateStr) && !paused;
+          const pausedHH = paused && contaAlocacaoStatus && demandCountsInAllocationOnDate(d, dateStr) && elegivel ? Math.max(0, hoursPerDay) : 0;
           const plannedHH = contaAlocacao && elegivel ? Math.max(0, hoursPerDay) : 0;
           rows.push({
             data: dateStr,
@@ -12274,7 +12400,9 @@ return el('div', { class:'grid' }, [
             recurso: res?.nome || d.responsavel || rid || '',
             percentual_diario: pct,
             horas_planejadas_dia: Number(plannedHH.toFixed(2)),
+            horas_pausadas_dia: Number(pausedHH.toFixed(2)),
             conta_alocacao: contaAlocacao ? 'true' : 'false',
+            janela_pausada: paused ? 'true' : 'false',
             elegivel_capacidade: elegivel ? 'true' : 'false',
             motivo_nao_util: reason?.label || '',
             data_inicio: start,
@@ -12747,6 +12875,37 @@ return el('div', { class:'grid' }, [
     return { headers, rows };
   };
 
+  const buildOrizonPackFactWindowPausesData = (ctx=buildOrizonPackAnaliseContext()) => {
+    const resMap = resourceById();
+    const demandMap = new Map((state.demands || []).map(d => [String(d.id || ''), d]));
+    const headers = ['window_pause_id','data','ano_mes','semana_inicio','demand_id','demanda','resource_id','recurso','horas_liberadas','motivo','created_by','created_by_id','created_at'];
+    const rows = [];
+    for (const p of (state.windowPauses || [])) {
+      const dateStr = windowPauseDate(p);
+      if (!dateStr || dateStr < ctx.periodStart || dateStr > ctx.periodEnd) continue;
+      const did = windowPauseDemandId(p);
+      const rid = windowPauseResourceId(p);
+      const demand = demandMap.get(did);
+      const hours = Number((p.horas_liberadas ?? p.horasLiberadas ?? (demand ? demandHoursForResourceOnDate(demand, rid, dateStr, { ignorePause:true }) : 0)) || 0);
+      rows.push({
+        window_pause_id: p.id || '',
+        data: dateStr,
+        ano_mes: dateStr.slice(0, 7),
+        semana_inicio: orizonPackWeekStartKey(dateStr),
+        demand_id: did,
+        demanda: p.titulo_demanda || demand?.titulo || demand?.nome || did || '',
+        resource_id: rid,
+        recurso: p.recurso_nome || resMap[rid]?.nome || rid || '',
+        horas_liberadas: Number(Math.max(0, hours).toFixed(2)),
+        motivo: p.motivo || p.reason || '',
+        created_by: p.createdBy || p.created_by || '',
+        created_by_id: p.createdById || p.created_by_id || '',
+        created_at: p.createdAt || p.created_at || '',
+      });
+    }
+    return { headers, rows };
+  };
+
   const exportOrizonPackAnaliseWorkbook = (options={}) => {
     const ctx = buildOrizonPackAnaliseContext(options);
     const qualidade = buildOrizonPackQualidadeDadosData();
@@ -12761,6 +12920,7 @@ return el('div', { class:'grid' }, [
     const factInternas = buildOrizonPackFactAtividadesInternasData(ctx);
     const factHE = buildOrizonPackFactHEData(ctx);
     const factBloqueios = buildOrizonPackFactBloqueiosDiaData(ctx);
+    const factWindowPauses = buildOrizonPackFactWindowPausesData(ctx);
     const indicadoresInternas = buildOrizonPackIndicadoresInternasData(factInternas.rows);
     const indicadoresHEBloqueios = buildOrizonPackIndicadoresHEBloqueiosData(factHE.rows, factBloqueios.rows);
     const factReprogramacoes = buildOrizonPackFactReprogramacoesData(ctx);
@@ -12778,6 +12938,7 @@ return el('div', { class:'grid' }, [
       { name:'fact_internas', ...factInternas },
       { name:'fact_he', ...factHE },
       { name:'fact_bloqueios', ...factBloqueios },
+      { name:'fact_pausas_janela', ...factWindowPauses },
       { name:'fact_reprogramacoes', ...factReprogramacoes },
       { name:'fact_atrasos', ...factAtrasos },
       { name:'indic_apontamentos', ...indicadoresApontamentos },
