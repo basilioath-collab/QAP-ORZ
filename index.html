@@ -9450,76 +9450,85 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
   };
 
   const viewLaunches = () => {
+    const DAILY_STANDARD_HOURS = 9;
     const allRealRows = buildExecutionLaunchRows();
-    const today = todayISO();
-    const monthStart = today.slice(0, 8) + '01';
-    const startValue = uiFilters.launchDateStart || monthStart;
-    const endValue = uiFilters.launchDateEnd || today;
+    const selectedDate = uiFilters.launchDate || todayISO();
     const resourceValue = uiFilters.launchResourceId || '';
-
-    const startInput = el('input', { type:'date', value:startValue });
-    const endInput = el('input', { type:'date', value:endValue });
+    const statusValue = uiFilters.launchStatus || '';
+    const dateInput = el('input', { type:'date', value:selectedDate });
     const resourceSelect = el('select', {}, [el('option', { value:'' }, ['Todos os recursos'])]);
     const resourcesOrdered = (state.resources || []).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||'')));
     for (const resource of resourcesOrdered) {
       resourceSelect.appendChild(el('option', { value:String(resource.id || '') }, [resource.nome || resource.name || resource.id || 'Recurso']));
     }
     resourceSelect.value = resourceValue;
+    const statusSelect = el('select', {}, [
+      el('option', { value:'' }, ['Todos os status']),
+      el('option', { value:'sem' }, ['Sem lançamento']),
+      el('option', { value:'abaixo' }, ['Abaixo do esperado']),
+      el('option', { value:'dentro' }, ['Dentro do esperado']),
+      el('option', { value:'acima' }, ['Acima do planejado']),
+    ]);
+    statusSelect.value = statusValue;
 
-    const periodDays = (() => {
-      const out = [];
-      const start = isoToLocalMidnight(startValue);
-      const end = isoToLocalMidnight(endValue);
-      if (!start || !end || start.getTime() > end.getTime()) return out;
-      const cursor = new Date(start.getTime());
-      while (cursor.getTime() <= end.getTime()) {
-        out.push(new Date(cursor.getTime()));
-        cursor.setDate(cursor.getDate() + 1);
-      }
-      return out;
-    })();
-    const inPeriod = (row) => (!startValue || String(row.data || '') >= startValue) && (!endValue || String(row.data || '') <= endValue);
+    const dayObj = isoToLocalMidnight(selectedDate) || new Date();
     const visibleResources = resourcesOrdered.filter(r => !resourceValue || String(r.id || '') === String(resourceValue));
-    const rowsByResource = new Map();
-    const ensure = (resourceId, resourceName) => {
-      const key = String(resourceId || resourceName || 'sem-recurso');
-      if (!rowsByResource.has(key)) rowsByResource.set(key, { resourceId: String(resourceId || ''), resourceName: resourceName || 'Sem recurso', planned:0, real:0 });
-      return rowsByResource.get(key);
+    const realRowsForDay = allRealRows.filter(row => row.data === selectedDate);
+    const realByResource = new Map();
+    for (const row of realRowsForDay) {
+      const key = String(row.resourceId || row.resourceName || row.usuario || 'sem-recurso');
+      realByResource.set(key, Math.round((Number(realByResource.get(key) || 0) + Number(row.horas || 0)) * 100) / 100);
+    }
+
+    const plannedCapacityFor = (resource) => {
+      const info = CapacityEngine.freeHoursInfo(resource.id, dayObj);
+      if (info.eligible === false || Number(info.capacity || 0) <= 0) return 0;
+      const ot = Number(info.overtime?.total || 0);
+      return Math.max(0, DAILY_STANDARD_HOURS + ot);
+    };
+    const statusFor = (planned, real) => {
+      if (real <= 0) return { key:'sem', label:'Sem lançamento', tone:'bad' };
+      if (planned <= 0) return { key:'acima', label:'Acima do planejado', tone:'warn' };
+      const pct = (real / planned) * 100;
+      if (pct > 100) return { key:'acima', label:'Acima do planejado', tone:'warn' };
+      if (pct >= 80) return { key:'dentro', label:'Dentro do esperado', tone:'' };
+      return { key:'abaixo', label:'Abaixo do esperado', tone:'warn' };
     };
 
-    for (const resource of visibleResources) {
-      const item = ensure(resource.id, resource.nome || resource.name || resource.id || 'Recurso');
-      for (const day of periodDays) {
-        const info = CapacityEngine.freeHoursInfo(resource.id, day);
-        item.planned = Math.round((item.planned + Number(info.allocatedFromDemandsHH || 0)) * 100) / 100;
-      }
-    }
+    const dailyRows = visibleResources.map(resource => {
+      const planned = plannedCapacityFor(resource);
+      const real = Number(realByResource.get(String(resource.id || '')) || 0);
+      const adherence = planned > 0 ? Math.round((real / planned) * 1000) / 10 : (real > 0 ? 100 : 0);
+      const status = statusFor(planned, real);
+      return { resource, planned, real, adherence, status, balance: Math.round((real - planned) * 100) / 100 };
+    }).filter(row => !statusValue || row.status.key === statusValue);
 
-    for (const row of allRealRows.filter(inPeriod)) {
-      if (resourceValue && String(row.resourceId || '') !== String(resourceValue)) continue;
-      const item = ensure(row.resourceId, row.resourceName || row.usuario || 'Sem recurso');
-      item.real = Math.round((item.real + Number(row.horas || 0)) * 100) / 100;
-    }
-
-    const comparisonRows = [...rowsByResource.values()]
-      .filter(row => row.planned > 0 || row.real > 0 || !resourceValue)
-      .sort((a,b)=>String(a.resourceName || '').localeCompare(String(b.resourceName || '')));
-    const totalPlanned = Math.round(comparisonRows.reduce((acc,row)=>acc+Number(row.planned||0),0)*100)/100;
-    const totalReal = Math.round(comparisonRows.reduce((acc,row)=>acc+Number(row.real||0),0)*100)/100;
-    const diff = Math.round((totalReal - totalPlanned) * 100) / 100;
-    const adherence = totalPlanned > 0 ? Math.round((totalReal / totalPlanned) * 1000) / 10 : (totalReal > 0 ? 100 : 0);
-    const maxHours = Math.max(1, ...comparisonRows.flatMap(row => [Number(row.planned||0), Number(row.real||0)]));
+    const totals = dailyRows.reduce((acc,row) => {
+      acc.planned += Number(row.planned || 0);
+      acc.real += Number(row.real || 0);
+      return acc;
+    }, { planned:0, real:0 });
+    totals.planned = Math.round(totals.planned * 100) / 100;
+    totals.real = Math.round(totals.real * 100) / 100;
+    const totalDiff = Math.round((totals.real - totals.planned) * 100) / 100;
+    const totalAdherence = totals.planned > 0 ? Math.round((totals.real / totals.planned) * 1000) / 10 : (totals.real > 0 ? 100 : 0);
 
     const applyFilters = () => {
-      uiFilters.launchDateStart = startInput.value;
-      uiFilters.launchDateEnd = endInput.value;
+      uiFilters.launchDate = dateInput.value || todayISO();
       uiFilters.launchResourceId = resourceSelect.value;
+      uiFilters.launchStatus = statusSelect.value;
+      delete uiFilters.launchDetailResourceId;
       render();
     };
     const clearFilters = () => {
-      delete uiFilters.launchDateStart;
-      delete uiFilters.launchDateEnd;
+      delete uiFilters.launchDate;
       delete uiFilters.launchResourceId;
+      delete uiFilters.launchStatus;
+      delete uiFilters.launchDetailResourceId;
+      render();
+    };
+    const selectDetail = (resourceId) => {
+      uiFilters.launchDetailResourceId = resourceId || '';
       render();
     };
 
@@ -9529,150 +9538,99 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       hint ? el('div', { class:'tiny muted', style:'margin-top:2px' }, [hint]) : null,
     ].filter(Boolean));
 
-    const rankingRows = comparisonRows
-      .map(row => ({
-        ...row,
-        diff: Math.round((Number(row.real || 0) - Number(row.planned || 0)) * 100) / 100,
-        adherence: Number(row.planned || 0) > 0 ? Math.round((Number(row.real || 0) / Number(row.planned || 0)) * 1000) / 10 : (Number(row.real || 0) > 0 ? 100 : 0),
-      }))
-      .sort((a,b) => Number(a.adherence || 0) - Number(b.adherence || 0) || String(a.resourceName || '').localeCompare(String(b.resourceName || '')));
-
-    const selectDetail = (resourceId, date='') => {
-      uiFilters.launchDetailResourceId = resourceId || '';
-      uiFilters.launchDetailDate = date || '';
-      render();
+    const bar = (value, max, color, label) => {
+      const pct = max > 0 ? Math.min(140, Math.max(0, (Number(value || 0) / max) * 100)) : 0;
+      return el('div', { style:'display:grid;grid-template-columns:86px 1fr 72px;gap:8px;align-items:center' }, [
+        el('div', { class:'tiny muted', style:'font-weight:900' }, [label]),
+        el('div', { style:'height:16px;border-radius:999px;background:var(--primary-wash);overflow:hidden;border:1px solid var(--border)' }, [
+          el('div', { style:`height:100%;width:${pct}%;background:${color};border-radius:999px` }, [])
+        ]),
+        el('div', { class:'mono tiny', style:'text-align:right;font-weight:900' }, [`${fmtHours(value)}h`]),
+      ]);
     };
 
-    const rankingTable = (() => {
-      const t = el('table');
-      t.appendChild(el('thead', {}, [el('tr', {}, ['Recurso','Planejado','Real','Diferença','Aderência'].map(h=>el('th',{},[h])))]));
-      const tb = el('tbody');
-      for (const row of rankingRows) {
-        const tr = el('tr', { style:'cursor:pointer', title:'Clique para detalhar este recurso no período.' });
-        tr.onclick = () => selectDetail(row.resourceId);
-        const tone = row.adherence < 40 ? 'bad' : (row.adherence < 80 ? 'warn' : '');
-        tr.appendChild(el('td', {}, [row.resourceName || 'Sem recurso']));
-        tr.appendChild(el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]));
-        tr.appendChild(el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]));
-        tr.appendChild(el('td', { class:'mono' }, [`${row.diff >= 0 ? '+' : ''}${fmtHours(row.diff)}h`]));
-        tr.appendChild(el('td', {}, [el('span', { class:`pill ${tone}` }, [`${row.adherence}%`]) ]));
-        tb.appendChild(tr);
-      }
-      if (!rankingRows.length) tb.appendChild(el('tr', {}, [el('td', { colspan:'5', style:'padding:16px;text-align:center;color:var(--muted)' }, ['Nenhum recurso com dados no período.'])]));
-      t.appendChild(tb);
-      return el('div', { class:'scrollX' }, [t]);
-    })();
+    const cards = dailyRows.map(row => {
+      const plannedMax = Math.max(DAILY_STANDARD_HOURS, row.planned, row.real, 1);
+      const adherenceText = `${row.adherence}%`;
+      return el('div', { onclick:()=>selectDetail(row.resource.id), style:'cursor:pointer;border:1px solid var(--border);border-radius:16px;background:#fff;padding:12px;display:grid;gap:10px;box-shadow:0 1px 2px rgba(16,18,14,.04)' }, [
+        el('div', { class:'row', style:'justify-content:space-between;align-items:flex-start' }, [
+          el('div', {}, [
+            el('div', { style:'font-weight:950' }, [`${row.resource.nome || row.resource.name || row.resource.id} — ${formatDateBR(selectedDate)}`]),
+            el('div', { class:'tiny muted' }, ['Unidade: Recurso + Dia + capacidade diária de 9h']),
+          ]),
+          el('span', { class:`pill ${row.status.tone}` }, [row.status.label]),
+        ]),
+        bar(row.planned, plannedMax, 'var(--primary)', 'Planejado'),
+        bar(row.real, plannedMax, 'var(--accent)', 'Real apontado'),
+        el('div', { class:'row', style:'justify-content:space-between' }, [
+          el('span', { class:'tiny muted' }, [`Saldo: ${row.balance >= 0 ? '+' : ''}${fmtHours(row.balance)}h`]),
+          el('span', { class:'tiny muted' }, [`Aderência: ${adherenceText}`]),
+        ]),
+      ]);
+    });
 
-    const realByResourceDay = new Map();
-    for (const row of allRealRows.filter(inPeriod)) {
-      const key = `${row.resourceId || row.resourceName || row.usuario || 'sem-recurso'}::${row.data}`;
-      realByResourceDay.set(key, Math.round((Number(realByResourceDay.get(key) || 0) + Number(row.horas || 0)) * 100) / 100);
-    }
-    const plannedByResourceDay = new Map();
-    for (const resource of visibleResources) {
-      for (const day of periodDays) {
-        const dateStr = formatDate(day);
-        const info = CapacityEngine.freeHoursInfo(resource.id, day);
-        plannedByResourceDay.set(`${resource.id}::${dateStr}`, Number(info.allocatedFromDemandsHH || 0));
-      }
-    }
-    const heatTone = (planned, real, capacity) => {
-      if (!(planned > 0)) return { icon:'⚪', bg:'#F1F5F9', fg:'var(--muted)', label:'Sem planejamento' };
-      const pct = capacity > 0 ? (real / capacity) * 100 : 0;
-      if (pct >= 80 && pct <= 110) return { icon:'🟢', bg:'rgba(138,212,32,.20)', fg:'#365314', label:`${Math.round(pct)}% da capacidade` };
-      if (pct >= 40) return { icon:'🟡', bg:'rgba(245,158,11,.18)', fg:'#92400E', label:`${Math.round(pct)}% da capacidade` };
-      return { icon:'🔴', bg:'rgba(220,38,38,.12)', fg:'var(--danger)', label:`${Math.round(pct)}% da capacidade` };
-    };
-
-    const heatmap = (() => {
-      const t = el('table');
-      const headerDays = periodDays.slice(0, 31);
-      t.appendChild(el('thead', {}, [el('tr', {}, [el('th', {}, ['Recurso']), ...headerDays.map(d => el('th', { style:'text-align:center' }, [String(d.getDate()).padStart(2,'0')]))]) ]));
-      const tb = el('tbody');
-      for (const resource of visibleResources) {
-        const tr = el('tr');
-        tr.appendChild(el('td', { style:'font-weight:950;cursor:pointer', title:'Clique para detalhar o recurso no período.', onclick:()=>selectDetail(resource.id) }, [resource.nome || resource.name || resource.id || 'Recurso']));
-        for (const day of headerDays) {
-          const dateStr = formatDate(day);
-          const key = `${resource.id}::${dateStr}`;
-          const planned = Number(plannedByResourceDay.get(key) || 0);
-          const real = Number(realByResourceDay.get(key) || 0);
-          const capacity = Number(CapacityEngine.freeHoursInfo(resource.id, day).capacity || getResourceHoursPerDay(resource) || 0);
-          const tone = heatTone(planned, real, capacity);
-          tr.appendChild(el('td', {
-            title:`${resource.nome || resource.id} · ${formatDateBR(dateStr)}\nPlanejado: ${fmtHours(planned)}h\nReal: ${fmtHours(real)}h\n${tone.label}`,
-            onclick:()=>selectDetail(resource.id, dateStr),
-            style:`text-align:center;cursor:pointer;background:${tone.bg};color:${tone.fg};font-weight:950;border-left:1px solid rgba(148,163,184,.16)`
-          }, [tone.icon]));
-        }
-        tb.appendChild(tr);
-      }
-      if (!visibleResources.length) tb.appendChild(el('tr', {}, [el('td', { colspan:String(headerDays.length + 1), style:'padding:16px;text-align:center;color:var(--muted)' }, ['Nenhum recurso cadastrado.'])]));
-      t.appendChild(tb);
-      return el('div', { class:'scrollX' }, [t, periodDays.length > 31 ? el('div', { class:'tiny muted', style:'margin-top:6px' }, ['Heatmap limitado aos primeiros 31 dias do filtro para manter leitura rápida.']) : null].filter(Boolean));
-    })();
-
-    const detailResourceId = uiFilters.launchDetailResourceId || (rankingRows[0]?.resourceId || '');
-    const detailDate = uiFilters.launchDetailDate || '';
+    const detailResourceId = uiFilters.launchDetailResourceId || dailyRows[0]?.resource?.id || '';
     const detailResource = (state.resources || []).find(r => String(r.id || '') === String(detailResourceId || '')) || null;
-    const detailDays = detailDate ? [isoToLocalMidnight(detailDate)].filter(Boolean) : periodDays;
-    const plannedDetails = [];
-    for (const day of detailDays) {
-      const dateStr = formatDate(day);
-      for (const demand of demandsForResourceOnDate(detailResourceId, dateStr)) {
-        const hours = demandHoursForResourceOnDate(demand, detailResourceId, dateStr);
-        if (hours > 0) plannedDetails.push({ title:demand.titulo || demand.id || 'Demanda', date:dateStr, hours });
-      }
-    }
-    const executedDetails = allRealRows
-      .filter(row => (!detailResourceId || String(row.resourceId || '') === String(detailResourceId)) && (!detailDate || row.data === detailDate) && inPeriod(row));
-    const plannedDetailTotal = Math.round(plannedDetails.reduce((acc,row)=>acc+Number(row.hours||0),0)*100)/100;
-    const realDetailTotal = Math.round(executedDetails.reduce((acc,row)=>acc+Number(row.horas||0),0)*100)/100;
+    const plannedDemands = detailResourceId ? demandsForResourceOnDate(detailResourceId, selectedDate)
+      .map(demand => ({
+        demand,
+        hours: demandHoursForResourceOnDate(demand, detailResourceId, selectedDate),
+      }))
+      .filter(item => item.hours > 0) : [];
+    const executedDemand = allRealRows.filter(row => row.data === selectedDate && String(row.resourceId || '') === String(detailResourceId || '') && row.tipo_lancamento === 'demanda');
+    const executedInternal = allRealRows.filter(row => row.data === selectedDate && String(row.resourceId || '') === String(detailResourceId || '') && row.tipo_lancamento === 'atividade_interna');
+    const plannedDetailTotal = Math.round(plannedDemands.reduce((acc,item)=>acc+Number(item.hours||0),0)*100)/100;
+    const realDetailTotal = Math.round([...executedDemand, ...executedInternal].reduce((acc,row)=>acc+Number(row.horas||0),0)*100)/100;
 
-    const detailList = (rows, empty, getTitle, getSub) => rows.length
-      ? el('div', { class:'grid', style:'gap:6px' }, rows.slice(0, 12).map(row => el('div', { style:'border:1px solid var(--border);border-radius:12px;padding:8px;background:#fff' }, [
-          el('div', { style:'font-weight:900' }, [getTitle(row)]),
-          el('div', { class:'tiny muted' }, [getSub(row)]),
-        ])))
+    const list = (rows, empty, renderRow) => rows.length
+      ? el('div', { class:'grid', style:'gap:6px' }, rows.map(row => el('div', { style:'border:1px solid var(--border);border-radius:12px;padding:8px;background:#fff' }, renderRow(row))))
       : el('div', { class:'tiny muted' }, [empty]);
 
-    const detailCard = card('Detalhamento', null, el('div', { class:'grid' }, [
-      el('div', { class:'row', style:'justify-content:space-between' }, [
-        el('div', {}, [
-          el('div', { style:'font-weight:950' }, [detailResource ? (detailResource.nome || detailResource.id) : 'Selecione um recurso']),
-          el('div', { class:'tiny muted' }, [detailDate ? `Dia ${formatDateBR(detailDate)}` : `Período ${formatDateBR(startValue)} até ${formatDateBR(endValue)}`]),
-        ]),
-        el('div', { class:'pill' }, [`Planejado ${fmtHours(plannedDetailTotal)}h · Real ${fmtHours(realDetailTotal)}h · Dif. ${realDetailTotal - plannedDetailTotal >= 0 ? '+' : ''}${fmtHours(Math.round((realDetailTotal - plannedDetailTotal)*100)/100)}h`]),
-      ]),
-      el('div', { class:'split' }, [
-        card('Planejado', null, detailList(plannedDetails, 'Sem demandas planejadas no recorte.', row => row.title, row => `${formatDateBR(row.date)} · ${fmtHours(row.hours)}h`)),
-        card('Executado', null, detailList(executedDetails, 'Sem lançamentos reais no recorte.', row => row.tipo_lancamento === 'demanda' ? (row.demandTitle || 'Demanda') : (row.activityTitle || 'Atividade interna'), row => `${formatDateBR(row.data)} · ${fmtHours(row.horas)}h · ${row.tipo_lancamento}`)),
-      ]),
-    ]));
-
     return el('div', { class:'grid' }, [
-      card('Lançamentos - Aderência e Ocupação', null, el('div', { class:'grid' }, [
-        el('div', { class:'tiny muted' }, ['Visão rápida da execução da equipe no período selecionado: aderência por recurso, ocupação diária e detalhamento de desvios.']),
+      card('Lançamentos - Barras diárias por recurso', null, el('div', { class:'grid' }, [
+        el('div', { class:'tiny muted' }, ['Acompanhamento diário: compare a capacidade planejada do dia com o real apontado por recurso.']),
         el('div', { class:'row' }, [
-          el('div', { class:'field' }, [el('label', {}, ['Data inicial']), startInput]),
-          el('div', { class:'field' }, [el('label', {}, ['Data final']), endInput]),
+          el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
           el('div', { class:'field' }, [el('label', {}, ['Recurso']), resourceSelect]),
+          el('div', { class:'field' }, [el('label', {}, ['Status']), statusSelect]),
           el('div', { class:'field', style:'align-self:flex-end' }, [button('Aplicar filtro','primary',applyFilters)]),
           el('div', { class:'field', style:'align-self:flex-end' }, [button('Limpar filtro','',clearFilters)]),
         ]),
       ])),
       el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px' }, [
-        metric('Planejado no período', `${fmtHours(totalPlanned)}h`, 'demandas proporcionais ao filtro'),
-        metric('Real apontado', `${fmtHours(totalReal)}h`, 'demandas + atividades internas'),
-        metric('Diferença', `${diff >= 0 ? '+' : ''}${fmtHours(diff)}h`, 'real - planejado'),
-        metric('Aderência', `${adherence}%`, 'real / planejado'),
+        metric('Planejado no dia', `${fmtHours(totals.planned)}h`, 'capacidade diária ajustada'),
+        metric('Real apontado', `${fmtHours(totals.real)}h`, 'demandas + atividades internas'),
+        metric('Saldo', `${totalDiff >= 0 ? '+' : ''}${fmtHours(totalDiff)}h`, 'real - planejado'),
+        metric('Aderência', `${totalAdherence}%`, 'real / planejado'),
       ]),
-      card('Ranking de aderência por recurso', null, rankingTable),
-      card('Heatmap de ocupação', null, heatmap),
-      detailCard,
+      card('Recursos no dia', null, el('div', { class:'grid', style:'gap:10px' }, cards.length ? cards : [
+        el('div', { style:'padding:20px;text-align:center;color:var(--muted)' }, ['Nenhum recurso encontrado para os filtros selecionados.'])
+      ])),
+      card('Detalhamento do dia', null, el('div', { class:'grid' }, [
+        el('div', { class:'row', style:'justify-content:space-between' }, [
+          el('div', {}, [
+            el('div', { style:'font-weight:950' }, [detailResource ? (detailResource.nome || detailResource.id) : 'Selecione um recurso']),
+            el('div', { class:'tiny muted' }, [formatDateBR(selectedDate)]),
+          ]),
+          el('div', { class:'pill' }, [`Planejado ${fmtHours(plannedDetailTotal)}h · Real ${fmtHours(realDetailTotal)}h · Saldo ${realDetailTotal - plannedDetailTotal >= 0 ? '+' : ''}${fmtHours(Math.round((realDetailTotal - plannedDetailTotal)*100)/100)}h`]),
+        ]),
+        card('Demandas planejadas no dia', null, list(plannedDemands, 'Sem demandas planejadas para o recurso no dia.', item => [
+          el('div', { style:'font-weight:900' }, [item.demand.titulo || item.demand.id || 'Demanda']),
+          el('div', { class:'tiny muted' }, [`Projeto/prédio: ${item.demand.predio || '-'} · ${fmtHours(item.hours)}h · ${effectiveStatus(item.demand)}`]),
+        ])),
+        el('div', { class:'split' }, [
+          card('Apontamentos de demanda', null, list(executedDemand, 'Sem apontamentos de demanda no dia.', row => [
+            el('div', { style:'font-weight:900' }, [row.demandTitle || 'Demanda']),
+            el('div', { class:'tiny muted' }, [`${fmtHours(row.horas)}h · ${row.observacao || 'sem observação'} · ${row.created_at ? new Date(Number(row.created_at)).toLocaleString('pt-BR') : 'sem data de criação'}`]),
+          ])),
+          card('Atividades internas', null, list(executedInternal, 'Sem atividades internas lançadas no dia.', row => [
+            el('div', { style:'font-weight:900' }, [row.activityTitle || 'Atividade interna']),
+            el('div', { class:'tiny muted' }, [`${fmtHours(row.horas)}h · ${row.observacao || 'sem observação'} · ${row.created_at ? new Date(Number(row.created_at)).toLocaleString('pt-BR') : 'sem data de criação'}`]),
+          ])),
+        ]),
+      ])),
     ]);
   };
-
 
   const viewWindows = () => {
   // Matriz de Janelas (janela deslizante, sem limite de período) + Próxima Janela Livre
