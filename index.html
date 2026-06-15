@@ -10812,6 +10812,18 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'6',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
     table.appendChild(tb);
     return el('div',{class:'grid'},[
+      card('Apontar horas em atividade vinculada', null, el('div',{class:'grid'},[
+        el('div', { class:'tiny muted' }, ['Selecione somente atividades vinculadas ao seu usuário, pesquise por título/nome da atividade e registre a execução real. Esses apontamentos alimentam o Dashboard Operacional Real e não alteram a Visão Geral.']),
+        el('div',{class:'row'},[
+          el('div',{class:'field',style:'flex:1;min-width:240px'},[el('label',{},['Pesquisar atividade']), activitySearch]),
+          el('div',{class:'field',style:'flex:2;min-width:280px'},[el('label',{},['Atividade vinculada']), activitySelect]),
+          el('div',{class:'field'},[el('label',{},['Data']), aptDate]),
+          el('div',{class:'field compact'},[el('label',{},['Horas']), aptHours]),
+        ]),
+        el('div',{class:'field'},[el('label',{},['Observação (opcional)']), aptObs]),
+        el('div',{class:'row end'},[button('Registrar apontamento','primary',saveActivityApontamento)]),
+        el('div',{class:'scrollX'},[aptTable]),
+      ])),
       card(isEditing ? 'Editar atividade interna' : 'Cadastrar atividade interna', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['As atividades internas são vinculadas automaticamente ao usuário atual; o campo Recurso fica oculto nesta tela.']),
         el('div',{class:'row'},[
