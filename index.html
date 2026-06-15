@@ -10688,11 +10688,12 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       .filter(isCurrentUserInternalActivity)
       .slice()
       .sort((a,b)=>String(a.titulo||'').localeCompare(String(b.titulo||'')));
-    const activitySearch = el('input', { type:'search', placeholder:'Pesquisar por título ou nome da atividade...' });
-    const activitySelect = el('select');
-    const aptDate = el('input', { type:'date', value: todayISO() });
-    const aptHours = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:00 ou 3.5' });
-    const aptObs = el('textarea', { placeholder:'Observação opcional...', maxlength:String(INPUT_LIMITS.shortNote), style:'min-height:72px' });
+    const launchControlStyle = 'display:block;width:100%;min-width:0;height:40px;border:1px solid var(--border);border-radius:12px;padding:10px;background:#fff;color:var(--text);font:inherit';
+    const activitySearch = el('input', { type:'search', placeholder:'Pesquisar por título ou nome da atividade...', style:launchControlStyle });
+    const activitySelect = el('select', { style:launchControlStyle });
+    const aptDate = el('input', { type:'date', value: todayISO(), style:launchControlStyle });
+    const aptHours = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:00 ou 3.5', style:launchControlStyle });
+    const aptObs = el('textarea', { placeholder:'Observação opcional...', maxlength:String(INPUT_LIMITS.shortNote), style:`${launchControlStyle};height:auto;min-height:82px;resize:vertical` });
     const renderActivityOptions = () => {
       const q = String(activitySearch.value || '').trim().toLowerCase();
       activitySelect.innerHTML = '';
@@ -10845,11 +10846,11 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       ])),
       card('Apontar horas em atividade vinculada', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['Pesquise ou selecione uma das suas atividades vinculadas. Ao focar em Pesquisar atividade, a lista abaixo já mostra todas as suas atividades disponíveis.']),
-        el('div',{class:'row'},[
-          el('div',{class:'field',style:'flex:1;min-width:240px'},[el('label',{},['Pesquisar atividade']), activitySearch]),
-          el('div',{class:'field',style:'flex:1;min-width:260px'},[el('label',{},['Atividade vinculada']), activitySelect]),
+        el('div',{style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end'},[
+          el('div',{class:'field'},[el('label',{},['Pesquisar atividade']), activitySearch]),
+          el('div',{class:'field'},[el('label',{},['Atividade vinculada']), activitySelect]),
           el('div',{class:'field'},[el('label',{},['Data']), aptDate]),
-          el('div',{class:'field compact'},[el('label',{},['Horas']), aptHours]),
+          el('div',{class:'field'},[el('label',{},['Horas']), aptHours]),
         ]),
         el('div',{class:'field'},[el('label',{},['Observação']), aptObs]),
         el('div',{class:'row end'},[
