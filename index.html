@@ -5778,7 +5778,6 @@ main{padding:14px;overflow-x:hidden}
     qs('#dayModalSub').textContent = `${weekday}${meta.length ? ' ? ' + meta.join(' ? ') : ''}`;
 
     const demands = demandsForResourceOnDate(resourceId, dateStr);
-    const internalActivities = internalActivitiesForResourceOnDate(resourceId, dateObj, { onlyCapacity:true });
     const heInfo = overtimeInfo(resourceId, dateStr);
     const nonWorkingReason = nonWorkingReasonForDay(resourceId, dateObj);
 
@@ -5794,7 +5793,6 @@ main{padding:14px;overflow-x:hidden}
     const freeInfoDay = CapacityEngine.freeHoursInfo(resourceId, dateObj);
     const capFinal = Number(freeInfoDay.capacity || 0);
     const allocFromDemandsHH = Number(freeInfoDay.allocatedFromDemandsHH || 0);
-    const allocFromInternalHH = Number(freeInfoDay.allocatedFromInternalHH || 0);
     const pausedFromDemandsHH = Number(freeInfoDay.pausedFromDemandsHH || 0);
     const allocTotalHH = Number(freeInfoDay.allocated || 0);
     const allocTotalPct = capFinal > 0 ? (allocTotalHH / capFinal) * 100 : 0;
@@ -5807,10 +5805,6 @@ main{padding:14px;overflow-x:hidden}
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-ok' }), `${totalDemands} demandas`]));
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-mid' }), `${Math.max(0, Math.round(allocTotalPct))}% alocado total (conta)`]));
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-holiday' }), `${allocTotalHH.toFixed(1)}h de ${capFinal.toFixed(1)}h`]));
-      if (allocFromInternalHH > 0) {
-        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `Atividade interna: ${allocFromInternalHH.toFixed(1)}h`]));
-        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `${internalActivities.length} atividade(s) interna(s)`]));
-      }
       if (pausedFromDemandsHH > 0) {
         summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-he' }), `Janelas pausadas: +${pausedFromDemandsHH.toFixed(1)}h livres`]));
       }
@@ -5828,7 +5822,7 @@ main{padding:14px;overflow-x:hidden}
       el('div', { class:'tiny muted' }, [
         nonWorkingReason
           ? 'Dia não útil: demandas normais do intervalo não são contabilizadas nem listadas neste card. Quando existir HE, apenas a HE aparece.'
-          : 'Obs: pausas de janela retiram apenas a demanda pausada deste recurso/data, mantendo a capacidade diária disponível para atividades internas. Para a capacidade do dashboard, só contam status: ',
+          : 'Obs: pausas de janela retiram apenas a demanda pausada deste recurso/data. Este modal mostra somente planejamento de demandas. Para a capacidade do dashboard, só contam status: ',
         !nonWorkingReason ? el('b', {}, ['Em andamento']) : null,
         !nonWorkingReason ? ' e ' : null,
         !nonWorkingReason ? el('b', {}, ['Atrasada']) : null,
@@ -5863,11 +5857,15 @@ main{padding:14px;overflow-x:hidden}
 
       body.appendChild(el('div', { class:'hr' }));
 
-      const total = visibleDemands.length;
+      const planningItems = [
+        ...visibleDemands.map(d => ({ kind:'demand', data:d })),
+        ...heInfo.items.map(x => ({ kind:'he', data:x })),
+      ];
+      const total = planningItems.length;
       const totalPages = Math.max(1, Math.ceil(total / MODAL_DEMANDS_PAGE_SIZE));
       uiPagination.dayModalPage = Math.min(Math.max(1, uiPagination.dayModalPage), totalPages);
       const startIdx = (uiPagination.dayModalPage - 1) * MODAL_DEMANDS_PAGE_SIZE;
-      const pageItems = visibleDemands.slice(startIdx, startIdx + MODAL_DEMANDS_PAGE_SIZE);
+      const pageItems = planningItems.slice(startIdx, startIdx + MODAL_DEMANDS_PAGE_SIZE);
 
       const t = el('table');
       t.appendChild(el('thead', {}, [el('tr', {}, [
@@ -5881,10 +5879,30 @@ main{padding:14px;overflow-x:hidden}
         el('th', {}, ['Ações']),
       ])]));
       const tb = el('tbody');
-      if (pageItems.length === 0 && heInfo.items.length === 0) {
+      if (pageItems.length === 0) {
         tb.appendChild(el('tr', {}, [el('td', { colspan:'8', style:'padding:16px;text-align:center;color:var(--muted)' }, [nonWorkingReason ? 'Nenhuma alocação contabilizada neste dia.' : 'Sem demandas nesse dia.'])]));
       } else {
-        for (const d of pageItems) {
+        for (const item of pageItems) {
+          if (item.kind === 'he') {
+            const x = item.data;
+            const tituloHe = String(x.titulo || x.atividade || x.motivo || 'Hora extra').trim();
+            const trHe = el('tr', { class:'heRow' });
+            trHe.appendChild(el('td', {}, [
+              el('div', { style:'font-weight:950;color:#1e3a8a' }, [`HE - ${tituloHe}`]),
+              el('div', { class:'tiny' }, [x.motivo ? `Motivo: ${x.motivo}` : 'Capacidade extra cadastrada'])
+            ]));
+            trHe.appendChild(el('td', {}, [el('span', { class:'heBadge' }, [el('span', { class:'sDot' }, []), 'Hora Extra'])]));
+            trHe.appendChild(el('td', { class:'mono' }, [`+${fmtHours(x.horas)}h`]));
+            trHe.appendChild(el('td', {}, [x.predio || '-']));
+            trHe.appendChild(el('td', {}, [x.focal || '-']));
+            trHe.appendChild(el('td', {}, [resourceById()[x.resourceId || resourceId]?.nome || (x.resourceId === '__ALL__' ? 'Todos' : '-')]));
+            trHe.appendChild(el('td', { class:'mono tiny' }, [formatDateBR(x.date || dateStr)]));
+            trHe.appendChild(el('td', {}, ['-']));
+            tb.appendChild(trHe);
+            continue;
+          }
+
+          const d = item.data;
           const st = effectiveStatus(d);
           const counts = demandCountsInAllocationOnDate(d, dateStr);
           const pause = windowPauseFor(d.id, resourceId, dateStr);
@@ -5925,47 +5943,6 @@ main{padding:14px;overflow-x:hidden}
             }, { title: paused ? 'Volta a contabilizar esta demanda nesta data.' : 'Remove somente esta demanda da ocupação desta data, sem bloquear a capacidade do recurso.' })
           ]));
           tb.appendChild(tr);
-        }
-
-        for (const ia of internalActivities) {
-          const canSeeIaDetails = canViewInternalActivityDetails(ia);
-          const iaTitle = canSeeIaDetails
-            ? String(ia.titulo || ia.tipo || 'Atividade interna').trim()
-            : 'Atividade interna privada';
-          const iaHours = Math.max(0, Number(ia.horas_dia || ia.horas || 0));
-          const trIa = el('tr');
-          trIa.appendChild(el('td', {}, [
-            el('div', { style:'font-weight:950;color:#446A0C' }, [`Interna - ${iaTitle}`]),
-            el('div', { class:'tiny' }, [canSeeIaDetails
-              ? (ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade')
-              : 'Detalhes visíveis apenas para quem lançou; horas seguem contabilizadas na capacidade.'
-            ])
-          ]));
-          trIa.appendChild(el('td', {}, [el('span', { class:'statusPill s-andamento' }, [el('span', { class:'sDot' }), 'Atividade interna'])]));
-          trIa.appendChild(el('td', { class:'mono' }, [decimalHoursToHHMM(iaHours)]));
-          trIa.appendChild(el('td', {}, ['-']));
-          trIa.appendChild(el('td', {}, ['-']));
-          trIa.appendChild(el('td', {}, [res?.nome || '-']));
-          trIa.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(ia.data_inicio || dateStr)} - ${formatDateBR(ia.data_fim || ia.data_inicio || dateStr)}`]));
-          trIa.appendChild(el('td', {}, ['-']));
-          tb.appendChild(trIa);
-        }
-
-        for (const x of heInfo.items) {
-          const tituloHe = String(x.titulo || x.atividade || x.motivo || 'Hora extra').trim();
-          const trHe = el('tr', { class:'heRow' });
-          trHe.appendChild(el('td', {}, [
-            el('div', { style:'font-weight:950;color:#1e3a8a' }, [`HE - ${tituloHe}`]),
-            el('div', { class:'tiny' }, [x.motivo ? `Motivo: ${x.motivo}` : 'Capacidade extra cadastrada'])
-          ]));
-          trHe.appendChild(el('td', {}, [el('span', { class:'heBadge' }, [el('span', { class:'sDot' }, []), 'Hora Extra'])]));
-          trHe.appendChild(el('td', { class:'mono' }, [`+${fmtHours(x.horas)}h`]));
-          trHe.appendChild(el('td', {}, [x.predio || '-']));
-          trHe.appendChild(el('td', {}, [x.focal || '-']));
-          trHe.appendChild(el('td', {}, [resourceById()[x.resourceId || resourceId]?.nome || (x.resourceId === '__ALL__' ? 'Todos' : '-')]));
-          trHe.appendChild(el('td', { class:'mono tiny' }, [formatDateBR(x.date || dateStr)]));
-          trHe.appendChild(el('td', {}, ['-']));
-          tb.appendChild(trHe);
         }
       }
       t.appendChild(tb);
@@ -9473,6 +9450,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
   };
 
   const viewLaunches = () => {
+    const DAILY_JOURNEY_HOURS = 9;
     const allRows = buildExecutionLaunchRows();
     const today = todayISO();
     const monthStart = today.slice(0, 8) + '01';
@@ -9501,25 +9479,92 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       .filter(row => !resourceValue || String(row.resourceId || '') === String(resourceValue))
       .filter(row => !typeValue || String(row.tipo_lancamento || '') === String(typeValue));
 
-    const dates = [...new Set(rows.map(row => row.data).filter(Boolean))].sort();
-    const dateIndex = new Map(dates.map((d, idx) => [d, idx]));
-    const maxLane = Math.max(1, dates.length);
-    const ganttRows = rows.map(row => {
-      const idx = dateIndex.get(row.data) || 0;
-      const left = Math.round((idx / maxLane) * 1000) / 10;
-      const width = Math.max(4, Math.min(100 - left, Math.round((Number(row.horas || 0) / 8) * (100 / maxLane) * 10) / 10));
-      const label = `${row.resourceName || row.usuario || 'Recurso'} → ${row.tipo_lancamento === 'demanda' ? (row.demandTitle || 'Demanda') : (row.activityTitle || 'Atividade interna')} → ${fmtHours(row.horas)}h em ${formatDateBR(row.data)}`;
-      return el('div', { style:'display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:10px;align-items:center;border-bottom:1px solid var(--border);padding:10px 0' }, [
-        el('div', { class:'tiny', style:'font-weight:900;color:var(--text)' }, [
-          row.resourceName || row.usuario || 'Recurso',
-          el('div', { class:'muted', style:'font-weight:800;margin-top:2px' }, [row.tipo_lancamento === 'demanda' ? `Demanda: ${row.demandTitle || '-'}` : `Atividade: ${row.activityTitle || '-'}`]),
-          el('div', { class:'mono muted', style:'margin-top:2px' }, [`${formatDateBR(row.data)} · ${fmtHours(row.horas)}h`]),
+    const groups = new Map();
+    for (const row of rows) {
+      const resourceKey = String(row.resourceId || row.resourceName || row.usuario || 'sem-recurso');
+      const key = `${resourceKey}::${row.data || 'sem-data'}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          resourceId: row.resourceId || '',
+          resourceName: row.resourceName || row.usuario || 'Recurso',
+          date: row.data || '',
+          rows: [],
+          total: 0,
+        });
+      }
+      const group = groups.get(key);
+      group.rows.push(row);
+      group.total = Math.round((group.total + Number(row.horas || 0)) * 100) / 100;
+    }
+
+    const groupedRows = [...groups.values()].sort((a,b) =>
+      String(a.resourceName || '').localeCompare(String(b.resourceName || '')) || String(a.date || '').localeCompare(String(b.date || ''))
+    );
+
+    const shortLabel = (txt, max=22) => {
+      const s = String(txt || '').trim();
+      return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+    };
+    const segmentTitle = (row) => [
+      `Tipo: ${row.tipo_lancamento === 'demanda' ? 'Apontamento de demanda' : 'Atividade interna'}`,
+      `Recurso: ${row.resourceName || row.usuario || '-'}`,
+      `Data: ${formatDateBR(row.data)}`,
+      `Título: ${row.tipo_lancamento === 'demanda' ? (row.demandTitle || row.activityTitle || '-') : (row.activityTitle || '-')}`,
+      `Horas: ${fmtHours(row.horas)}h`,
+      row.observacao ? `Observação: ${row.observacao}` : '',
+      `Criado por: ${row.created_by || row.usuario || '-'}`,
+      row.created_at ? `Criado em: ${new Date(Number(row.created_at)).toLocaleString('pt-BR')}` : '',
+    ].filter(Boolean).join('\n');
+
+    const ganttLine = (group) => {
+      const total = Number(group.total || 0);
+      const free = Math.max(0, DAILY_JOURNEY_HOURS - total);
+      const excess = Math.max(0, total - DAILY_JOURNEY_HOURS);
+      let remaining = DAILY_JOURNEY_HOURS;
+      const segments = [];
+      for (const row of group.rows) {
+        const hours = Math.max(0, Number(row.horas || 0));
+        const normalHours = Math.max(0, Math.min(hours, remaining));
+        const excessHours = Math.max(0, hours - normalHours);
+        const title = row.tipo_lancamento === 'demanda' ? (row.demandTitle || row.activityTitle || 'Demanda') : (row.activityTitle || 'Atividade interna');
+        if (normalHours > 0) {
+          const pct = (normalHours / DAILY_JOURNEY_HOURS) * 100;
+          segments.push(el('div', {
+            title: segmentTitle(row),
+            style:`height:30px;flex:0 0 ${pct}%;background:${row.tipo_lancamento === 'demanda' ? 'var(--primary)' : 'var(--accent)'};color:${row.tipo_lancamento === 'demanda' ? '#fff' : 'var(--header)'};display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:11px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.45)`
+          }, [`${shortLabel(title)} ${fmtHours(normalHours)}h`]));
+          remaining = Math.max(0, remaining - normalHours);
+        }
+        if (excessHours > 0) {
+          const pct = (excessHours / DAILY_JOURNEY_HOURS) * 100;
+          segments.push(el('div', {
+            title: `${segmentTitle(row)}\nExcedente deste lançamento: ${fmtHours(excessHours)}h`,
+            style:`height:30px;flex:0 0 ${pct}%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:11px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid #fff`
+          }, [`Exced. ${fmtHours(excessHours)}h`]));
+        }
+      }
+      if (free > 0) {
+        segments.push(el('div', {
+          title:`Horas livres: ${fmtHours(free)}h`,
+          style:`height:30px;flex:0 0 ${(free / DAILY_JOURNEY_HOURS) * 100}%;background:repeating-linear-gradient(45deg, #fff, #fff 6px, var(--primary-wash) 6px, var(--primary-wash) 12px);color:var(--muted);display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:11px;font-weight:950;border-left:1px solid var(--border)`
+        }, [`Livre ${fmtHours(free)}h`]));
+      }
+
+      return el('div', { style:'border:1px solid var(--border);border-radius:14px;background:#fff;padding:12px;display:grid;gap:8px' }, [
+        el('div', { class:'row', style:'justify-content:space-between;align-items:flex-start;gap:12px' }, [
+          el('div', {}, [
+            el('div', { style:'font-weight:950' }, [`${group.resourceName} — ${formatDateBR(group.date)}`]),
+            el('div', { class:'tiny muted' }, [`Recurso → Dia → lançamentos dentro da jornada de ${DAILY_JOURNEY_HOURS}h`]),
+          ]),
+          el('div', { class: excess > 0 ? 'pill bad' : 'pill', title: excess > 0 ? 'Há horas acima da jornada diária.' : 'Total dentro da jornada diária.' }, [
+            `Total apontado: ${fmtHours(total)}h / ${DAILY_JOURNEY_HOURS}h`,
+            excess > 0 ? ` · Excedente: ${fmtHours(excess)}h` : ` · Saldo livre: ${fmtHours(free)}h`
+          ]),
         ]),
-        el('div', { style:'position:relative;height:28px;border-radius:999px;background:var(--primary-wash);overflow:hidden;border:1px solid var(--border)' }, [
-          el('div', { title:label, style:`position:absolute;left:${left}%;width:${width}%;top:4px;height:18px;border-radius:999px;background:${row.tipo_lancamento === 'demanda' ? 'var(--primary)' : 'var(--accent)'};box-shadow:0 4px 10px rgba(5,5,5,.12)` }, []),
-        ])
+        el('div', { style:'height:32px;border-radius:999px;background:var(--surface);border:1px solid var(--border);overflow-x:auto;overflow-y:hidden;display:flex;width:100%' }, segments),
       ]);
-    });
+    };
 
     const applyFilters = () => {
       uiFilters.launchDateStart = startInput.value;
@@ -9538,7 +9583,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
     return el('div', { class:'grid' }, [
       card('Lançamentos', null, el('div', { class:'grid' }, [
-        el('div', { class:'tiny muted' }, ['Execução real consolidada em Gantt. Esta aba não altera a Visão Geral, que permanece dedicada ao planejamento.']),
+        el('div', { class:'tiny muted' }, ['Execução real por recurso/dia. Cada linha representa a jornada diária de 9h e mistura apontamentos de demanda, atividades internas, saldo livre e excedentes.']),
         el('div', { class:'row' }, [
           el('div', { class:'field' }, [el('label', {}, ['Data inicial']), startInput]),
           el('div', { class:'field' }, [el('label', {}, ['Data final']), endInput]),
@@ -9548,16 +9593,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           el('div', { class:'field', style:'align-self:flex-end' }, [button('Limpar filtro','',clearFilters)]),
         ]),
       ])),
-      card('Gantt de execução real', null, el('div', { class:'grid', style:'gap:8px' }, [
+      card('Gantt diário por recurso (9h)', null, el('div', { class:'grid', style:'gap:10px' }, [
         el('div', { class:'row', style:'justify-content:space-between' }, [
-          el('div', { class:'tiny muted' }, [`${rows.length} lançamento(s) no período selecionado.`]),
-          el('div', { class:'tiny muted' }, ['Legenda: demanda em preto, atividade interna em verde.']),
+          el('div', { class:'tiny muted' }, [`${groupedRows.length} linha(s) recurso/dia · ${rows.length} lançamento(s).`]),
+          el('div', { class:'tiny muted' }, ['Cores: demanda em preto, atividade interna em verde, livre hachurado, excedente em vermelho.']),
         ]),
-        el('div', { style:'display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:10px;align-items:center;border-bottom:1px solid var(--border);padding-bottom:8px' }, [
-          el('div', { class:'tiny muted' }, ['Recurso → execução']),
-          el('div', { class:'row', style:'justify-content:space-between;gap:8px' }, (dates.length ? dates : [startValue || today]).map(d => el('span', { class:'tiny mono muted' }, [formatDateBR(d)]))),
-        ]),
-        ...(ganttRows.length ? ganttRows : [el('div', { style:'padding:20px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento encontrado para os filtros selecionados.'])])
+        ...(groupedRows.length ? groupedRows.map(ganttLine) : [el('div', { style:'padding:20px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento encontrado para os filtros selecionados.'])])
       ])),
     ]);
   };
