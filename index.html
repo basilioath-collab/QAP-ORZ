@@ -10815,15 +10815,17 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     table.appendChild(tb);
     return el('div',{class:'grid'},[
       card('Apontar horas em atividade vinculada', null, el('div',{class:'grid'},[
-        el('div', { class:'tiny muted' }, ['Selecione somente atividades vinculadas ao seu usuário, pesquise por título/nome da atividade e registre a execução real. Esses apontamentos alimentam o Dashboard Operacional Real e não alteram a Visão Geral.']),
-        el('div',{class:'row'},[
-          el('div',{class:'field',style:'flex:1;min-width:240px'},[el('label',{},['Pesquisar atividade']), activitySearch]),
-          el('div',{class:'field',style:'flex:2;min-width:280px'},[el('label',{},['Atividade vinculada']), activitySelect]),
+        el('div', { class:'tiny muted' }, ['Pesquise ou selecione uma das suas atividades vinculadas. Ao focar em Pesquisar atividade, a lista abaixo já mostra todas as suas atividades disponíveis.']),
+        el('div',{style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end'},[
+          el('div',{class:'field'},[el('label',{},['Pesquisar atividade']), activitySearch]),
+          el('div',{class:'field'},[el('label',{},['Atividade vinculada']), activitySelect]),
           el('div',{class:'field'},[el('label',{},['Data']), aptDate]),
-          el('div',{class:'field compact'},[el('label',{},['Horas']), aptHours]),
+          el('div',{class:'field'},[el('label',{},['Horas']), aptHours]),
         ]),
-        el('div',{class:'field'},[el('label',{},['Observação (opcional)']), aptObs]),
-        el('div',{class:'row end'},[button('Registrar apontamento','primary',saveActivityApontamento)]),
+        el('div',{class:'field'},[el('label',{},['Observação']), aptObs]),
+        el('div',{class:'row end'},[
+          button('Registrar apontamento','primary',saveActivityApontamento)
+        ]),
         el('div',{class:'scrollX'},[aptTable]),
       ])),
       card(isEditing ? 'Editar atividade interna' : 'Cadastrar atividade interna', null, el('div',{class:'grid'},[
