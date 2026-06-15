@@ -9529,38 +9529,130 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       hint ? el('div', { class:'tiny muted', style:'margin-top:2px' }, [hint]) : null,
     ].filter(Boolean));
 
-    const chartRows = comparisonRows.map(row => {
-      const plannedPct = Math.max(2, Math.round((Number(row.planned || 0) / maxHours) * 1000) / 10);
-      const realPct = Math.max(2, Math.round((Number(row.real || 0) / maxHours) * 1000) / 10);
-      const rowDiff = Math.round((Number(row.real || 0) - Number(row.planned || 0)) * 100) / 100;
-      const rowAdherence = Number(row.planned || 0) > 0 ? Math.round((Number(row.real || 0) / Number(row.planned || 0)) * 1000) / 10 : (Number(row.real || 0) > 0 ? 100 : 0);
-      return el('div', { style:'display:grid;grid-template-columns:minmax(150px,230px) 1fr;gap:12px;align-items:center;border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff' }, [
+    const rankingRows = comparisonRows
+      .map(row => ({
+        ...row,
+        diff: Math.round((Number(row.real || 0) - Number(row.planned || 0)) * 100) / 100,
+        adherence: Number(row.planned || 0) > 0 ? Math.round((Number(row.real || 0) / Number(row.planned || 0)) * 1000) / 10 : (Number(row.real || 0) > 0 ? 100 : 0),
+      }))
+      .sort((a,b) => Number(a.adherence || 0) - Number(b.adherence || 0) || String(a.resourceName || '').localeCompare(String(b.resourceName || '')));
+
+    const selectDetail = (resourceId, date='') => {
+      uiFilters.launchDetailResourceId = resourceId || '';
+      uiFilters.launchDetailDate = date || '';
+      render();
+    };
+
+    const rankingTable = (() => {
+      const t = el('table');
+      t.appendChild(el('thead', {}, [el('tr', {}, ['Recurso','Planejado','Real','Diferença','Aderência'].map(h=>el('th',{},[h])))]));
+      const tb = el('tbody');
+      for (const row of rankingRows) {
+        const tr = el('tr', { style:'cursor:pointer', title:'Clique para detalhar este recurso no período.' });
+        tr.onclick = () => selectDetail(row.resourceId);
+        const tone = row.adherence < 40 ? 'bad' : (row.adherence < 80 ? 'warn' : '');
+        tr.appendChild(el('td', {}, [row.resourceName || 'Sem recurso']));
+        tr.appendChild(el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]));
+        tr.appendChild(el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]));
+        tr.appendChild(el('td', { class:'mono' }, [`${row.diff >= 0 ? '+' : ''}${fmtHours(row.diff)}h`]));
+        tr.appendChild(el('td', {}, [el('span', { class:`pill ${tone}` }, [`${row.adherence}%`]) ]));
+        tb.appendChild(tr);
+      }
+      if (!rankingRows.length) tb.appendChild(el('tr', {}, [el('td', { colspan:'5', style:'padding:16px;text-align:center;color:var(--muted)' }, ['Nenhum recurso com dados no período.'])]));
+      t.appendChild(tb);
+      return el('div', { class:'scrollX' }, [t]);
+    })();
+
+    const realByResourceDay = new Map();
+    for (const row of allRealRows.filter(inPeriod)) {
+      const key = `${row.resourceId || row.resourceName || row.usuario || 'sem-recurso'}::${row.data}`;
+      realByResourceDay.set(key, Math.round((Number(realByResourceDay.get(key) || 0) + Number(row.horas || 0)) * 100) / 100);
+    }
+    const plannedByResourceDay = new Map();
+    for (const resource of visibleResources) {
+      for (const day of periodDays) {
+        const dateStr = formatDate(day);
+        const info = CapacityEngine.freeHoursInfo(resource.id, day);
+        plannedByResourceDay.set(`${resource.id}::${dateStr}`, Number(info.allocatedFromDemandsHH || 0));
+      }
+    }
+    const heatTone = (planned, real, capacity) => {
+      if (!(planned > 0)) return { icon:'⚪', bg:'#F1F5F9', fg:'var(--muted)', label:'Sem planejamento' };
+      const pct = capacity > 0 ? (real / capacity) * 100 : 0;
+      if (pct >= 80 && pct <= 110) return { icon:'🟢', bg:'rgba(138,212,32,.20)', fg:'#365314', label:`${Math.round(pct)}% da capacidade` };
+      if (pct >= 40) return { icon:'🟡', bg:'rgba(245,158,11,.18)', fg:'#92400E', label:`${Math.round(pct)}% da capacidade` };
+      return { icon:'🔴', bg:'rgba(220,38,38,.12)', fg:'var(--danger)', label:`${Math.round(pct)}% da capacidade` };
+    };
+
+    const heatmap = (() => {
+      const t = el('table');
+      const headerDays = periodDays.slice(0, 31);
+      t.appendChild(el('thead', {}, [el('tr', {}, [el('th', {}, ['Recurso']), ...headerDays.map(d => el('th', { style:'text-align:center' }, [String(d.getDate()).padStart(2,'0')]))]) ]));
+      const tb = el('tbody');
+      for (const resource of visibleResources) {
+        const tr = el('tr');
+        tr.appendChild(el('td', { style:'font-weight:950;cursor:pointer', title:'Clique para detalhar o recurso no período.', onclick:()=>selectDetail(resource.id) }, [resource.nome || resource.name || resource.id || 'Recurso']));
+        for (const day of headerDays) {
+          const dateStr = formatDate(day);
+          const key = `${resource.id}::${dateStr}`;
+          const planned = Number(plannedByResourceDay.get(key) || 0);
+          const real = Number(realByResourceDay.get(key) || 0);
+          const capacity = Number(CapacityEngine.freeHoursInfo(resource.id, day).capacity || getResourceHoursPerDay(resource) || 0);
+          const tone = heatTone(planned, real, capacity);
+          tr.appendChild(el('td', {
+            title:`${resource.nome || resource.id} · ${formatDateBR(dateStr)}\nPlanejado: ${fmtHours(planned)}h\nReal: ${fmtHours(real)}h\n${tone.label}`,
+            onclick:()=>selectDetail(resource.id, dateStr),
+            style:`text-align:center;cursor:pointer;background:${tone.bg};color:${tone.fg};font-weight:950;border-left:1px solid rgba(148,163,184,.16)`
+          }, [tone.icon]));
+        }
+        tb.appendChild(tr);
+      }
+      if (!visibleResources.length) tb.appendChild(el('tr', {}, [el('td', { colspan:String(headerDays.length + 1), style:'padding:16px;text-align:center;color:var(--muted)' }, ['Nenhum recurso cadastrado.'])]));
+      t.appendChild(tb);
+      return el('div', { class:'scrollX' }, [t, periodDays.length > 31 ? el('div', { class:'tiny muted', style:'margin-top:6px' }, ['Heatmap limitado aos primeiros 31 dias do filtro para manter leitura rápida.']) : null].filter(Boolean));
+    })();
+
+    const detailResourceId = uiFilters.launchDetailResourceId || (rankingRows[0]?.resourceId || '');
+    const detailDate = uiFilters.launchDetailDate || '';
+    const detailResource = (state.resources || []).find(r => String(r.id || '') === String(detailResourceId || '')) || null;
+    const detailDays = detailDate ? [isoToLocalMidnight(detailDate)].filter(Boolean) : periodDays;
+    const plannedDetails = [];
+    for (const day of detailDays) {
+      const dateStr = formatDate(day);
+      for (const demand of demandsForResourceOnDate(detailResourceId, dateStr)) {
+        const hours = demandHoursForResourceOnDate(demand, detailResourceId, dateStr);
+        if (hours > 0) plannedDetails.push({ title:demand.titulo || demand.id || 'Demanda', date:dateStr, hours });
+      }
+    }
+    const executedDetails = allRealRows
+      .filter(row => (!detailResourceId || String(row.resourceId || '') === String(detailResourceId)) && (!detailDate || row.data === detailDate) && inPeriod(row));
+    const plannedDetailTotal = Math.round(plannedDetails.reduce((acc,row)=>acc+Number(row.hours||0),0)*100)/100;
+    const realDetailTotal = Math.round(executedDetails.reduce((acc,row)=>acc+Number(row.horas||0),0)*100)/100;
+
+    const detailList = (rows, empty, getTitle, getSub) => rows.length
+      ? el('div', { class:'grid', style:'gap:6px' }, rows.slice(0, 12).map(row => el('div', { style:'border:1px solid var(--border);border-radius:12px;padding:8px;background:#fff' }, [
+          el('div', { style:'font-weight:900' }, [getTitle(row)]),
+          el('div', { class:'tiny muted' }, [getSub(row)]),
+        ])))
+      : el('div', { class:'tiny muted' }, [empty]);
+
+    const detailCard = card('Detalhamento', null, el('div', { class:'grid' }, [
+      el('div', { class:'row', style:'justify-content:space-between' }, [
         el('div', {}, [
-          el('div', { style:'font-weight:950' }, [row.resourceName || 'Sem recurso']),
-          el('div', { class:'tiny muted' }, [`Dif.: ${rowDiff >= 0 ? '+' : ''}${fmtHours(rowDiff)}h · Aderência ${rowAdherence}%`]),
+          el('div', { style:'font-weight:950' }, [detailResource ? (detailResource.nome || detailResource.id) : 'Selecione um recurso']),
+          el('div', { class:'tiny muted' }, [detailDate ? `Dia ${formatDateBR(detailDate)}` : `Período ${formatDateBR(startValue)} até ${formatDateBR(endValue)}`]),
         ]),
-        el('div', { class:'grid', style:'gap:7px' }, [
-          el('div', { style:'display:grid;grid-template-columns:72px 1fr 70px;gap:8px;align-items:center' }, [
-            el('div', { class:'tiny muted', style:'font-weight:900' }, ['Planejado']),
-            el('div', { style:'height:14px;border-radius:999px;background:var(--primary-wash);overflow:hidden;border:1px solid var(--border)' }, [
-              el('div', { title:`${row.resourceName} · planejado: ${fmtHours(row.planned)}h`, style:`height:100%;width:${plannedPct}%;background:var(--primary);border-radius:999px` }, [])
-            ]),
-            el('div', { class:'mono tiny', style:'text-align:right;font-weight:900' }, [`${fmtHours(row.planned)}h`]),
-          ]),
-          el('div', { style:'display:grid;grid-template-columns:72px 1fr 70px;gap:8px;align-items:center' }, [
-            el('div', { class:'tiny muted', style:'font-weight:900' }, ['Real']),
-            el('div', { style:'height:14px;border-radius:999px;background:var(--success-wash);overflow:hidden;border:1px solid var(--border)' }, [
-              el('div', { title:`${row.resourceName} · real: ${fmtHours(row.real)}h`, style:`height:100%;width:${realPct}%;background:var(--accent);border-radius:999px` }, [])
-            ]),
-            el('div', { class:'mono tiny', style:'text-align:right;font-weight:900' }, [`${fmtHours(row.real)}h`]),
-          ]),
-        ]),
-      ]);
-    });
+        el('div', { class:'pill' }, [`Planejado ${fmtHours(plannedDetailTotal)}h · Real ${fmtHours(realDetailTotal)}h · Dif. ${realDetailTotal - plannedDetailTotal >= 0 ? '+' : ''}${fmtHours(Math.round((realDetailTotal - plannedDetailTotal)*100)/100)}h`]),
+      ]),
+      el('div', { class:'split' }, [
+        card('Planejado', null, detailList(plannedDetails, 'Sem demandas planejadas no recorte.', row => row.title, row => `${formatDateBR(row.date)} · ${fmtHours(row.hours)}h`)),
+        card('Executado', null, detailList(executedDetails, 'Sem lançamentos reais no recorte.', row => row.tipo_lancamento === 'demanda' ? (row.demandTitle || 'Demanda') : (row.activityTitle || 'Atividade interna'), row => `${formatDateBR(row.data)} · ${fmtHours(row.horas)}h · ${row.tipo_lancamento}`)),
+      ]),
+    ]));
 
     return el('div', { class:'grid' }, [
-      card('Lançamentos - Planejado x Real', null, el('div', { class:'grid' }, [
-        el('div', { class:'tiny muted' }, ['Comparativo por recurso no período filtrado. Planejado vem somente das demandas no recorte; Real soma apontamentos de demanda e atividades internas.']),
+      card('Lançamentos - Aderência e Ocupação', null, el('div', { class:'grid' }, [
+        el('div', { class:'tiny muted' }, ['Visão rápida da execução da equipe no período selecionado: aderência por recurso, ocupação diária e detalhamento de desvios.']),
         el('div', { class:'row' }, [
           el('div', { class:'field' }, [el('label', {}, ['Data inicial']), startInput]),
           el('div', { class:'field' }, [el('label', {}, ['Data final']), endInput]),
@@ -9570,16 +9662,17 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         ]),
       ])),
       el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px' }, [
-        metric('Total planejado no período', `${fmtHours(totalPlanned)}h`, 'demandas proporcionais ao filtro'),
-        metric('Total real apontado', `${fmtHours(totalReal)}h`, 'demandas + atividades internas'),
+        metric('Planejado no período', `${fmtHours(totalPlanned)}h`, 'demandas proporcionais ao filtro'),
+        metric('Real apontado', `${fmtHours(totalReal)}h`, 'demandas + atividades internas'),
         metric('Diferença', `${diff >= 0 ? '+' : ''}${fmtHours(diff)}h`, 'real - planejado'),
         metric('Aderência', `${adherence}%`, 'real / planejado'),
       ]),
-      card('Planejado x Real por recurso', null, el('div', { class:'grid', style:'gap:10px' }, chartRows.length ? chartRows : [
-        el('div', { style:'padding:20px;text-align:center;color:var(--muted)' }, ['Nenhum dado planejado ou real encontrado para os filtros selecionados.'])
-      ])),
+      card('Ranking de aderência por recurso', null, rankingTable),
+      card('Heatmap de ocupação', null, heatmap),
+      detailCard,
     ]);
   };
+
 
   const viewWindows = () => {
   // Matriz de Janelas (janela deslizante, sem limite de período) + Próxima Janela Livre
