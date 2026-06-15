@@ -4689,7 +4689,10 @@ main{padding:14px;overflow-x:hidden}
         case 'ADD_DEMAND': rebuilt.demands.push(normalizeDemandBaseline(payload)); break;
         case 'ADD_INTERNAL_ACTIVITY': rebuilt.internalActivities.push(payload); break;
         case 'UPDATE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.map(x => x.id === payload.id ? payload : x); break;
-        case 'DELETE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.filter(x => String(x.id) !== String(payload)); break;
+        case 'DELETE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.filter(x => String(x.id) !== String(payload)); rebuilt.internalActivityApontamentos = (rebuilt.internalActivityApontamentos || []).filter(x => String(x.activityId || x.activity_id || '') !== String(payload)); break;
+        case 'ADD_INTERNAL_ACTIVITY_APONTAMENTO': rebuilt.internalActivityApontamentos.push(payload); break;
+        case 'UPDATE_INTERNAL_ACTIVITY_APONTAMENTO': rebuilt.internalActivityApontamentos = (rebuilt.internalActivityApontamentos || []).map(x => x.id === payload.id ? payload : x); break;
+        case 'DELETE_INTERNAL_ACTIVITY_APONTAMENTO': rebuilt.internalActivityApontamentos = (rebuilt.internalActivityApontamentos || []).filter(x => String(x.id) !== String(payload)); break;
         case 'ADD_WINDOW_PAUSE': rebuilt.windowPauses.push(payload); break;
         case 'DELETE_WINDOW_PAUSE': { const id = (payload && typeof payload==='object') ? payload.id : payload; rebuilt.windowPauses = rebuilt.windowPauses.filter(p => String(p.id) !== String(id)); break; }
         case 'UPDATE_DEMAND': rebuilt.demands = rebuilt.demands.map(d => d.id === payload.id ? normalizeDemandBaseline(payload) : d); break;
@@ -5238,7 +5241,7 @@ main{padding:14px;overflow-x:hidden}
       case 'ADD_INTERNAL_ACTIVITY': case 'UPDATE_INTERNAL_ACTIVITY': target.internalActivities = upsert(target.internalActivities, payload); break;
       case 'ADD_INTERNAL_ACTIVITY_APONTAMENTO': case 'UPDATE_INTERNAL_ACTIVITY_APONTAMENTO': target.internalActivityApontamentos = upsert(target.internalActivityApontamentos || [], payload); break;
       case 'DELETE_INTERNAL_ACTIVITY_APONTAMENTO': target.internalActivityApontamentos = (target.internalActivityApontamentos || []).filter(x => String(x.id) !== String(payload)); break;
-      case 'DELETE_INTERNAL_ACTIVITY': target.internalActivities = (target.internalActivities||[]).filter(x => String(x.id) !== String(payload)); break;
+      case 'DELETE_INTERNAL_ACTIVITY': target.internalActivities = (target.internalActivities||[]).filter(x => String(x.id) !== String(payload)); target.internalActivityApontamentos = (target.internalActivityApontamentos || []).filter(x => String(x.activityId || x.activity_id || '') !== String(payload)); break;
       case 'ADD_WINDOW_PAUSE': target.windowPauses = upsert(target.windowPauses, payload); break;
       case 'DELETE_WINDOW_PAUSE': { const id = (payload && typeof payload==='object') ? payload.id : payload; target.windowPauses = (target.windowPauses||[]).filter(p => String(p.id) !== String(id)); break; }
       case 'DELETE_DEMAND': target.demands = (target.demands||[]).filter(d => String(d.id) !== String(payload)); target.windowPauses = (target.windowPauses||[]).filter(p => windowPauseDemandId(p) !== String(payload)); break;
@@ -5704,8 +5707,9 @@ main{padding:14px;overflow-x:hidden}
       const capacity = Math.max(0, Number(base || 0)) + otHours;
       const allocatedFromDemandsHH = this.dailyDemandHoursAllocated(resourceId, dateObj);
       const perc = demandHoursToPercent(allocatedFromDemandsHH, resourceId, state.resources || []);
-      const allocatedFromInternalHH = internalActivityHoursForDay(resourceId, dateObj);
-      const allocated = allocatedFromDemandsHH + allocatedFromInternalHH;
+      // Visão Geral / capacidade planejada: atividades internas e lançamentos reais não consomem o planejamento.
+      const allocatedFromInternalHH = 0;
+      const allocated = allocatedFromDemandsHH;
       const free = capacity - allocated;
 
       let cls = '';
@@ -9406,237 +9410,155 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   
 
-  const viewLaunches = () => {
-    const currentUserResourceLocal = () => {
-      const uid = String(userId || '').trim();
-      const nameKey = normalizedPersonName(userName || '');
-      return (state.resources || []).find(r => uid && resourceOwnerId(r) === uid)
-        || (state.resources || []).find(r => nameKey && normalizedPersonName(r?.nome || r?.name) === nameKey)
-        || null;
-    };
-    const activeResource = currentUserResourceLocal();
-    const userActivities = (state.internalActivities || [])
-      .filter(canViewInternalActivityDetails)
-      .slice()
-      .sort((a,b)=>String(a.titulo||'').localeCompare(String(b.titulo||'')));
 
+  const buildExecutionLaunchRows = () => {
+    const resourceById = new Map((state.resources || []).map(r => [String(r.id || ''), r]));
+    const demandById = new Map((state.demands || []).map(d => [String(d.id || ''), d]));
+    const activityById = new Map((state.internalActivities || []).map(a => [String(a.id || ''), a]));
+    const rows = [];
+
+    for (const demand of (state.demands || [])) {
+      const demandId = String(demand.id || '').trim();
+      const resourceId = String(demand.responsavel_id || demand.resourceId || '').trim();
+      const resource = resourceById.get(resourceId) || {};
+      for (const apt of normalizeDemandApontamentos(demand)) {
+        rows.push({
+          id: apt.id || generateId('lan'),
+          tipo_lancamento: 'demanda',
+          data: apt.data || '',
+          horas: Number(apt.horas || 0),
+          observacao: apt.observacao || '',
+          resourceId: apt.resourceId || apt.resource_id || resourceId,
+          resourceName: apt.resourceName || resource.nome || resource.name || apt.usuario || '',
+          usuario: apt.usuario || apt.user || apt.created_by || '',
+          activityId: '',
+          activityTitle: apt.etapa || 'Apontamento de demanda',
+          demandId,
+          demandTitle: demand.titulo || demandId,
+          created_at: apt.created_at || '',
+          created_by: apt.created_by || apt.usuario || '',
+          updated_at: apt.updated_at || '',
+          updated_by: apt.updated_by || '',
+        });
+      }
+    }
+
+    for (const row of (state.internalActivityApontamentos || [])) {
+      const activity = activityById.get(String(row.activityId || row.activity_id || '')) || {};
+      const demand = demandById.get(String(row.demandId || row.demand_id || activity.demandId || activity.demanda_id || '')) || {};
+      const resource = resourceById.get(String(row.resourceId || row.resource_id || activity.resourceId || '')) || {};
+      rows.push({
+        id: row.id || '',
+        tipo_lancamento: 'atividade_interna',
+        data: row.data || '',
+        horas: Number(row.horas || 0),
+        observacao: row.observacao || row.observacoes || row.obs || '',
+        resourceId: row.resourceId || row.resource_id || activity.resourceId || '',
+        resourceName: row.resourceName || resource.nome || resource.name || row.usuario || '',
+        usuario: row.usuario || row.user || row.created_by || '',
+        activityId: row.activityId || row.activity_id || activity.id || '',
+        activityTitle: row.activityTitle || activity.titulo || activity.tipo || 'Atividade interna',
+        demandId: row.demandId || row.demand_id || demand.id || '',
+        demandTitle: row.demandTitle || demand.titulo || '',
+        created_at: row.created_at || '',
+        created_by: row.created_by || row.usuario || '',
+        updated_at: row.updated_at || '',
+        updated_by: row.updated_by || '',
+      });
+    }
+
+    return rows
+      .filter(row => row.data && Number(row.horas || 0) > 0)
+      .sort((a,b) => String(a.data || '').localeCompare(String(b.data || '')) || String(a.resourceName || '').localeCompare(String(b.resourceName || '')));
+  };
+
+  const viewLaunches = () => {
+    const allRows = buildExecutionLaunchRows();
     const today = todayISO();
     const monthStart = today.slice(0, 8) + '01';
-    const periodStartInput = el('input', { type:'date', value: uiFilters.demandDateStart || monthStart });
-    const periodEndInput = el('input', { type:'date', value: uiFilters.demandDateEnd || today });
-    const titleSearch = el('input', { type:'search', placeholder:'Buscar por título da atividade...' });
-    const nameSearch = el('input', { type:'search', placeholder:'Buscar por nome/tipo da atividade...' });
-    const activitySelect = el('select');
-    const launchDate = el('input', { type:'date', value: today });
-    const launchHours = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:30 ou 2.5' });
-    const launchObs = el('textarea', { placeholder:'Observação opcional...', maxlength:String(INPUT_LIMITS.shortNote), style:'min-height:72px' });
+    const startValue = uiFilters.launchDateStart || monthStart;
+    const endValue = uiFilters.launchDateEnd || today;
+    const resourceValue = uiFilters.launchResourceId || '';
+    const typeValue = uiFilters.launchType || '';
 
-    const optionMatches = (activity) => {
-      const titleQ = String(titleSearch.value || '').trim().toLowerCase();
-      const nameQ = String(nameSearch.value || '').trim().toLowerCase();
-      const titleHay = String(activity.titulo || activity.title || '').toLowerCase();
-      const nameHay = `${activity.tipo || ''} ${activity.atividade || ''} ${activity.nome || ''}`.toLowerCase();
-      return (!titleQ || titleHay.includes(titleQ)) && (!nameQ || nameHay.includes(nameQ));
+    const startInput = el('input', { type:'date', value:startValue });
+    const endInput = el('input', { type:'date', value:endValue });
+    const resourceSelect = el('select', {}, [el('option', { value:'' }, ['Todos os recursos'])]);
+    for (const resource of (state.resources || []).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||'')))) {
+      resourceSelect.appendChild(el('option', { value:String(resource.id || '') }, [resource.nome || resource.name || resource.id || 'Recurso']));
+    }
+    resourceSelect.value = resourceValue;
+    const typeSelect = el('select', {}, [
+      el('option', { value:'' }, ['Todos os tipos']),
+      el('option', { value:'demanda' }, ['Apontamento de demanda']),
+      el('option', { value:'atividade_interna' }, ['Atividade interna']),
+    ]);
+    typeSelect.value = typeValue;
+
+    const inPeriod = (row) => (!startValue || String(row.data || '') >= startValue) && (!endValue || String(row.data || '') <= endValue);
+    const rows = allRows
+      .filter(inPeriod)
+      .filter(row => !resourceValue || String(row.resourceId || '') === String(resourceValue))
+      .filter(row => !typeValue || String(row.tipo_lancamento || '') === String(typeValue));
+
+    const dates = [...new Set(rows.map(row => row.data).filter(Boolean))].sort();
+    const dateIndex = new Map(dates.map((d, idx) => [d, idx]));
+    const maxLane = Math.max(1, dates.length);
+    const ganttRows = rows.map(row => {
+      const idx = dateIndex.get(row.data) || 0;
+      const left = Math.round((idx / maxLane) * 1000) / 10;
+      const width = Math.max(4, Math.min(100 - left, Math.round((Number(row.horas || 0) / 8) * (100 / maxLane) * 10) / 10));
+      const label = `${row.resourceName || row.usuario || 'Recurso'} → ${row.tipo_lancamento === 'demanda' ? (row.demandTitle || 'Demanda') : (row.activityTitle || 'Atividade interna')} → ${fmtHours(row.horas)}h em ${formatDateBR(row.data)}`;
+      return el('div', { style:'display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:10px;align-items:center;border-bottom:1px solid var(--border);padding:10px 0' }, [
+        el('div', { class:'tiny', style:'font-weight:900;color:var(--text)' }, [
+          row.resourceName || row.usuario || 'Recurso',
+          el('div', { class:'muted', style:'font-weight:800;margin-top:2px' }, [row.tipo_lancamento === 'demanda' ? `Demanda: ${row.demandTitle || '-'}` : `Atividade: ${row.activityTitle || '-'}`]),
+          el('div', { class:'mono muted', style:'margin-top:2px' }, [`${formatDateBR(row.data)} · ${fmtHours(row.horas)}h`]),
+        ]),
+        el('div', { style:'position:relative;height:28px;border-radius:999px;background:var(--primary-wash);overflow:hidden;border:1px solid var(--border)' }, [
+          el('div', { title:label, style:`position:absolute;left:${left}%;width:${width}%;top:4px;height:18px;border-radius:999px;background:${row.tipo_lancamento === 'demanda' ? 'var(--primary)' : 'var(--accent)'};box-shadow:0 4px 10px rgba(5,5,5,.12)` }, []),
+        ])
+      ]);
+    });
+
+    const applyFilters = () => {
+      uiFilters.launchDateStart = startInput.value;
+      uiFilters.launchDateEnd = endInput.value;
+      uiFilters.launchResourceId = resourceSelect.value;
+      uiFilters.launchType = typeSelect.value;
+      render();
     };
-
-    const renderLaunchActivityOptions = () => {
-      const current = activitySelect.value;
-      activitySelect.innerHTML = '';
-      const filtered = userActivities.filter(optionMatches);
-      if (!filtered.length) {
-        activitySelect.appendChild(el('option', { value:'' }, ['Nenhuma atividade vinculada encontrada']));
-        return;
-      }
-      for (const activity of filtered) {
-        const demand = (state.demands || []).find(d => String(d.id || '') === String(activity.demandId || activity.demanda_id || ''));
-        activitySelect.appendChild(el('option', { value:String(activity.id || '') }, [
-          `${activity.titulo || activity.tipo || 'Atividade interna'} · ${activity.tipo || 'Tipo não informado'}${demand ? ` · ${demand.titulo || demand.id}` : ''}`
-        ]));
-      }
-      if ([...activitySelect.options].some(o => String(o.value) === String(current))) activitySelect.value = current;
-    };
-    titleSearch.addEventListener('input', renderLaunchActivityOptions);
-    nameSearch.addEventListener('input', renderLaunchActivityOptions);
-    renderLaunchActivityOptions();
-
-    const saveLaunch = () => {
-      const activity = userActivities.find(a => String(a.id || '') === String(activitySelect.value || ''));
-      if (!activity) return toast('Selecione uma atividade interna vinculada ao seu usuário.');
-      const data = String(launchDate.value || '').trim();
-      const horas = parseApontamentoHours(launchHours.value);
-      const validation = validateApontamentoInput({ data, etapa: activity.tipo || 'Outro', horas }, {});
-      if (validation) return toast(validation);
-      const obsValidation = validateTextLimit(launchObs.value, 'Observação do lançamento', INPUT_LIMITS.shortNote);
-      if (obsValidation) return toast(obsValidation);
-      const resource = activeResource || (ensureUserAsResource() ? currentUserResourceLocal() : null);
-      const demand = (state.demands || []).find(d => String(d.id || '') === String(activity.demandId || activity.demanda_id || '')) || null;
-      dispatch('ADD_INTERNAL_ACTIVITY_APONTAMENTO', {
-        id: generateId('lan'),
-        resourceId: activity.resourceId || resource?.id || '',
-        resourceName: resource?.nome || resource?.name || userName || 'Sessão local',
-        user_id: userId || '',
-        usuario: userName || resource?.nome || 'Sessão local',
-        activityId: activity.id || '',
-        activityTitle: activity.titulo || activity.tipo || 'Atividade interna',
-        demandId: demand?.id || activity.demandId || activity.demanda_id || '',
-        demandTitle: demand?.titulo || '',
-        data,
-        horas,
-        observacao: String(launchObs.value || '').trim(),
-        tipo: activity.tipo || 'Outro',
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        created_by: userName || 'Sessão local',
-        created_by_id: userId || '',
-        updated_by: userName || 'Sessão local',
-        updated_by_id: userId || '',
-      });
-      launchHours.value = '';
-      launchObs.value = '';
-      toast('Lançamento salvo.');
+    const clearFilters = () => {
+      delete uiFilters.launchDateStart;
+      delete uiFilters.launchDateEnd;
+      delete uiFilters.launchResourceId;
+      delete uiFilters.launchType;
       render();
     };
 
-    const start = String(periodStartInput.value || '').trim();
-    const end = String(periodEndInput.value || '').trim();
-    const inPeriod = (row) => (!start || String(row.data || '') >= start) && (!end || String(row.data || '') <= end);
-    const demandById = new Map((state.demands || []).map(d => [String(d.id || ''), d]));
-    const activityById = new Map((state.internalActivities || []).map(a => [String(a.id || ''), a]));
-    const visibleActivityIds = new Set(userActivities.map(a => String(a.id || '')));
-    const launches = (state.internalActivityApontamentos || [])
-      .filter(row => visibleActivityIds.has(String(row.activityId || row.activity_id || '')))
-      .filter(inPeriod)
-      .slice()
-      .sort((a,b)=>String(b.data||'').localeCompare(String(a.data||'')) || Number(b.created_at||0)-Number(a.created_at||0));
-
-    const allPeriodLaunches = (state.internalActivityApontamentos || []).filter(inPeriod);
-    const add = (map, key, hours, meta={}) => {
-      const k = String(key || 'Não informado').trim() || 'Não informado';
-      if (!map.has(k)) map.set(k, { label:k, horas:0, count:0, ...meta });
-      const item = map.get(k);
-      item.horas = Math.round((Number(item.horas || 0) + Number(hours || 0)) * 100) / 100;
-      item.count = Number(item.count || 0) + 1;
-      Object.assign(item, meta);
-      return item;
-    };
-    const byPerson = new Map();
-    const byActivity = new Map();
-    const byDemand = new Map();
-    const byDay = new Map();
-    for (const row of launches) {
-      const activity = activityById.get(String(row.activityId || row.activity_id || '')) || {};
-      const demand = demandById.get(String(row.demandId || row.demand_id || activity.demandId || activity.demanda_id || '')) || {};
-      const person = row.resourceName || row.usuario || row.user || activity.owner_user_name || userName || 'Sessão local';
-      add(byPerson, person, row.horas);
-      add(byActivity, row.activityTitle || activity.titulo || activity.tipo || 'Atividade interna', row.horas);
-      add(byDemand, demand.titulo || row.demandTitle || 'Sem demanda vinculada', row.horas);
-      add(byDay, row.data || 'Sem data', row.horas, { label: formatDateBR(row.data || '') });
-    }
-    const sortHours = (values) => [...values].sort((a,b)=>Number(b.horas||0)-Number(a.horas||0));
-    const maxHours = Math.max(1, ...[...byActivity.values(), ...byDemand.values(), ...byDay.values()].map(x => Number(x.horas || 0)));
-    const barList = (title, rows, emptyMsg) => card(title, null, el('div', { class:'grid', style:'gap:8px' }, rows.length ? rows.map(row => el('div', { class:'grid', style:'gap:3px' }, [
-      el('div', { class:'row', style:'justify-content:space-between' }, [el('b', {}, [row.label]), el('span', { class:'mono' }, [`${fmtHours(row.horas)}h`])]),
-      el('div', { style:'height:10px;border-radius:999px;background:var(--border);overflow:hidden' }, [el('div', { style:`height:100%;width:${Math.max(3, Math.round((Number(row.horas || 0) / maxHours) * 100))}%;background:var(--accent);border-radius:999px` }, [])])
-    ])) : [el('div', { class:'tiny muted' }, [emptyMsg])]));
-
-    const personBlocks = sortHours(byPerson.values()).map(person => {
-      const personRows = launches.filter(row => String(row.resourceName || row.usuario || row.user || userName || 'Sessão local') === String(person.label));
-      const pActivity = new Map();
-      const pDemand = new Map();
-      const pDay = new Map();
-      for (const row of personRows) {
-        const activity = activityById.get(String(row.activityId || row.activity_id || '')) || {};
-        const demand = demandById.get(String(row.demandId || row.demand_id || activity.demandId || activity.demanda_id || '')) || {};
-        add(pActivity, row.activityTitle || activity.titulo || activity.tipo || 'Atividade interna', row.horas);
-        add(pDemand, demand.titulo || row.demandTitle || 'Sem demanda vinculada', row.horas);
-        add(pDay, row.data || 'Sem data', row.horas, { label: formatDateBR(row.data || '') });
-      }
-      return card(`Colaborador: ${person.label}`, null, el('div', { class:'grid' }, [
-        el('div', { class:'mono', style:'font-weight:950;font-size:18px' }, [`${fmtHours(person.horas)}h no período`]),
-        barList('Por atividade interna', sortHours(pActivity.values()).slice(0, 5), 'Sem atividade.'),
-        barList('Por demanda', sortHours(pDemand.values()).slice(0, 5), 'Sem demanda vinculada.'),
-        barList('Total diário', [...pDay.values()].sort((a,b)=>String(a.label).localeCompare(String(b.label))).slice(0, 7), 'Sem lançamentos diários.'),
-      ]));
-    });
-
-    const ganttRows = launches.slice(0, 80).map(row => {
-      const activity = activityById.get(String(row.activityId || row.activity_id || '')) || {};
-      const resource = row.resourceName || row.usuario || userName || 'Sessão local';
-      const label = `${resource} → ${row.activityTitle || activity.titulo || 'Atividade interna'} → ${fmtHours(row.horas)}h em ${formatDateBR(row.data)}`;
-      return el('tr', {}, [
-        el('td', {}, [resource]),
-        el('td', {}, [row.activityTitle || activity.titulo || 'Atividade interna']),
-        el('td', {}, [formatDateBR(row.data)]),
-        el('td', {}, [`${fmtHours(row.horas)}h`]),
-        el('td', {}, [el('div', { title:label, style:'min-width:180px;height:14px;background:var(--primary-soft);border:1px solid var(--primary-light);border-radius:999px;position:relative;overflow:hidden' }, [
-          el('div', { style:`height:100%;width:${Math.min(100, Math.max(8, Number(row.horas || 0) * 12))}%;background:var(--accent);border-radius:999px` }, [])
-        ])])
-      ]);
-    });
-    const ganttTable = el('table');
-    ganttTable.appendChild(el('thead', {}, [el('tr', {}, ['Recurso','Atividade interna','Data','Horas','Gantt'].map(h=>el('th',{},[h])))]));
-    const ganttBody = el('tbody');
-    if (ganttRows.length) ganttRows.forEach(r => ganttBody.appendChild(r));
-    else ganttBody.appendChild(el('tr', {}, [el('td', { colspan:'5', style:'padding:16px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento no período.'])]));
-    ganttTable.appendChild(ganttBody);
-
-    const historyTable = el('table');
-    historyTable.appendChild(el('thead', {}, [el('tr', {}, ['Data','Atividade','Demanda','Horas','Observação','Criado por','Ação'].map(h=>el('th',{},[h])))]));
-    const historyBody = el('tbody');
-    for (const row of launches.slice(0, 50)) {
-      const activity = activityById.get(String(row.activityId || row.activity_id || '')) || {};
-      const demand = demandById.get(String(row.demandId || row.demand_id || activity.demandId || activity.demanda_id || '')) || {};
-      historyBody.appendChild(el('tr', {}, [
-        el('td', {}, [formatDateBR(row.data)]),
-        el('td', {}, [row.activityTitle || activity.titulo || 'Atividade interna']),
-        el('td', {}, [demand.titulo || row.demandTitle || 'Sem demanda']),
-        el('td', {}, [`${fmtHours(row.horas)}h`]),
-        el('td', {}, [row.observacao || '']),
-        el('td', {}, [row.created_by || row.usuario || 'Sessão local']),
-        el('td', {}, [button('Excluir','danger',()=>{ dispatch('DELETE_INTERNAL_ACTIVITY_APONTAMENTO', row.id); render(); })]),
-      ]));
-    }
-    if (!launches.length) historyBody.appendChild(el('tr', {}, [el('td', { colspan:'7', style:'padding:16px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento seu no período.'])]));
-    historyTable.appendChild(historyBody);
-
-    const totalHours = Math.round(launches.reduce((acc,row)=>acc+Number(row.horas||0),0)*100)/100;
     return el('div', { class:'grid' }, [
-      card('Lançamentos - Execução Real', null, el('div', { class:'grid' }, [
-        el('div', { class:'tiny muted' }, ['Execução Real: lançamentos por atividade interna, vinculados ao recurso e à demanda quando existir. A Visão Geral permanece como Planejamento e não é alterada por estes registros.']),
+      card('Lançamentos', null, el('div', { class:'grid' }, [
+        el('div', { class:'tiny muted' }, ['Execução real consolidada em Gantt. Esta aba não altera a Visão Geral, que permanece dedicada ao planejamento.']),
         el('div', { class:'row' }, [
-          el('div', { class:'field' }, [el('label', {}, ['Início']), periodStartInput]),
-          el('div', { class:'field' }, [el('label', {}, ['Fim']), periodEndInput]),
-          el('div', { class:'field', style:'align-self:flex-end' }, [button('Aplicar período','',()=>{ uiFilters.demandDateStart = periodStartInput.value; uiFilters.demandDateEnd = periodEndInput.value; render(); })]),
-          el('div', { class:'field', style:'align-self:flex-end' }, [button('Exportar lançamentos','',exportLancamentosCSV)]),
+          el('div', { class:'field' }, [el('label', {}, ['Data inicial']), startInput]),
+          el('div', { class:'field' }, [el('label', {}, ['Data final']), endInput]),
+          el('div', { class:'field' }, [el('label', {}, ['Recurso']), resourceSelect]),
+          el('div', { class:'field' }, [el('label', {}, ['Tipo de lançamento']), typeSelect]),
+          el('div', { class:'field', style:'align-self:flex-end' }, [button('Aplicar filtro','primary',applyFilters)]),
+          el('div', { class:'field', style:'align-self:flex-end' }, [button('Limpar filtro','',clearFilters)]),
         ]),
       ])),
-      card('Novo lançamento', null, el('div', { class:'grid' }, [
-        el('div', { class:'row' }, [
-          el('div', { class:'field', style:'flex:1;min-width:220px' }, [el('label', {}, ['Buscar título da atividade']), titleSearch]),
-          el('div', { class:'field', style:'flex:1;min-width:220px' }, [el('label', {}, ['Buscar nome/tipo da atividade']), nameSearch]),
-          el('div', { class:'field', style:'flex:2;min-width:280px' }, [el('label', {}, ['Atividade interna vinculada']), activitySelect]),
+      card('Gantt de execução real', null, el('div', { class:'grid', style:'gap:8px' }, [
+        el('div', { class:'row', style:'justify-content:space-between' }, [
+          el('div', { class:'tiny muted' }, [`${rows.length} lançamento(s) no período selecionado.`]),
+          el('div', { class:'tiny muted' }, ['Legenda: demanda em preto, atividade interna em verde.']),
         ]),
-        el('div', { class:'row' }, [
-          el('div', { class:'field' }, [el('label', {}, ['Data do apontamento']), launchDate]),
-          el('div', { class:'field compact' }, [el('label', {}, ['Horas apontadas']), launchHours]),
-          el('div', { class:'field', style:'flex:1;min-width:240px' }, [el('label', {}, ['Observação opcional']), launchObs]),
+        el('div', { style:'display:grid;grid-template-columns:minmax(180px,260px) 1fr;gap:10px;align-items:center;border-bottom:1px solid var(--border);padding-bottom:8px' }, [
+          el('div', { class:'tiny muted' }, ['Recurso → execução']),
+          el('div', { class:'row', style:'justify-content:space-between;gap:8px' }, (dates.length ? dates : [startValue || today]).map(d => el('span', { class:'tiny mono muted' }, [formatDateBR(d)]))),
         ]),
-        el('div', { class:'row end' }, [button('Salvar lançamento','primary',saveLaunch)]),
+        ...(ganttRows.length ? ganttRows : [el('div', { style:'padding:20px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento encontrado para os filtros selecionados.'])])
       ])),
-      el('div', { class:'kpi' }, [
-        el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Minhas horas no período']), el('div', { class:'val' }, [`${fmtHours(totalHours)}h`])]),
-        el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Meus lançamentos']), el('div', { class:'val' }, [String(launches.length)])]),
-        el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Atividades minhas']), el('div', { class:'val' }, [String(userActivities.length)])]),
-        el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Base exportável (todos)']), el('div', { class:'val' }, [String(allPeriodLaunches.length)])]),
-      ]),
-      el('div', { class:'split' }, [
-        barList('Distribuição por atividade interna', sortHours(byActivity.values()), 'Sem lançamentos por atividade.'),
-        barList('Distribuição por demanda', sortHours(byDemand.values()), 'Sem demanda vinculada no período.'),
-      ]),
-      barList('Total diário de horas lançadas', [...byDay.values()].sort((a,b)=>String(a.label).localeCompare(String(b.label))), 'Sem lançamentos diários.'),
-      card('Gráfico por pessoa/recurso', null, el('div', { class:'grid' }, personBlocks.length ? personBlocks : [el('div', { class:'tiny muted' }, ['Nenhum lançamento individual no período.'])])),
-      card('Gantt geral dos meus lançamentos', null, el('div', { class:'scrollX' }, [ganttTable])),
-      card('Histórico dos meus lançamentos', null, el('div', { class:'scrollX' }, [historyTable])),
     ]);
   };
 
@@ -13420,38 +13342,27 @@ return el('div', { class:'grid' }, [
   };
 
 
-  const buildLancamentosExportRows = () => {
-    const activityById = new Map((state.internalActivities || []).map(a => [String(a.id || ''), a]));
-    const demandById = new Map((state.demands || []).map(d => [String(d.id || ''), d]));
-    const resourceById = new Map((state.resources || []).map(r => [String(r.id || ''), r]));
-    return (state.internalActivityApontamentos || []).map(row => {
-      const activity = activityById.get(String(row.activityId || row.activity_id || '')) || {};
-      const demand = demandById.get(String(row.demandId || row.demand_id || activity.demandId || activity.demanda_id || '')) || {};
-      const resource = resourceById.get(String(row.resourceId || row.resource_id || activity.resourceId || '')) || {};
-      return {
-        id_lancamento: row.id || '',
-        data_lancamento: row.data || '',
-        id_recurso: row.resourceId || row.resource_id || activity.resourceId || '',
-        recurso: row.resourceName || resource.nome || resource.name || '',
-        id_usuario: row.user_id || row.userId || row.created_by_id || '',
-        usuario: row.usuario || row.user || row.created_by || '',
-        id_atividade_interna: row.activityId || row.activity_id || activity.id || '',
-        atividade_interna: row.activityTitle || activity.titulo || activity.tipo || '',
-        tipo_atividade: row.tipo || activity.tipo || '',
-        id_demanda: row.demandId || row.demand_id || demand.id || '',
-        demanda_vinculada: row.demandTitle || demand.titulo || '',
-        horas_apontadas: row.horas || 0,
-        observacao: row.observacao || row.observacoes || row.obs || '',
-        criado_em: row.created_at ? new Date(Number(row.created_at)).toISOString() : '',
-        criado_por: row.created_by || row.usuario || '',
-        atualizado_em: row.updated_at ? new Date(Number(row.updated_at)).toISOString() : '',
-        atualizado_por: row.updated_by || '',
-      };
-    });
-  };
+  const buildLancamentosExportRows = () => buildExecutionLaunchRows().map(row => ({
+    id_lancamento: row.id || '',
+    tipo_lancamento: row.tipo_lancamento || '',
+    data_lancamento: row.data || '',
+    id_recurso: row.resourceId || '',
+    recurso: row.resourceName || '',
+    usuario: row.usuario || row.created_by || '',
+    id_atividade_interna: row.activityId || '',
+    atividade_interna: row.activityTitle || '',
+    id_demanda: row.demandId || '',
+    demanda_vinculada: row.demandTitle || '',
+    horas_apontadas: row.horas || 0,
+    observacao: row.observacao || '',
+    criado_por: row.created_by || row.usuario || '',
+    criado_em: row.created_at ? new Date(Number(row.created_at)).toISOString() : '',
+    alterado_por: row.updated_by || '',
+    alterado_em: row.updated_at ? new Date(Number(row.updated_at)).toISOString() : '',
+  }));
 
   const buildLancamentosExportData = () => {
-    const headers = ['id_lancamento','data_lancamento','id_recurso','recurso','id_usuario','usuario','id_atividade_interna','atividade_interna','tipo_atividade','id_demanda','demanda_vinculada','horas_apontadas','observacao','criado_em','criado_por','atualizado_em','atualizado_por'];
+    const headers = ['id_lancamento','tipo_lancamento','data_lancamento','id_recurso','recurso','usuario','id_atividade_interna','atividade_interna','id_demanda','demanda_vinculada','horas_apontadas','observacao','criado_por','criado_em','alterado_por','alterado_em'];
     return { headers, rows: buildLancamentosExportRows() };
   };
 
