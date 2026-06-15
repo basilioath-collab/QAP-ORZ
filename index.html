@@ -9408,6 +9408,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           resourceId: apt.resourceId || apt.resource_id || resourceId,
           resourceName: apt.resourceName || resource.nome || resource.name || apt.usuario || '',
           usuario: apt.usuario || apt.user || apt.created_by || '',
+          user_id: apt.user_id || apt.userId || apt.created_by_id || apt.createdById || '',
           activityId: '',
           activityTitle: apt.etapa || 'Apontamento de demanda',
           demandId,
@@ -9433,6 +9434,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         resourceId: row.resourceId || row.resource_id || activity.resourceId || '',
         resourceName: row.resourceName || resource.nome || resource.name || row.usuario || '',
         usuario: row.usuario || row.user || row.created_by || '',
+        user_id: row.user_id || row.userId || row.created_by_id || row.createdById || '',
         activityId: row.activityId || row.activity_id || activity.id || '',
         activityTitle: row.activityTitle || activity.titulo || activity.tipo || 'Atividade interna',
         demandId: row.demandId || row.demand_id || demand.id || '',
@@ -9451,13 +9453,26 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   const viewLaunches = () => {
     const DAILY_STANDARD_HOURS = 9;
-    const allRealRows = buildExecutionLaunchRows();
+    const currentResourceIds = new Set(activeUserResourceIds().map(String));
+    const currentUserNameKey = normalizedPersonName(userName || '');
+    const isCurrentUserLaunch = (row={}) => {
+      const rid = String(row.resourceId || '').trim();
+      if (rid && currentResourceIds.has(rid)) return true;
+      const rowUserId = String(row.user_id || row.userId || row.created_by_id || row.createdById || '').trim();
+      if (rowUserId && userId && rowUserId === String(userId)) return true;
+      const rowUserName = normalizedPersonName(row.usuario || row.created_by || row.createdBy || row.resourceName || '');
+      return !!currentUserNameKey && !!rowUserName && rowUserName === currentUserNameKey;
+    };
+    const allRealRows = buildExecutionLaunchRows().filter(isCurrentUserLaunch);
     const selectedDate = uiFilters.launchDate || todayISO();
     const resourceValue = uiFilters.launchResourceId || '';
     const statusValue = uiFilters.launchStatus || '';
     const dateInput = el('input', { type:'date', value:selectedDate });
     const resourceSelect = el('select', {}, [el('option', { value:'' }, ['Todos os recursos'])]);
-    const resourcesOrdered = (state.resources || []).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||'')));
+    const resourcesOrdered = (state.resources || [])
+      .filter(r => currentResourceIds.has(String(r.id || '')))
+      .slice()
+      .sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||'')));
     for (const resource of resourcesOrdered) {
       resourceSelect.appendChild(el('option', { value:String(resource.id || '') }, [resource.nome || resource.name || resource.id || 'Recurso']));
     }
@@ -9560,7 +9575,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           ]),
           el('span', { class:`pill ${row.status.tone}` }, [row.status.label]),
         ]),
-        bar(row.planned, plannedMax, 'var(--primary)', 'Planejado'),
+        bar(row.planned, plannedMax, '#5f8f12', 'Planejado'),
         bar(row.real, plannedMax, 'var(--accent)', 'Real apontado'),
         el('div', { class:'row', style:'justify-content:space-between' }, [
           el('span', { class:'tiny muted' }, [`Saldo: ${row.balance >= 0 ? '+' : ''}${fmtHours(row.balance)}h`]),
@@ -9588,7 +9603,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
     return el('div', { class:'grid' }, [
       card('Lançamentos - Barras diárias por recurso', null, el('div', { class:'grid' }, [
-        el('div', { class:'tiny muted' }, ['Acompanhamento diário: compare a capacidade planejada do dia com o real apontado por recurso.']),
+        el('div', { class:'tiny muted' }, ['Acompanhamento diário: compare a capacidade planejada do dia com o real apontado pelo seu recurso.']),
         el('div', { class:'row' }, [
           el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
           el('div', { class:'field' }, [el('label', {}, ['Recurso']), resourceSelect]),
@@ -10604,58 +10619,10 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     };
 
     const type = el('select', {}, [
-      el('option', { value:'Reunião administrativa' }, ['Reunião administrativa']),
-      el('option', { value:'Treinamento' }, ['Treinamento']),
-      el('option', { value:'Leitura/Estudo' }, ['Leitura/Estudo']),
-      el('option', { value:'Fórum/Comunidade' }, ['Fórum/Comunidade']),
-      el('option', { value:'Curso/Escola técnica' }, ['Curso/Escola técnica']),
-	  el('option', { value:'RO' }, ['RO']),
-	  el('option', { value:'Arquivo' }, ['Arquivo']),
-      el('option', { value:'Reunião' }, ['Reunião']),
-      el('option', { value:'Acompanhamento Execução' }, ['Acompanhamento Execução']),
-      el('option', { value:'Suporte Execução' }, ['Suporte Execução']),
-      el('option', { value:'Administrativa' }, ['Administrativa']),
-      el('option', { value:'Apresentação' }, ['Apresentação']),
-      el('option', { value:'Indicadores' }, ['Indicadores']),
-      el('option', { value:'Treinamento' }, ['Treinamento']),
-      el('option', { value:'Auto Inspeção' }, ['Auto Inspeção']),
-      el('option', { value:'Inspeção' }, ['Inspeção']),
-      el('option', { value:'CTO' }, ['CTO']),
-      el('option', { value:'Levantamento' }, ['Levantamento']),
-      el('option', { value:'Investigação' }, ['Investigação']),
-      el('option', { value:'Suporte de Revisão' }, ['Suporte de Revisão']),
-      el('option', { value:'Plenária' }, ['Plenária']),
-      el('option', { value:'Repasse de Informações' }, ['Repasse de Informações']),
-      el('option', { value:'PMV' }, ['PMV']),
-      el('option', { value:'cBPF - Sólidos Não Estéreis' }, ['cBPF - Sólidos Não Estéreis']),
-      el('option', { value:'Atualizações' }, ['Atualizações']),
-      el('option', { value:'Chegada em atraso' }, ['Chegada em atraso']),
-      el('option', { value:'CM' }, ['CM']),
-      el('option', { value:'Avaliação' }, ['Avaliação']),
-      el('option', { value:'Projetos' }, ['Projetos']),
-      el('option', { value:'Procedimento' }, ['Procedimento']),
-      el('option', { value:'Matriz de Treinamento' }, ['Matriz de Treinamento']),
-      el('option', { value:'Manutenção TI' }, ['Manutenção TI']),
-      el('option', { value:'Scanner' }, ['Scanner']),
-      el('option', { value:'Matriz de Parâmetros' }, ['Matriz de Parâmetros']),
-      el('option', { value:'N/A' }, ['N/A']),
-      el('option', { value:'Ponte/Feriado' }, ['Ponte/Feriado']),
-      el('option', { value:'Férias' }, ['Férias']),
-      el('option', { value:'Saída antecipada' }, ['Saída antecipada']),
-      el('option', { value:'Intervalo' }, ['Intervalo']),
-      el('option', { value:'Exame Periódico' }, ['Exame Periódico']),
-      el('option', { value:'Feedback' }, ['Feedback']),
-      el('option', { value:'Meta' }, ['Meta']),
-      el('option', { value:'Suporte Técnico' }, ['Suporte Técnico']),
-      el('option', { value:'Organização/Montagem de Book' }, ['Organização/Montagem de Book']),
-      el('option', { value:'Banco de Horas' }, ['Banco de Horas']),
-      el('option', { value:'Ausência de Atividades' }, ['Ausência de Atividades']),
-      el('option', { value:'Afastamento Médico' }, ['Afastamento Médico']),
-      el('option', { value:'Levantamento de Informações em Campo' }, ['Levantamento de Informações em Campo']),
-      el('option', { value:'Planejamento' }, ['Planejamento']),
-      el('option', { value:'Reunião sobre Melhorias' }, ['Reunião sobre Melhorias']),
-      el('option', { value:'RM' }, ['RM']),
-      el('option', { value:'CAP - Ciclo de Alta Performance' }, ['CAP - Ciclo de Alta Performance']),
+      el('option', { value:'Elaboração' }, ['Elaboração']),
+      el('option', { value:'Revisão' }, ['Revisão']),
+      el('option', { value:'Execução' }, ['Execução']),
+      el('option', { value:'Suporte' }, ['Suporte']),
     ]);
     const title = el('input', { placeholder:'Título da atividade', value: editingActivity?.titulo || '' });
     const ini = el('input', { type:'date', value: editingActivity?.data_inicio || todayISO() });
@@ -10707,8 +10674,18 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       uiPagination.internalActivitiesPage = 1;
       render();
     };
+    const currentResourceIds = new Set(activeUserResourceIds().map(String));
+    const currentNameKey = normalizedPersonName(userName || '');
+    const isCurrentUserInternalActivity = (activity={}) => {
+      const rid = String(activity.resourceId || activity.resource_id || '').trim();
+      if (rid && currentResourceIds.has(rid)) return true;
+      const ownerId = internalActivityOwnerId(activity);
+      if (ownerId && userId && ownerId === String(userId)) return true;
+      const ownerName = normalizedPersonName(internalActivityOwnerName(activity));
+      return !!currentNameKey && !!ownerName && ownerName === currentNameKey;
+    };
     const linkedActivities = (state.internalActivities || [])
-      .filter(canViewInternalActivityDetails)
+      .filter(isCurrentUserInternalActivity)
       .slice()
       .sort((a,b)=>String(a.titulo||'').localeCompare(String(b.titulo||'')));
     const activitySearch = el('input', { type:'search', placeholder:'Pesquisar por título ou nome da atividade...' });
@@ -10787,7 +10764,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     aptTable.appendChild(aptTb);
 
     const allRows = (state.internalActivities||[])
-      .filter(canViewInternalActivityDetails)
+      .filter(isCurrentUserInternalActivity)
       .slice()
       .sort((a,b)=>String(b.data_inicio||'').localeCompare(String(a.data_inicio||'')));
     const total = allRows.length;
