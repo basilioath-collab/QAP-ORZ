@@ -10707,6 +10707,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       }
     };
     activitySearch.addEventListener('input', renderActivityOptions);
+    activitySearch.addEventListener('focus', renderActivityOptions);
     renderActivityOptions();
     const saveActivityApontamento = () => {
       const activity = linkedActivities.find(a => String(a.id || '') === String(activitySelect.value || ''));
@@ -10827,7 +10828,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       card(isEditing ? 'Editar atividade interna' : 'Cadastrar atividade interna', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['As atividades internas são vinculadas automaticamente ao usuário atual; o campo Recurso fica oculto nesta tela.']),
         el('div',{class:'row'},[
-          el('div',{class:'field'},[el('label',{},['Tipo']), type]),
+          el('div',{class:'field'},[el('label',{},['Tipo de atividade']), type]),
           el('div',{class:'field',style:'flex:1;min-width:240px'},[el('label',{},['Título']), title]),
         ]),
         el('div',{class:'row'},[
@@ -10841,6 +10842,20 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
           isEditing ? button('Cancelar edição','',()=>{ editingInternalActivityId = ''; render(); }) : null,
           button(isEditing ? 'Salvar alterações' : 'Adicionar atividade','primary',save)
         ].filter(Boolean)),
+      ])),
+      card('Apontar horas em atividade vinculada', null, el('div',{class:'grid'},[
+        el('div', { class:'tiny muted' }, ['Pesquise ou selecione uma das suas atividades vinculadas. Ao focar em Pesquisar atividade, a lista abaixo já mostra todas as suas atividades disponíveis.']),
+        el('div',{class:'row'},[
+          el('div',{class:'field',style:'flex:1;min-width:240px'},[el('label',{},['Pesquisar atividade']), activitySearch]),
+          el('div',{class:'field',style:'flex:1;min-width:260px'},[el('label',{},['Atividade vinculada']), activitySelect]),
+          el('div',{class:'field'},[el('label',{},['Data']), aptDate]),
+          el('div',{class:'field compact'},[el('label',{},['Horas']), aptHours]),
+        ]),
+        el('div',{class:'field'},[el('label',{},['Observação']), aptObs]),
+        el('div',{class:'row end'},[
+          button('Salvar apontamento','primary',saveActivityApontamento)
+        ]),
+        el('div',{class:'scrollX'},[aptTable]),
       ])),
       card('Atividades internas', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['Privacidade: esta lista mostra apenas as atividades internas lançadas pelo usuário atual; a capacidade continua considerando atividades contabilizáveis de todos.']),
