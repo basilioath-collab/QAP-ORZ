@@ -10846,6 +10846,20 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
           button(isEditing ? 'Salvar alterações' : 'Adicionar atividade','primary',save)
         ].filter(Boolean)),
       ])),
+      card('Apontar horas em atividade vinculada', null, el('div',{class:'grid'},[
+        el('div', { class:'tiny muted' }, ['Pesquise ou selecione uma das suas atividades vinculadas. Ao focar em Pesquisar atividade, a lista abaixo já mostra todas as suas atividades disponíveis.']),
+        el('div',{style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;align-items:end'},[
+          el('div',{class:'field'},[el('label',{},['Pesquisar atividade']), activitySearch]),
+          el('div',{class:'field'},[el('label',{},['Atividade vinculada']), activitySelect]),
+          el('div',{class:'field'},[el('label',{},['Data']), aptDate]),
+          el('div',{class:'field'},[el('label',{},['Horas']), aptHours]),
+        ]),
+        el('div',{class:'field'},[el('label',{},['Observação']), aptObs]),
+        el('div',{class:'row end'},[
+          button('Salvar apontamento','primary',saveActivityApontamento)
+        ]),
+        el('div',{class:'scrollX'},[aptTable]),
+      ])),
       card('Atividades internas', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['Privacidade: esta lista mostra apenas as atividades internas lançadas pelo usuário atual; a capacidade continua considerando atividades contabilizáveis de todos.']),
         pager,
