@@ -9450,155 +9450,133 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
   };
 
   const viewLaunches = () => {
-    const DAILY_JOURNEY_HOURS = 9;
-    const allRows = buildExecutionLaunchRows();
+    const allRealRows = buildExecutionLaunchRows();
     const today = todayISO();
     const monthStart = today.slice(0, 8) + '01';
     const startValue = uiFilters.launchDateStart || monthStart;
     const endValue = uiFilters.launchDateEnd || today;
     const resourceValue = uiFilters.launchResourceId || '';
-    const typeValue = uiFilters.launchType || '';
 
     const startInput = el('input', { type:'date', value:startValue });
     const endInput = el('input', { type:'date', value:endValue });
     const resourceSelect = el('select', {}, [el('option', { value:'' }, ['Todos os recursos'])]);
-    for (const resource of (state.resources || []).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||'')))) {
+    const resourcesOrdered = (state.resources || []).slice().sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||'')));
+    for (const resource of resourcesOrdered) {
       resourceSelect.appendChild(el('option', { value:String(resource.id || '') }, [resource.nome || resource.name || resource.id || 'Recurso']));
     }
     resourceSelect.value = resourceValue;
-    const typeSelect = el('select', {}, [
-      el('option', { value:'' }, ['Todos os tipos']),
-      el('option', { value:'demanda' }, ['Apontamento de demanda']),
-      el('option', { value:'atividade_interna' }, ['Atividade interna']),
-    ]);
-    typeSelect.value = typeValue;
 
-    const inPeriod = (row) => (!startValue || String(row.data || '') >= startValue) && (!endValue || String(row.data || '') <= endValue);
-    const rows = allRows
-      .filter(inPeriod)
-      .filter(row => !resourceValue || String(row.resourceId || '') === String(resourceValue))
-      .filter(row => !typeValue || String(row.tipo_lancamento || '') === String(typeValue));
-
-    const groups = new Map();
-    for (const row of rows) {
-      const resourceKey = String(row.resourceId || row.resourceName || row.usuario || 'sem-recurso');
-      const key = `${resourceKey}::${row.data || 'sem-data'}`;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          resourceId: row.resourceId || '',
-          resourceName: row.resourceName || row.usuario || 'Recurso',
-          date: row.data || '',
-          rows: [],
-          total: 0,
-        });
+    const periodDays = (() => {
+      const out = [];
+      const start = isoToLocalMidnight(startValue);
+      const end = isoToLocalMidnight(endValue);
+      if (!start || !end || start.getTime() > end.getTime()) return out;
+      const cursor = new Date(start.getTime());
+      while (cursor.getTime() <= end.getTime()) {
+        out.push(new Date(cursor.getTime()));
+        cursor.setDate(cursor.getDate() + 1);
       }
-      const group = groups.get(key);
-      group.rows.push(row);
-      group.total = Math.round((group.total + Number(row.horas || 0)) * 100) / 100;
+      return out;
+    })();
+    const inPeriod = (row) => (!startValue || String(row.data || '') >= startValue) && (!endValue || String(row.data || '') <= endValue);
+    const visibleResources = resourcesOrdered.filter(r => !resourceValue || String(r.id || '') === String(resourceValue));
+    const rowsByResource = new Map();
+    const ensure = (resourceId, resourceName) => {
+      const key = String(resourceId || resourceName || 'sem-recurso');
+      if (!rowsByResource.has(key)) rowsByResource.set(key, { resourceId: String(resourceId || ''), resourceName: resourceName || 'Sem recurso', planned:0, real:0 });
+      return rowsByResource.get(key);
+    };
+
+    for (const resource of visibleResources) {
+      const item = ensure(resource.id, resource.nome || resource.name || resource.id || 'Recurso');
+      for (const day of periodDays) {
+        const info = CapacityEngine.freeHoursInfo(resource.id, day);
+        item.planned = Math.round((item.planned + Number(info.allocatedFromDemandsHH || 0)) * 100) / 100;
+      }
     }
 
-    const groupedRows = [...groups.values()].sort((a,b) =>
-      String(a.resourceName || '').localeCompare(String(b.resourceName || '')) || String(a.date || '').localeCompare(String(b.date || ''))
-    );
+    for (const row of allRealRows.filter(inPeriod)) {
+      if (resourceValue && String(row.resourceId || '') !== String(resourceValue)) continue;
+      const item = ensure(row.resourceId, row.resourceName || row.usuario || 'Sem recurso');
+      item.real = Math.round((item.real + Number(row.horas || 0)) * 100) / 100;
+    }
 
-    const shortLabel = (txt, max=22) => {
-      const s = String(txt || '').trim();
-      return s.length > max ? `${s.slice(0, max - 1)}…` : s;
-    };
-    const segmentTitle = (row) => [
-      `Tipo: ${row.tipo_lancamento === 'demanda' ? 'Apontamento de demanda' : 'Atividade interna'}`,
-      `Recurso: ${row.resourceName || row.usuario || '-'}`,
-      `Data: ${formatDateBR(row.data)}`,
-      `Título: ${row.tipo_lancamento === 'demanda' ? (row.demandTitle || row.activityTitle || '-') : (row.activityTitle || '-')}`,
-      `Horas: ${fmtHours(row.horas)}h`,
-      row.observacao ? `Observação: ${row.observacao}` : '',
-      `Criado por: ${row.created_by || row.usuario || '-'}`,
-      row.created_at ? `Criado em: ${new Date(Number(row.created_at)).toLocaleString('pt-BR')}` : '',
-    ].filter(Boolean).join('\n');
-
-    const ganttLine = (group) => {
-      const total = Number(group.total || 0);
-      const free = Math.max(0, DAILY_JOURNEY_HOURS - total);
-      const excess = Math.max(0, total - DAILY_JOURNEY_HOURS);
-      let remaining = DAILY_JOURNEY_HOURS;
-      const segments = [];
-      for (const row of group.rows) {
-        const hours = Math.max(0, Number(row.horas || 0));
-        const normalHours = Math.max(0, Math.min(hours, remaining));
-        const excessHours = Math.max(0, hours - normalHours);
-        const title = row.tipo_lancamento === 'demanda' ? (row.demandTitle || row.activityTitle || 'Demanda') : (row.activityTitle || 'Atividade interna');
-        if (normalHours > 0) {
-          const pct = (normalHours / DAILY_JOURNEY_HOURS) * 100;
-          segments.push(el('div', {
-            title: segmentTitle(row),
-            style:`height:30px;flex:0 0 ${pct}%;background:${row.tipo_lancamento === 'demanda' ? 'var(--primary)' : 'var(--accent)'};color:${row.tipo_lancamento === 'demanda' ? '#fff' : 'var(--header)'};display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:11px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-right:1px solid rgba(255,255,255,.45)`
-          }, [`${shortLabel(title)} ${fmtHours(normalHours)}h`]));
-          remaining = Math.max(0, remaining - normalHours);
-        }
-        if (excessHours > 0) {
-          const pct = (excessHours / DAILY_JOURNEY_HOURS) * 100;
-          segments.push(el('div', {
-            title: `${segmentTitle(row)}\nExcedente deste lançamento: ${fmtHours(excessHours)}h`,
-            style:`height:30px;flex:0 0 ${pct}%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:11px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:2px solid #fff`
-          }, [`Exced. ${fmtHours(excessHours)}h`]));
-        }
-      }
-      if (free > 0) {
-        segments.push(el('div', {
-          title:`Horas livres: ${fmtHours(free)}h`,
-          style:`height:30px;flex:0 0 ${(free / DAILY_JOURNEY_HOURS) * 100}%;background:repeating-linear-gradient(45deg, #fff, #fff 6px, var(--primary-wash) 6px, var(--primary-wash) 12px);color:var(--muted);display:flex;align-items:center;justify-content:center;padding:0 8px;font-size:11px;font-weight:950;border-left:1px solid var(--border)`
-        }, [`Livre ${fmtHours(free)}h`]));
-      }
-
-      return el('div', { style:'border:1px solid var(--border);border-radius:14px;background:#fff;padding:12px;display:grid;gap:8px' }, [
-        el('div', { class:'row', style:'justify-content:space-between;align-items:flex-start;gap:12px' }, [
-          el('div', {}, [
-            el('div', { style:'font-weight:950' }, [`${group.resourceName} — ${formatDateBR(group.date)}`]),
-            el('div', { class:'tiny muted' }, [`Recurso → Dia → lançamentos dentro da jornada de ${DAILY_JOURNEY_HOURS}h`]),
-          ]),
-          el('div', { class: excess > 0 ? 'pill bad' : 'pill', title: excess > 0 ? 'Há horas acima da jornada diária.' : 'Total dentro da jornada diária.' }, [
-            `Total apontado: ${fmtHours(total)}h / ${DAILY_JOURNEY_HOURS}h`,
-            excess > 0 ? ` · Excedente: ${fmtHours(excess)}h` : ` · Saldo livre: ${fmtHours(free)}h`
-          ]),
-        ]),
-        el('div', { style:'height:32px;border-radius:999px;background:var(--surface);border:1px solid var(--border);overflow-x:auto;overflow-y:hidden;display:flex;width:100%' }, segments),
-      ]);
-    };
+    const comparisonRows = [...rowsByResource.values()]
+      .filter(row => row.planned > 0 || row.real > 0 || !resourceValue)
+      .sort((a,b)=>String(a.resourceName || '').localeCompare(String(b.resourceName || '')));
+    const totalPlanned = Math.round(comparisonRows.reduce((acc,row)=>acc+Number(row.planned||0),0)*100)/100;
+    const totalReal = Math.round(comparisonRows.reduce((acc,row)=>acc+Number(row.real||0),0)*100)/100;
+    const diff = Math.round((totalReal - totalPlanned) * 100) / 100;
+    const adherence = totalPlanned > 0 ? Math.round((totalReal / totalPlanned) * 1000) / 10 : (totalReal > 0 ? 100 : 0);
+    const maxHours = Math.max(1, ...comparisonRows.flatMap(row => [Number(row.planned||0), Number(row.real||0)]));
 
     const applyFilters = () => {
       uiFilters.launchDateStart = startInput.value;
       uiFilters.launchDateEnd = endInput.value;
       uiFilters.launchResourceId = resourceSelect.value;
-      uiFilters.launchType = typeSelect.value;
       render();
     };
     const clearFilters = () => {
       delete uiFilters.launchDateStart;
       delete uiFilters.launchDateEnd;
       delete uiFilters.launchResourceId;
-      delete uiFilters.launchType;
       render();
     };
 
+    const metric = (label, value, hint='') => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface)' }, [
+      el('div', { class:'tiny muted' }, [label]),
+      el('div', { class:'mono', style:'font-weight:950;font-size:18px' }, [value]),
+      hint ? el('div', { class:'tiny muted', style:'margin-top:2px' }, [hint]) : null,
+    ].filter(Boolean));
+
+    const chartRows = comparisonRows.map(row => {
+      const plannedPct = Math.max(2, Math.round((Number(row.planned || 0) / maxHours) * 1000) / 10);
+      const realPct = Math.max(2, Math.round((Number(row.real || 0) / maxHours) * 1000) / 10);
+      const rowDiff = Math.round((Number(row.real || 0) - Number(row.planned || 0)) * 100) / 100;
+      const rowAdherence = Number(row.planned || 0) > 0 ? Math.round((Number(row.real || 0) / Number(row.planned || 0)) * 1000) / 10 : (Number(row.real || 0) > 0 ? 100 : 0);
+      return el('div', { style:'display:grid;grid-template-columns:minmax(150px,230px) 1fr;gap:12px;align-items:center;border:1px solid var(--border);border-radius:14px;padding:12px;background:#fff' }, [
+        el('div', {}, [
+          el('div', { style:'font-weight:950' }, [row.resourceName || 'Sem recurso']),
+          el('div', { class:'tiny muted' }, [`Dif.: ${rowDiff >= 0 ? '+' : ''}${fmtHours(rowDiff)}h · Aderência ${rowAdherence}%`]),
+        ]),
+        el('div', { class:'grid', style:'gap:7px' }, [
+          el('div', { style:'display:grid;grid-template-columns:72px 1fr 70px;gap:8px;align-items:center' }, [
+            el('div', { class:'tiny muted', style:'font-weight:900' }, ['Planejado']),
+            el('div', { style:'height:14px;border-radius:999px;background:var(--primary-wash);overflow:hidden;border:1px solid var(--border)' }, [
+              el('div', { title:`${row.resourceName} · planejado: ${fmtHours(row.planned)}h`, style:`height:100%;width:${plannedPct}%;background:var(--primary);border-radius:999px` }, [])
+            ]),
+            el('div', { class:'mono tiny', style:'text-align:right;font-weight:900' }, [`${fmtHours(row.planned)}h`]),
+          ]),
+          el('div', { style:'display:grid;grid-template-columns:72px 1fr 70px;gap:8px;align-items:center' }, [
+            el('div', { class:'tiny muted', style:'font-weight:900' }, ['Real']),
+            el('div', { style:'height:14px;border-radius:999px;background:var(--success-wash);overflow:hidden;border:1px solid var(--border)' }, [
+              el('div', { title:`${row.resourceName} · real: ${fmtHours(row.real)}h`, style:`height:100%;width:${realPct}%;background:var(--accent);border-radius:999px` }, [])
+            ]),
+            el('div', { class:'mono tiny', style:'text-align:right;font-weight:900' }, [`${fmtHours(row.real)}h`]),
+          ]),
+        ]),
+      ]);
+    });
+
     return el('div', { class:'grid' }, [
-      card('Lançamentos', null, el('div', { class:'grid' }, [
-        el('div', { class:'tiny muted' }, ['Execução real por recurso/dia. Cada linha representa a jornada diária de 9h e mistura apontamentos de demanda, atividades internas, saldo livre e excedentes.']),
+      card('Lançamentos - Planejado x Real', null, el('div', { class:'grid' }, [
+        el('div', { class:'tiny muted' }, ['Comparativo por recurso no período filtrado. Planejado vem somente das demandas no recorte; Real soma apontamentos de demanda e atividades internas.']),
         el('div', { class:'row' }, [
           el('div', { class:'field' }, [el('label', {}, ['Data inicial']), startInput]),
           el('div', { class:'field' }, [el('label', {}, ['Data final']), endInput]),
           el('div', { class:'field' }, [el('label', {}, ['Recurso']), resourceSelect]),
-          el('div', { class:'field' }, [el('label', {}, ['Tipo de lançamento']), typeSelect]),
           el('div', { class:'field', style:'align-self:flex-end' }, [button('Aplicar filtro','primary',applyFilters)]),
           el('div', { class:'field', style:'align-self:flex-end' }, [button('Limpar filtro','',clearFilters)]),
         ]),
       ])),
-      card('Gantt diário por recurso (9h)', null, el('div', { class:'grid', style:'gap:10px' }, [
-        el('div', { class:'row', style:'justify-content:space-between' }, [
-          el('div', { class:'tiny muted' }, [`${groupedRows.length} linha(s) recurso/dia · ${rows.length} lançamento(s).`]),
-          el('div', { class:'tiny muted' }, ['Cores: demanda em preto, atividade interna em verde, livre hachurado, excedente em vermelho.']),
-        ]),
-        ...(groupedRows.length ? groupedRows.map(ganttLine) : [el('div', { style:'padding:20px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento encontrado para os filtros selecionados.'])])
+      el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px' }, [
+        metric('Total planejado no período', `${fmtHours(totalPlanned)}h`, 'demandas proporcionais ao filtro'),
+        metric('Total real apontado', `${fmtHours(totalReal)}h`, 'demandas + atividades internas'),
+        metric('Diferença', `${diff >= 0 ? '+' : ''}${fmtHours(diff)}h`, 'real - planejado'),
+        metric('Aderência', `${adherence}%`, 'real / planejado'),
+      ]),
+      card('Planejado x Real por recurso', null, el('div', { class:'grid', style:'gap:10px' }, chartRows.length ? chartRows : [
+        el('div', { style:'padding:20px;text-align:center;color:var(--muted)' }, ['Nenhum dado planejado ou real encontrado para os filtros selecionados.'])
       ])),
     ]);
   };
