@@ -3067,6 +3067,8 @@ main{padding:14px;overflow-x:hidden}
   let launchDemandId = '';
   let dailyExecutionUnlocked = false;
   let dailyExecutionDate = todayISO();
+  let dailyExecutionMode = 'daily';
+  let dailyExecutionMonth = todayISO().slice(0, 7);
   const DAILY_EXECUTION_PASSWORD = 'CAPVIEW';
 
   const uiPagination = {
@@ -8228,6 +8230,90 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       .sort((a,b) => (Number(b.real || 0) - Number(a.real || 0)) || String(a.resource?.nome || '').localeCompare(String(b.resource?.nome || '')));
   };
 
+  const executionMonthDays = (monthStr='') => {
+    const match = String(monthStr || '').match(/^(\d{4})-(\d{2})$/);
+    const base = match ? new Date(Number(match[1]), Number(match[2]) - 1, 1) : isoToLocalMidnight(todayISO());
+    return getDaysInMonth(base.getFullYear(), base.getMonth());
+  };
+
+  const countsAsExecutionTargetDay = (resource={}, dateObj) => {
+    const dateStr = formatDate(dateObj);
+    if (!resource || resource.ativo === false) return false;
+    if (isWeekend(dateObj) || isHoliday(dateStr)) return false;
+    if (blockingFor(resource.id, dateStr)) return false;
+    if (isThirdPartyOff(resource, dateStr)) return false;
+    return true;
+  };
+
+  const monthlyResourceExecutionRows = (monthStr=dailyExecutionMonth) => {
+    const byResource = new Map();
+    const ensure = (resource) => {
+      const rid = String(resource?.id || '').trim();
+      if (!rid) return null;
+      if (!byResource.has(rid)) {
+        byResource.set(rid, {
+          resource,
+          planned: 0,
+          demandReal: 0,
+          internalReal: 0,
+          real: 0,
+          items: [],
+          daysBelow: 0,
+          daysAbove: 0,
+          daysWithExecution: 0,
+        });
+      }
+      return byResource.get(rid);
+    };
+    for (const r of (state.resources || [])) ensure(r);
+    for (const day of executionMonthDays(monthStr)) {
+      const dateStr = formatDate(day);
+      const dailyRows = new Map(dailyResourceExecutionRows(dateStr, { includeAllResources:true }).map(r => [String(r.resource?.id || ''), r]));
+      for (const r of (state.resources || [])) {
+        const row = ensure(r);
+        if (!row) continue;
+        const daily = dailyRows.get(String(r.id || '')) || { real:0, demandReal:0, internalReal:0, items:[] };
+        const target = countsAsExecutionTargetDay(r, day) ? expectedExecutionHoursForResource(r) : 0;
+        row.planned += target;
+        row.demandReal += Number(daily.demandReal || 0);
+        row.internalReal += Number(daily.internalReal || 0);
+        row.real += Number(daily.real || 0);
+        if (Number(daily.real || 0) > 0) row.daysWithExecution += 1;
+        if (target > 0 && Number(daily.real || 0) < target) row.daysBelow += 1;
+        if (target > 0 && Number(daily.real || 0) > target) row.daysAbove += 1;
+        for (const item of (daily.items || [])) {
+          row.items.push({ ...item, date: dateStr });
+        }
+      }
+    }
+    return [...byResource.values()]
+      .map(row => ({
+        ...row,
+        planned: roundDemandHours(row.planned),
+        demandReal: roundDemandHours(row.demandReal),
+        internalReal: roundDemandHours(row.internalReal),
+        real: roundDemandHours(row.real),
+      }))
+      .filter(row => row.planned > 0 || row.real > 0)
+      .sort((a,b) => (Number(b.real || 0) - Number(a.real || 0)) || String(a.resource?.nome || '').localeCompare(String(b.resource?.nome || '')));
+  };
+
+  const summarizeExecutionResourceRows = (rows=[]) => {
+    const planned = rows.reduce((acc, r) => acc + Number(r.planned || 0), 0);
+    const real = rows.reduce((acc, r) => acc + Number(r.real || 0), 0);
+    const internal = rows.reduce((acc, r) => acc + Number(r.internalReal || 0), 0);
+    const apontamentos = rows.reduce((acc, r) => acc + (r.items || []).filter(i => i.type === 'demand').length, 0);
+    return {
+      planned,
+      real,
+      internal,
+      apontamentos,
+      adherence: planned > 0 ? (real / planned) * 100 : (real > 0 ? 100 : 0),
+      pending: Math.max(0, planned - real),
+      extra: Math.max(0, real - planned),
+    };
+  };
+
   const executionExportDateBounds = () => {
     const dates = [];
     const add = (value) => {
@@ -8283,6 +8369,52 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     const headers = ['data','data_br','recurso','tipo_recurso','planejado_meta_horas','executado_total_horas','executado_demandas_horas','executado_internas_horas','aderencia_pct','saldo_horas','lancamentos_resumo'];
     downloadText(`execucao_diaria_todos_recursos_${formatDate(new Date())}.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
     toast('CSV de Execução diária exportado com todos os dias e recursos.');
+  };
+
+  const monthKeyFromISO = (iso='') => String(iso || '').slice(0, 7);
+  const addMonthsKey = (monthStr='', delta=1) => {
+    const match = String(monthStr || '').match(/^(\d{4})-(\d{2})$/);
+    const d = match ? new Date(Number(match[1]), Number(match[2]) - 1, 1) : isoToLocalMidnight(todayISO());
+    d.setMonth(d.getMonth() + Number(delta || 0));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const allMonthlyExecutionExportRows = () => {
+    const bounds = executionExportDateBounds();
+    const startMonth = monthKeyFromISO(bounds.start);
+    const endMonth = monthKeyFromISO(bounds.end);
+    const rows = [];
+    let cursor = startMonth;
+    let guard = 0;
+    while (cursor && cursor <= endMonth && guard < 300) {
+      for (const row of monthlyResourceExecutionRows(cursor)) {
+        const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
+        rows.push({
+          mes: cursor,
+          recurso: row.resource?.nome || row.resource?.name || row.resource?.id || '',
+          tipo_recurso: row.resource?.tipo || '',
+          planejado_meta_horas: row.planned,
+          executado_total_horas: row.real,
+          executado_demandas_horas: row.demandReal,
+          executado_internas_horas: row.internalReal,
+          aderencia_pct: Math.round(adherence * 10) / 10,
+          saldo_horas: roundDemandHours(row.real - row.planned),
+          dias_com_execucao: row.daysWithExecution,
+          dias_abaixo_meta: row.daysBelow,
+          dias_acima_meta: row.daysAbove,
+        });
+      }
+      cursor = addMonthsKey(cursor, 1);
+      guard++;
+    }
+    return rows;
+  };
+
+  const exportMonthlyExecutionCSV = () => {
+    const rows = allMonthlyExecutionExportRows();
+    const headers = ['mes','recurso','tipo_recurso','planejado_meta_horas','executado_total_horas','executado_demandas_horas','executado_internas_horas','aderencia_pct','saldo_horas','dias_com_execucao','dias_abaixo_meta','dias_acima_meta'];
+    downloadText(`execucao_mensal_recursos_${formatDate(new Date())}.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
+    toast('CSV de Execução mensal exportado.');
   };
 
   const openDailyResourceLaunchesModal = (row, dateStr) => {
@@ -8348,17 +8480,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       ]);
     }
 
+    const isMonthlyMode = dailyExecutionMode === 'monthly';
     const dateInput = el('input', { type:'date', value:dailyExecutionDate || todayISO(), onchange:(ev) => { dailyExecutionDate = ev.target.value || todayISO(); render(); } });
-    const resourceRows = dailyResourceExecutionRows(dailyExecutionDate || todayISO());
-    const totalsWithInternal = {
-      planned: resourceRows.reduce((acc, r) => acc + Number(r.planned || 0), 0),
-      real: resourceRows.reduce((acc, r) => acc + Number(r.real || 0), 0),
-      internal: resourceRows.reduce((acc, r) => acc + Number(r.internalReal || 0), 0),
-      apontamentos: resourceRows.reduce((acc, r) => acc + r.items.filter(i => i.type === 'demand').length, 0),
-    };
-    totalsWithInternal.adherence = totalsWithInternal.planned > 0 ? (totalsWithInternal.real / totalsWithInternal.planned) * 100 : (totalsWithInternal.real > 0 ? 100 : 0);
-    totalsWithInternal.pending = Math.max(0, totalsWithInternal.planned - totalsWithInternal.real);
-    totalsWithInternal.extra = Math.max(0, totalsWithInternal.real - totalsWithInternal.planned);
+    const monthInput = el('input', { type:'month', value:dailyExecutionMonth || todayISO().slice(0, 7), onchange:(ev) => { dailyExecutionMonth = ev.target.value || todayISO().slice(0, 7); render(); } });
+    const resourceRows = isMonthlyMode ? monthlyResourceExecutionRows(dailyExecutionMonth || todayISO().slice(0, 7)) : dailyResourceExecutionRows(dailyExecutionDate || todayISO());
+    const totalsWithInternal = summarizeExecutionResourceRows(resourceRows);
     const pct = (v) => `${Math.max(0, Number(v || 0)).toFixed(0)}%`;
     const metric = (label, value, hint='', tone='') => el('div', {
       style:`border:1px solid var(--border);border-radius:14px;padding:12px;background:${tone === 'warn' ? 'var(--warning-soft)' : tone === 'danger' ? 'var(--danger-soft)' : 'var(--surface)'}`
@@ -8382,8 +8508,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
           return el('div', { style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:12px;align-items:center' }, [
             el('div', {}, [
-              el('button', { type:'button', style:'font-weight:950;text-align:left;padding:0;border:0;background:transparent;color:var(--primary);cursor:pointer', onclick:() => openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()) }, [resourceName]),
-              el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Meta ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`]),
+              isMonthlyMode
+                ? el('div', { style:'font-weight:950' }, [resourceName])
+                : el('button', { type:'button', style:'font-weight:950;text-align:left;padding:0;border:0;background:transparent;color:var(--primary);cursor:pointer', onclick:() => openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()) }, [resourceName]),
+              el('div', { class:'tiny muted', style:'margin-top:4px' }, [`${isMonthlyMode ? 'Meta mensal' : 'Meta'} ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`]),
               el('div', { style:'margin-top:8px' }, [el('span', { class:`pill ${tone}` }, [pct(adherence)])])
             ]),
             el('div', { style:'display:grid;gap:8px' }, [
@@ -8412,21 +8540,35 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
     return el('div', { class:'grid' }, [
       card('Execução diária', el('div', { class:'row' }, [
-        el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
-        button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); }),
-        button('Exportar todos os dias', 'primary', exportDailyExecutionAllDaysCSV),
+        button('Diário', dailyExecutionMode === 'daily' ? 'primary' : '', () => { dailyExecutionMode = 'daily'; render(); }),
+        button('Mensal', dailyExecutionMode === 'monthly' ? 'primary' : '', () => { dailyExecutionMode = 'monthly'; render(); }),
+        isMonthlyMode
+          ? el('div', { class:'field' }, [el('label', {}, ['Mês']), monthInput])
+          : el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
+        isMonthlyMode
+          ? button('Mês atual', '', () => { dailyExecutionMonth = todayISO().slice(0, 7); render(); })
+          : button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); }),
+        isMonthlyMode
+          ? button('Exportar mensal', 'primary', exportMonthlyExecutionCSV)
+          : button('Exportar todos os dias', 'primary', exportDailyExecutionAllDaysCSV),
         button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
       ]), el('div', { class:'grid', style:'gap:12px' }, [
-        el('div', { class:'tiny muted' }, ['Indicador gerencial do dia selecionado. A meta de execução é fixa: 9h para interno e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.']),
+        el('div', { class:'tiny muted' }, [isMonthlyMode
+          ? 'Indicador mensal por recurso. A meta mensal soma os dias úteis do mês com 9h para interno e 8h para terceiro.'
+          : 'Indicador gerencial do dia selecionado. A meta de execução é fixa: 9h para interno e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.'
+        ]),
         el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px' }, [
-          metric('Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, '9h interno / 8h terceiro'),
-          metric('Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
+          metric(isMonthlyMode ? 'Meta mensal' : 'Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, isMonthlyMode ? 'dias úteis × meta do recurso' : '9h interno / 8h terceiro'),
+          metric(isMonthlyMode ? 'Executado no mês' : 'Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
           metric('Aderência', pct(totalsWithInternal.adherence), 'executado ÷ planejado', totalsWithInternal.adherence < 60 ? 'warn' : ''),
           metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
           metric('Extra', `${fmtHours(totalsWithInternal.extra)}h`, 'executado acima da meta', totalsWithInternal.extra > 0 ? 'warn' : ''),
         ]),
-        card('Execução por recurso', null, el('div', { class:'grid', style:'gap:10px' }, [
-          el('div', { class:'tiny muted' }, ['Gráfico horizontal por recurso. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.']),
+        card(isMonthlyMode ? 'Execução mensal por recurso' : 'Execução por recurso', null, el('div', { class:'grid', style:'gap:10px' }, [
+          el('div', { class:'tiny muted' }, [isMonthlyMode
+            ? 'Mês × recurso com duas barras: meta mensal e executado mensal. Executado soma apontamentos em demandas e atividades internas.'
+            : 'Gráfico horizontal por recurso. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.'
+          ]),
           resourceCards
         ]))
       ]))
