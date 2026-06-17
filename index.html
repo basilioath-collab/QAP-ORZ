@@ -8171,7 +8171,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     return assigned[0] || '';
   };
 
-  const dailyResourceExecutionRows = (dateStr=todayISO()) => {
+  const expectedExecutionHoursForResource = (resource={}) => String(resource?.tipo || '').trim() === 'Terceiro' ? HOURS_PER_DAY_THIRD : HOURS_PER_DAY;
+
+  const dailyResourceExecutionRows = (dateStr=todayISO(), { includeAllResources=false } = {}) => {
     const byResource = new Map();
     const ensure = (resource) => {
       const rid = String(resource?.id || '').trim();
@@ -8179,7 +8181,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       if (!byResource.has(rid)) {
         byResource.set(rid, {
           resource,
-          planned: 0,
+          planned: expectedExecutionHoursForResource(resource),
           demandReal: 0,
           internalReal: 0,
           items: [],
@@ -8187,24 +8189,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       }
       return byResource.get(rid);
     };
-    for (const r of (state.resources || [])) ensure(r);
+    for (const r of (state.resources || [])) {
+      if (includeAllResources || r?.ativo !== false) ensure(r);
+    }
     for (const demand of (state.demands || [])) {
-      if (dateStr && (String(demand.data_inicio || '') > dateStr || String(demand.data_fim || '') < dateStr)) {
-        // A demanda pode não estar planejada no dia, mas ainda pode ter apontamento avulso na data.
-      } else if (STATUS_COUNTS_IN_ALLOCATION.has(effectiveStatus(demand))) {
-        for (const a of demandAllocations(demand)) {
-          const rid = String(a.resourceId || '').trim();
-          const row = ensure((state.resources || []).find(r => String(r?.id || '') === rid));
-          if (!row) continue;
-          const reason = rid ? nonWorkingReasonForDay(rid, isoToLocalMidnight(dateStr)) : null;
-          if (reason) continue;
-          const hours = Math.max(0, Number(a.horas_planejadas_dia || a.horas_dia || 0));
-          if (hours > 0) {
-            row.planned += hours;
-            row.items.push({ type:'planned', label:demand.titulo || demand.id || 'Demanda', hours, hint:'planejado' });
-          }
-        }
-      }
       for (const apontamento of demandApontamentosForDate(demand, dateStr)) {
         const rid = resourceIdForApontamento(apontamento, demand);
         const row = ensure((state.resources || []).find(r => String(r?.id || '') === rid));
@@ -8212,7 +8200,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const hours = Math.max(0, Number(apontamento.horas || 0));
         if (hours > 0) {
           row.demandReal += hours;
-          row.items.push({ type:'demand', label:demand.titulo || demand.id || 'Demanda', hours, hint:apontamento.etapa || 'apontamento' });
+          row.items.push({ type:'demand', label:demand.titulo || demand.id || 'Demanda', hours, hint:apontamento.etapa || 'apontamento', obs: apontamento.observacao || '', user: apontamento.usuario || '' });
         }
       }
     }
@@ -8224,7 +8212,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const hours = Math.max(0, Number(ia?.horas_dia || ia?.horas || 0));
         if (hours > 0) {
           row.internalReal += hours;
-          row.items.push({ type:'internal', label:ia.titulo || ia.nome || ia.descricao || 'Atividade interna', hours, hint:'interna' });
+          row.items.push({ type:'internal', label:ia.titulo || ia.nome || ia.descricao || 'Atividade interna', hours, hint:'interna', obs: ia.observacoes || ia.observacao || '', user: internalActivityOwnerName(ia) || '' });
         }
       }
     }
@@ -8236,8 +8224,105 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         internalReal: roundDemandHours(row.internalReal),
         real: roundDemandHours(row.demandReal + row.internalReal),
       }))
-      .filter(row => row.planned > 0 || row.real > 0)
+      .filter(row => includeAllResources || row.planned > 0 || row.real > 0)
       .sort((a,b) => (Number(b.real || 0) - Number(a.real || 0)) || String(a.resource?.nome || '').localeCompare(String(b.resource?.nome || '')));
+  };
+
+  const executionExportDateBounds = () => {
+    const dates = [];
+    const add = (value) => {
+      const iso = normalizeDateLikeToISO(value);
+      if (iso) dates.push(iso);
+    };
+    for (const d of (state.demands || [])) {
+      add(d.data_inicio);
+      add(d.data_fim);
+      for (const a of normalizeDemandApontamentos(d)) add(a.data);
+    }
+    for (const ia of (state.internalActivities || [])) {
+      const ini = normalizeDateLikeToISO(ia?.data_inicio || ia?.dataInicio || ia?.start_date || ia?.data || '');
+      const fim = normalizeDateLikeToISO(ia?.data_fim || ia?.dataFim || ia?.end_date || ini || ia?.data || '') || ini;
+      add(ini);
+      add(fim);
+    }
+    if (!dates.length) return { start: todayISO(), end: todayISO() };
+    dates.sort();
+    return { start: dates[0], end: dates[dates.length - 1] };
+  };
+
+  const allDailyExecutionExportRows = () => {
+    const { start, end } = executionExportDateBounds();
+    const rows = [];
+    let cursor = start;
+    let guard = 0;
+    while (cursor && cursor <= end && guard < 8000) {
+      for (const row of dailyResourceExecutionRows(cursor, { includeAllResources:true })) {
+        const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
+        rows.push({
+          data: cursor,
+          data_br: formatDateBR(cursor),
+          recurso: row.resource?.nome || row.resource?.name || row.resource?.id || '',
+          tipo_recurso: row.resource?.tipo || '',
+          planejado_meta_horas: row.planned,
+          executado_total_horas: row.real,
+          executado_demandas_horas: row.demandReal,
+          executado_internas_horas: row.internalReal,
+          aderencia_pct: Math.round(adherence * 10) / 10,
+          saldo_horas: roundDemandHours(row.real - row.planned),
+          lancamentos_resumo: row.items.filter(i => i.type !== 'planned').map(i => `${i.type === 'internal' ? 'Interna' : 'Demanda'}: ${i.label} (${fmtHours(i.hours)}h)`).join(' | ')
+        });
+      }
+      cursor = addDaysISO(cursor, 1);
+      guard++;
+    }
+    return rows;
+  };
+
+  const exportDailyExecutionAllDaysCSV = () => {
+    const rows = allDailyExecutionExportRows();
+    const headers = ['data','data_br','recurso','tipo_recurso','planejado_meta_horas','executado_total_horas','executado_demandas_horas','executado_internas_horas','aderencia_pct','saldo_horas','lancamentos_resumo'];
+    downloadText(`execucao_diaria_todos_recursos_${formatDate(new Date())}.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
+    toast('CSV de Execução diária exportado com todos os dias e recursos.');
+  };
+
+  const openDailyResourceLaunchesModal = (row, dateStr) => {
+    let dlg = qs('#dailyResourceLaunchesModal');
+    if (dlg) dlg.remove();
+    const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
+    const items = row.items.filter(i => i.type !== 'planned');
+    const tbl = el('table', { class:'demandsTable' });
+    tbl.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Lançamento','Horas','Detalhe','Usuário'].map(h => el('th', {}, [h])))]));
+    const tbody = el('tbody');
+    for (const item of items) {
+      tbody.appendChild(el('tr', {}, [
+        el('td', {}, [item.type === 'internal' ? 'Atividade interna' : 'Demanda']),
+        el('td', {}, [item.label || '-']),
+        el('td', { class:'mono' }, [`${fmtHours(item.hours)}h`]),
+        el('td', {}, [item.obs || item.hint || '-']),
+        el('td', {}, [item.user || '-']),
+      ]));
+    }
+    if (!items.length) tbody.appendChild(el('tr', {}, [el('td', { colspan:'5', style:'padding:18px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento registrado para este recurso na data.'])]));
+    tbl.appendChild(tbody);
+    dlg = el('dialog', { id:'dailyResourceLaunchesModal', class:'modal' }, [
+      el('div', { class:'modalCard' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, [`Lançamentos de ${resourceName}`]),
+            el('div', { class:'modalSub' }, [`${formatDateBR(dateStr)} · Meta ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'tiny muted', style:'margin-bottom:10px' }, ['Resumo do dia selecionado. A exportação da aba gera todos os dias de todos os recursos.']),
+          el('div', { class:'scrollX' }, [tbl])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
   };
 
   const viewDailyExecution = () => {
@@ -8264,14 +8349,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     }
 
     const dateInput = el('input', { type:'date', value:dailyExecutionDate || todayISO(), onchange:(ev) => { dailyExecutionDate = ev.target.value || todayISO(); render(); } });
-    const rows = dailyExecutionRows({ dateStr: dailyExecutionDate || todayISO() })
-      .sort((a,b) => (Number(b.planned || 0) - Number(a.planned || 0)) || String(a.demand.titulo || '').localeCompare(String(b.demand.titulo || '')));
     const resourceRows = dailyResourceExecutionRows(dailyExecutionDate || todayISO());
-    const totals = summarizeDailyExecutionRows(rows);
     const totalsWithInternal = {
-      ...totals,
+      planned: resourceRows.reduce((acc, r) => acc + Number(r.planned || 0), 0),
       real: resourceRows.reduce((acc, r) => acc + Number(r.real || 0), 0),
       internal: resourceRows.reduce((acc, r) => acc + Number(r.internalReal || 0), 0),
+      apontamentos: resourceRows.reduce((acc, r) => acc + r.items.filter(i => i.type === 'demand').length, 0),
     };
     totalsWithInternal.adherence = totalsWithInternal.planned > 0 ? (totalsWithInternal.real / totalsWithInternal.planned) * 100 : (totalsWithInternal.real > 0 ? 100 : 0);
     totalsWithInternal.pending = Math.max(0, totalsWithInternal.planned - totalsWithInternal.real);
@@ -8285,65 +8368,44 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       hint ? el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint]) : null
     ].filter(Boolean));
 
-    const tbl = el('table', { class:'demandsTable' });
-    tbl.appendChild(el('thead', {}, [
-      el('tr', {}, ['Demanda','Planejado no dia','Executado no dia','Aderência','Saldo','Apontamentos'].map(h => el('th', {}, [h])))
-    ]));
-    const tbody = el('tbody');
-    for (const row of rows) {
-      const adherence = Number(row.planned || 0) > 0 ? (Number(row.real || 0) / Number(row.planned || 0)) * 100 : (row.real > 0 ? 100 : 0);
-      const balance = Number(row.planned || 0) - Number(row.real || 0);
-      const tone = balance < 0 ? 'bad' : balance > 0 ? 'warn' : 'info';
-      tbody.appendChild(el('tr', {}, [
-        el('td', {}, [el('div', { style:'font-weight:950' }, [row.demand.titulo || row.demand.id || 'Demanda']), el('div', { class:'tiny muted' }, [effectiveStatus(row.demand)])]),
-        el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]),
-        el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]),
-        el('td', {}, [el('span', { class:`pill ${adherence >= 100 ? 'info' : adherence > 0 ? 'warn' : 'bad'}` }, [pct(adherence)])]),
-        el('td', {}, [el('span', { class:`pill ${tone}` }, [balance >= 0 ? `${fmtHours(balance)}h pend.` : `${fmtHours(Math.abs(balance))}h extra`])]),
-        el('td', {}, [String(row.apontamentos.length)])
-      ]));
-    }
-    if (!rows.length) tbody.appendChild(el('tr', {}, [el('td', { colspan:'6', style:'padding:18px;text-align:center;color:var(--muted)' }, ['Nenhum planejamento ou apontamento para a data selecionada.'])]));
-    tbl.appendChild(tbody);
-
     const resourceCards = resourceRows.length
-      ? el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px' }, resourceRows.map(row => {
+      ? el('div', { style:'display:grid;gap:10px' }, resourceRows.map(row => {
           const maxHours = Math.max(1, row.planned, row.real);
-          const plannedH = Math.max(8, Math.round((row.planned / maxHours) * 118));
-          const realH = Math.max(8, Math.round((row.real / maxHours) * 118));
+          const plannedW = Math.max(4, Math.round((row.planned / maxHours) * 100));
+          const realW = Math.max(4, Math.round((row.real / maxHours) * 100));
           const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
           const tone = row.planned <= 0 ? 'info' : adherence > 130 ? 'bad' : adherence < 80 ? 'warn' : 'info';
           const workedItems = row.items
             .filter(i => i.type !== 'planned')
             .sort((a,b) => Number(b.hours || 0) - Number(a.hours || 0))
             .slice(0, 4);
-          return el('div', { style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;display:grid;gap:10px' }, [
-            el('div', { class:'row', style:'justify-content:space-between;align-items:flex-start;gap:10px' }, [
-              el('div', {}, [
-                el('div', { style:'font-weight:950' }, [row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso']),
-                el('div', { class:'tiny muted' }, [`Planejado ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`])
-              ]),
-              el('span', { class:`pill ${tone}` }, [pct(adherence)])
+          const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
+          return el('div', { style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:12px;align-items:center' }, [
+            el('div', {}, [
+              el('button', { type:'button', style:'font-weight:950;text-align:left;padding:0;border:0;background:transparent;color:var(--primary);cursor:pointer', onclick:() => openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()) }, [resourceName]),
+              el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Meta ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`]),
+              el('div', { style:'margin-top:8px' }, [el('span', { class:`pill ${tone}` }, [pct(adherence)])])
             ]),
-            el('div', { style:'height:148px;display:flex;align-items:flex-end;justify-content:center;gap:18px;border:1px solid var(--border);border-radius:14px;padding:12px;background:var(--surface)' }, [
-              el('div', { style:'display:grid;gap:6px;justify-items:center;align-items:end' }, [
-                el('div', { title:`Planejado: ${fmtHours(row.planned)}h`, style:`width:42px;height:${plannedH}px;border-radius:12px 12px 6px 6px;background:linear-gradient(180deg,var(--primary),#8db7ff);box-shadow:inset 0 -8px 16px rgba(255,255,255,.22)` }),
+            el('div', { style:'display:grid;gap:8px' }, [
+              el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
                 el('div', { class:'tiny muted' }, ['Planejado']),
-                el('div', { class:'mono tiny' }, [`${fmtHours(row.planned)}h`])
+                el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
+                  el('div', { title:`Planejado: ${fmtHours(row.planned)}h`, style:`width:${plannedW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),#8db7ff)` })
+                ]),
+                el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.planned)}h`])
               ]),
-              el('div', { style:'display:grid;gap:6px;justify-items:center;align-items:end' }, [
-                el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:42px;height:${realH}px;border-radius:12px 12px 6px 6px;background:linear-gradient(180deg,var(--success),#9be7b2);box-shadow:inset 0 -8px 16px rgba(255,255,255,.22)` }),
+              el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
                 el('div', { class:'tiny muted' }, ['Executado']),
-                el('div', { class:'mono tiny' }, [`${fmtHours(row.real)}h`])
+                el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
+                  el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:${realW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--success),#9be7b2)` })
+                ]),
+                el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.real)}h`])
+              ]),
+              el('div', { class:'tiny muted' }, [
+                `Demandas: ${fmtHours(row.demandReal)}h · Internas: ${fmtHours(row.internalReal)}h`,
+                workedItems.length ? ` · ${workedItems.map(i => i.label).slice(0,2).join(', ')}${workedItems.length > 2 ? '...' : ''}` : ''
               ])
-            ]),
-            el('div', { class:'tiny muted' }, [`Demandas: ${fmtHours(row.demandReal)}h · Internas: ${fmtHours(row.internalReal)}h`]),
-            workedItems.length
-              ? el('div', { style:'display:grid;gap:6px' }, workedItems.map(item => el('div', { class:'hint tiny', style:'display:flex;justify-content:space-between;gap:8px' }, [
-                  el('span', {}, [`${item.type === 'internal' ? 'Interna' : 'Demanda'}: ${item.label}`]),
-                  el('b', { class:'mono' }, [`${fmtHours(item.hours)}h`])
-                ])))
-              : el('div', { class:'hint tiny' }, ['Sem atuação executada registrada no dia.'])
+            ])
           ]);
         }))
       : el('div', { class:'hint tiny' }, ['Nenhum recurso com planejamento, apontamento ou atividade interna na data selecionada.']);
@@ -8352,21 +8414,21 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       card('Execução diária', el('div', { class:'row' }, [
         el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
         button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); }),
+        button('Exportar todos os dias', 'primary', exportDailyExecutionAllDaysCSV),
         button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
       ]), el('div', { class:'grid', style:'gap:12px' }, [
-        el('div', { class:'tiny muted' }, ['Indicador gerencial baseado em apontamentos reais e atividades internas. Não altera a capacidade planejada nem trava ocupação acima de 100%.']),
+        el('div', { class:'tiny muted' }, ['Indicador gerencial do dia selecionado. A meta de execução é fixa: 9h para interno e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.']),
         el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px' }, [
-          metric('Planejado no dia', `${fmtHours(totalsWithInternal.planned)}h`, 'demandas planejadas'),
-          metric('Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totals.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
+          metric('Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, '9h interno / 8h terceiro'),
+          metric('Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
           metric('Aderência', pct(totalsWithInternal.adherence), 'executado ÷ planejado', totalsWithInternal.adherence < 60 ? 'warn' : ''),
-          metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'planejado ainda sem execução'),
-          metric('Extra', `${fmtHours(totalsWithInternal.extra)}h`, 'executado acima do planejado', totalsWithInternal.extra > 0 ? 'warn' : ''),
+          metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
+          metric('Extra', `${fmtHours(totalsWithInternal.extra)}h`, 'executado acima da meta', totalsWithInternal.extra > 0 ? 'warn' : ''),
         ]),
         card('Execução por recurso', null, el('div', { class:'grid', style:'gap:10px' }, [
-          el('div', { class:'tiny muted' }, ['Planejado vem das demandas do dia. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.']),
+          el('div', { class:'tiny muted' }, ['Gráfico horizontal por recurso. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.']),
           resourceCards
-        ])),
-        card('Detalhamento por demanda', null, el('div', { class:'scrollX' }, [tbl]))
+        ]))
       ]))
     ]);
   };
