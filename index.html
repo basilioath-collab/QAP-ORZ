@@ -806,7 +806,7 @@ main{padding:14px;overflow-x:hidden}
   </div>
 </header>
 
-    <nav id="tabs"><button class="active"><span>📊</span>Visão Geral</button><button class=""><span>📈</span>Apontamentos</button><button class=""><span>📋</span>Demandas</button><button class=""><span>👥</span>Recursos</button><button class=""><span>📅</span>Bloqueio de Janela</button><button class=""><span>⏱</span>Horas Extras (HE)</button><button class=""><span>🔎</span>Janelas Livres</button><button class=""><span>✍️</span>Lançamentos</button><button class=""><span>📦</span>Sincronização de BD</button></nav>
+    <nav id="tabs"><button class="active"><span>📊</span>Visão Geral</button><button class=""><span>📈</span>Apontamentos</button><button class=""><span>📋</span>Demandas</button><button class=""><span>👥</span>Recursos</button><button class=""><span>📅</span>Bloqueio de Janela</button><button class=""><span>⏱</span>Horas Extras (HE)</button><button class=""><span>🔎</span>Janelas Livres</button><button class=""><span>✍️</span>Lançamentos</button><button class=""><span>📆</span>Execução diária</button><button class=""><span>📦</span>Sincronização de BD</button></nav>
   </div>
 
   <main id="app"><div class="globalDbWarn" style="margin-bottom:14px">Nenhum BD Vinculado<span class="tiny" style="display:block;margin-top:4px">Vá em <b>Sincronização de BD</b> &gt; <b>Banco de Dados</b> e selecione o arquivo da pasta de rede.</span></div><div class="grid"><div class="kpi"><div class="k"><div class="lbl">Recursos (total)</div><div class="val">0</div></div><div class="k"><div class="lbl">Recursos (ativos)</div><div class="val">0</div></div><div class="k"><div class="lbl">Demandas (total)</div><div class="val">0</div></div><div class="k"><div class="lbl">Demandas (abertas)</div><div class="val">0</div></div></div><div class="split"><div class="card"><div class="hd"><h2>Demandas (Geral)</h2><div></div></div><div class="bd"><div class="grid"><div class="grid" style="gap:10px"><div class="row"><div class="field"><label>Status</label><select><option value="">Todos os status</option><option value="Em andamento">Em andamento</option><option value="Atrasada">Atrasada</option><option value="Concluída">Concluída</option><option value="Mapeada">Mapeada</option><option value="Congelada">Congelada</option></select></div><div class="field"><label>Recurso</label><select><option value="">Todos os recursos</option><option value="__NONE__">Sem responsável (Mapeada)</option></select></div><div class="field" style="flex:1;min-width:240px"><label>Pesquisar título</label><input type="search" placeholder="Digite parte do título..." id="dashboardDemandTitleSearch"></div><div class="field"><label>De</label><input type="date"></div><div class="field"><label>Até</label><input type="date"></div></div><div style="display:none"></div></div><div class="donutWrap"><div class="donut empty" style="background:conic-gradient(var(--border) 0 100%);"></div><div class="legend"><div class="item" title="Filtrar demandas: Em andamento"><span class="sw" style="background:var(--indigo)"></span>Em andamento: 0</div><div class="item" title="Filtrar demandas: Atrasada"><span class="sw" style="background:var(--red)"></span>Atrasada: 0</div><div class="item" title="Filtrar demandas: Concluída"><span class="sw" style="background:var(--green)"></span>Concluída: 0</div><div class="item" title="Filtrar demandas: Mapeada"><span class="sw" style="background:var(--slate)"></span>Mapeada: 0</div><div class="item" title="Filtrar demandas: Congelada"><span class="sw" style="background:var(--yellow)"></span>Congelada: 0</div></div></div></div></div></div><div class="card"><div class="hd"><h2>Por Recurso (mês)</h2><div></div></div><div class="bd"><div><div class="scrollX"><table><thead><tr><th>Recurso</th><th>Demandas ativas (mês)</th><th>% médio alocado (mês)</th><th>Pico</th><th>Barra</th></tr></thead><tbody><tr><td colspan="5" style="padding:16px;text-align:center;color:var(--muted)">Cadastre recursos para ver o gráfico por recurso.</td></tr></tbody></table></div><div class="pager"><div class="info">Nenhum item - Página 1 de 1</div><div class="controls"><button class="btn " disabled="">« Início</button><button class="btn " disabled="">‹ Anterior</button><button class="btn " disabled="">Próxima ›</button><button class="btn " disabled="">Final »</button></div></div></div></div></div></div><div class="card"><div class="hd"><h2>Ocupação Consolidada - Ano</h2><div class="row" style="gap:10px;flex-wrap:wrap;justify-content:flex-end"><div class="tag" title="Uso do mês atual (Planejado/Capacidade)">Mês: 0% - Overcap: 0h - Estourados: 0/0</div><button class="btn ghost">Exportar SVG</button><button class="btn ghost">Exportar PNG</button></div></div><div class="bd"><div class="grid" style="gap:10px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px"><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Ocupação média</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0%</div><div class="tiny muted" style="margin-top:3px">média dos meses com capacidade</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Maior pico</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0%</div><div class="tiny muted" style="margin-top:3px">em jan</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Meses estourados</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0</div><div class="tiny muted" style="margin-top:3px">acima de 100%</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Horas acima da capacidade</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0h</div><div class="tiny muted" style="margin-top:3px">soma anual de overcap</div></div></div><div style="max-width:100%;overflow:auto"><svg viewBox="0 0 1200 440" width="1200" height="440" style="max-width:100%;height:auto;display:block;" role="img"><rect x="0" y="0" width="1200" height="440" rx="0" fill="#ffffff"></rect><rect x="70" y="34" width="1094" height="98.66666666666669" rx="0" fill="var(--danger-soft)" opacity=".42"></rect><rect x="70" y="132.66666666666669" width="1094" height="197.33333333333331" rx="0" fill="#ffffff"></rect><text x="70" y="20" fill="var(--text)" font-size="16" font-weight="950" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Ocupação Consolidada - Ano</text><text x="1164" y="20" fill="var(--muted)" font-size="11" font-weight="800" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">escala visual 0-150%</text><line x1="70" y1="330" x2="1164" y2="330" stroke="var(--border)" stroke-width="1"></line><text x="60" y="334" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><line x1="70" y1="270.8" x2="1164" y2="270.8" stroke="var(--border)" stroke-width="1"></line><text x="60" y="274.8" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">30%</text><line x1="70" y1="211.6" x2="1164" y2="211.6" stroke="var(--border)" stroke-width="1"></line><text x="60" y="215.6" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">60%</text><line x1="70" y1="152.4" x2="1164" y2="152.4" stroke="var(--border)" stroke-width="1"></line><text x="60" y="156.4" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">90%</text><line x1="70" y1="93.19999999999999" x2="1164" y2="93.19999999999999" stroke="var(--border)" stroke-width="1"></line><text x="60" y="97.19999999999999" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">120%</text><line x1="70" y1="34" x2="1164" y2="34" stroke="var(--border)" stroke-width="1"></line><text x="60" y="38" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">150%</text><line x1="70" y1="132.66666666666669" x2="1164" y2="132.66666666666669" stroke="var(--danger)" stroke-width="2" stroke-dasharray="6 6"></line><text x="1160" y="124.66666666666669" fill="var(--danger)" font-size="12" font-weight="900" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">limite 100%</text><rect x="90.96833333333333" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="90.96833333333333" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jan"><title>jan: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="115.58333333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jan</text><text x="115.58333333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="115.58333333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="182.13500000000002" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="182.13500000000002" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="fev"><title>fev: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="206.75000000000003" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">fev</text><text x="206.75000000000003" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="206.75000000000003" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="273.3016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="273.3016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="mar"><title>mar: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="297.9166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">mar</text><text x="297.9166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="297.9166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="364.4683333333333" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="364.4683333333333" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="abr"><title>abr: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="389.0833333333333" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">abr</text><text x="389.0833333333333" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="389.0833333333333" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="455.635" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="455.635" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="mai"><title>mai: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><rect x="450.635" y="29" width="59.230000000000004" height="306" rx="14" fill="none" stroke="var(--primary)" stroke-width="2" stroke-dasharray="5 5"></rect><text x="480.25" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">mai</text><text x="480.25" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="480.25" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="546.8016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="546.8016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jun"><title>jun: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="571.4166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jun</text><text x="571.4166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="571.4166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="637.9683333333334" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="637.9683333333334" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jul"><title>jul: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="662.5833333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jul</text><text x="662.5833333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="662.5833333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="729.1350000000001" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="729.1350000000001" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="ago"><title>ago: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="753.7500000000001" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">ago</text><text x="753.7500000000001" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="753.7500000000001" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="820.3016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="820.3016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="set"><title>set: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="844.9166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">set</text><text x="844.9166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="844.9166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="911.4683333333334" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="911.4683333333334" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="out"><title>out: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="936.0833333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">out</text><text x="936.0833333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="936.0833333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="1002.635" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="1002.635" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="nov"><title>nov: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="1027.25" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">nov</text><text x="1027.25" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="1027.25" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="1093.8016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="1093.8016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="dez"><title>dez: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="1118.4166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">dez</text><text x="1118.4166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="1118.4166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="70" y="412" width="14" height="10" rx="2" fill="var(--success)"></rect><text x="90" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Saudável</text><rect x="200" y="412" width="14" height="10" rx="2" fill="var(--warning)"></rect><text x="220" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Atenção</text><rect x="320" y="412" width="14" height="10" rx="2" fill="var(--danger)"></rect><text x="340" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Acima da capacidade</text><text x="1164" y="421" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">rótulo inferior: planejado/capacidade (Horas)</text></svg></div></div></div></div><div class="card"><div class="hd"><h2>Visão Geral</h2><div class="row" style="gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center"><div class="row"><button class="btn ghost">◀</button><div class="tag">maio de 2026</div><button class="btn ghost">▶</button></div><div class="legendDropdown"><button class="legendBtn" type="button" title="Abrir menu de legendas" aria-haspopup="true" aria-expanded="false">☰ Legendas<span class="chev">▾</span></button><div class="legendMenu" role="menu"><div class="legendGroup"><div class="legendGroupTitle">Capacidade</div><div class="legendItem"><span class="legendDot ok"></span><span>≤ 80%<small>Alocação confortável</small></span></div><div class="legendItem"><span class="legendDot mid"></span><span>81?100%<small>Próximo do limite</small></span></div><div class="legendItem"><span class="legendDot over"></span><span>&gt; 100%<small>Capacidade excedida</small></span></div></div><div class="legendGroup"><div class="legendGroupTitle">Bloqueios</div><div class="legendItem"><span class="legendDot block"></span><span>Bloqueio<small>Dia sem capacidade</small></span></div><div class="legendItem"><span class="legendDot vac"></span><span>Férias<small>Recurso indisponível</small></span></div><div class="legendItem"><span class="legendDot off"></span><span>Fora vigência<small>Terceiro fora do período</small></span></div></div><div class="legendGroup"><div class="legendGroupTitle">Eventos especiais</div><div class="legendItem"><span class="legendDot holiday"></span><span>Feriado<small>Capacidade zerada</small></span></div><div class="legendItem"><span class="legendDot vac"></span><span>HE<small>Hora extra registrada</small></span></div></div></div></div></div></div><div class="bd"><div><div class="scrollX"><table class="calTable"><thead><tr><th class="stickyCol" style="min-width:220px">Recurso / Dia</th><th class="dayHead " title="01/05/2026"><div class="mono" style="font-weight:900">1</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="02/05/2026"><div class="mono" style="font-weight:900">2</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="03/05/2026"><div class="mono" style="font-weight:900">3</div><div class="tiny">dom</div></th><th class="dayHead " title="04/05/2026"><div class="mono" style="font-weight:900">4</div><div class="tiny">seg</div></th><th class="dayHead " title="05/05/2026"><div class="mono" style="font-weight:900">5</div><div class="tiny">ter</div></th><th class="dayHead " title="06/05/2026"><div class="mono" style="font-weight:900">6</div><div class="tiny">qua</div></th><th class="dayHead " title="07/05/2026"><div class="mono" style="font-weight:900">7</div><div class="tiny">qui</div></th><th class="dayHead " title="08/05/2026"><div class="mono" style="font-weight:900">8</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="09/05/2026"><div class="mono" style="font-weight:900">9</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="10/05/2026"><div class="mono" style="font-weight:900">10</div><div class="tiny">dom</div></th><th class="dayHead " title="11/05/2026"><div class="mono" style="font-weight:900">11</div><div class="tiny">seg</div></th><th class="dayHead " title="12/05/2026"><div class="mono" style="font-weight:900">12</div><div class="tiny">ter</div></th><th class="dayHead " title="13/05/2026"><div class="mono" style="font-weight:900">13</div><div class="tiny">qua</div></th><th class="dayHead " title="14/05/2026"><div class="mono" style="font-weight:900">14</div><div class="tiny">qui</div></th><th class="dayHead " title="15/05/2026"><div class="mono" style="font-weight:900">15</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="16/05/2026"><div class="mono" style="font-weight:900">16</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="17/05/2026"><div class="mono" style="font-weight:900">17</div><div class="tiny">dom</div></th><th class="dayHead " title="18/05/2026"><div class="mono" style="font-weight:900">18</div><div class="tiny">seg</div></th><th class="dayHead " title="19/05/2026"><div class="mono" style="font-weight:900">19</div><div class="tiny">ter</div></th><th class="dayHead " title="20/05/2026"><div class="mono" style="font-weight:900">20</div><div class="tiny">qua</div></th><th class="dayHead " title="21/05/2026"><div class="mono" style="font-weight:900">21</div><div class="tiny">qui</div></th><th class="dayHead " title="22/05/2026"><div class="mono" style="font-weight:900">22</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="23/05/2026"><div class="mono" style="font-weight:900">23</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="24/05/2026"><div class="mono" style="font-weight:900">24</div><div class="tiny">dom</div></th><th class="dayHead " title="25/05/2026"><div class="mono" style="font-weight:900">25</div><div class="tiny">seg</div></th><th class="dayHead " title="26/05/2026"><div class="mono" style="font-weight:900">26</div><div class="tiny">ter</div></th><th class="dayHead " title="27/05/2026"><div class="mono" style="font-weight:900">27</div><div class="tiny">qua</div></th><th class="dayHead " title="28/05/2026"><div class="mono" style="font-weight:900">28</div><div class="tiny">qui</div></th><th class="dayHead " title="29/05/2026"><div class="mono" style="font-weight:900">29</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="30/05/2026"><div class="mono" style="font-weight:900">30</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="31/05/2026"><div class="mono" style="font-weight:900">31</div><div class="tiny">dom</div></th></tr></thead><tbody><tr><td colspan="32" style="padding:34px;text-align:center;color:var(--muted)">Nenhum recurso cadastrado. Vá em "Recursos" para começar.</td></tr></tbody></table></div><div class="pager"><div class="info">Nenhum item - Página 1 de 1</div><div class="controls"><button class="btn " disabled="">« Início</button><button class="btn " disabled="">‹ Anterior</button><button class="btn " disabled="">Próxima ›</button><button class="btn " disabled="">Final »</button></div></div></div></div></div></div></main>
@@ -3065,6 +3065,9 @@ main{padding:14px;overflow-x:hidden}
   let editingInternalActivityId = '';
   let launchMode = 'demand';
   let launchDemandId = '';
+  let dailyExecutionUnlocked = false;
+  let dailyExecutionDate = todayISO();
+  const DAILY_EXECUTION_PASSWORD = 'CAPVIEW';
 
   const uiPagination = {
     demandsPage: 1,
@@ -5489,7 +5492,9 @@ main{padding:14px;overflow-x:hidden}
       const allocatedFromDemandsHH = this.dailyDemandHoursAllocated(resourceId, dateObj);
       const perc = demandHoursToPercent(allocatedFromDemandsHH, resourceId, state.resources || []);
       const allocatedFromInternalHH = internalActivityHoursForDay(resourceId, dateObj);
-      const allocated = allocatedFromDemandsHH + allocatedFromInternalHH;
+      // Ocupação/janelas consideram somente demandas planejadas.
+      // Atividades internas permanecem disponíveis como indicador separado, sem consumir a janela.
+      const allocated = allocatedFromDemandsHH;
       const free = capacity - allocated;
 
       let cls = '';
@@ -5583,11 +5588,11 @@ main{padding:14px;overflow-x:hidden}
     }
     if (!nonWorkingReason) {
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-ok' }), `${totalDemands} demandas`]));
-      summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-mid' }), `${Math.max(0, Math.round(allocTotalPct))}% alocado total (conta)`]));
+      summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-mid' }), `${Math.max(0, Math.round(allocTotalPct))}% planejado em demandas`]));
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-holiday' }), `${allocTotalHH.toFixed(1)}h de ${capFinal.toFixed(1)}h`]));
       if (allocFromInternalHH > 0) {
-        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `Atividade interna: ${allocFromInternalHH.toFixed(1)}h`]));
-        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `${internalActivities.length} atividade(s) interna(s)`]));
+        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `Internas informativas: ${allocFromInternalHH.toFixed(1)}h`]));
+        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `${internalActivities.length} registro(s) interno(s)`]));
       }
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-ok' }), `Demandas: ${allocFromDemandsHH.toFixed(1)}h`]));
     } else if (heInfo.total <= 0) {
@@ -5685,8 +5690,8 @@ main{padding:14px;overflow-x:hidden}
           trIa.appendChild(el('td', {}, [
             el('div', { style:'font-weight:950;color:#446A0C' }, [`Interna - ${iaTitle}`]),
             el('div', { class:'tiny' }, [canSeeIaDetails
-              ? (ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade')
-              : 'Detalhes visíveis apenas para quem lançou; horas seguem contabilizadas na capacidade.'
+              ? (ia.observacoes ? `Obs: ${ia.observacoes}` : 'Registro interno informativo; não consome a janela planejada')
+              : 'Detalhes visíveis apenas para quem lançou; horas não consomem a janela planejada.'
             ])
           ]));
           trIa.appendChild(el('td', {}, [el('span', { class:'statusPill s-andamento' }, [el('span', { class:'sDot' }), 'Atividade interna'])]));
@@ -8098,6 +8103,135 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     ]);
   };
 
+  const plannedDemandHoursForDate = (demand={}, dateStr='', resourceIds=null) => {
+    const ids = Array.isArray(resourceIds) ? resourceIds.map(String) : null;
+    if (!dateStr || String(demand.data_inicio || '') > dateStr || String(demand.data_fim || '') < dateStr) return 0;
+    const st = effectiveStatus(demand);
+    if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) return 0;
+    return demandAllocations(demand).reduce((acc, a) => {
+      const rid = String(a.resourceId || '').trim();
+      if (ids && !ids.includes(rid)) return acc;
+      const reason = rid ? nonWorkingReasonForDay(rid, isoToLocalMidnight(dateStr)) : null;
+      if (reason) return acc;
+      return acc + Number(a.horas_planejadas_dia || a.horas_dia || 0);
+    }, 0);
+  };
+
+  const apontamentoMatchesUser = (a={}) => {
+    const aid = String(a.user_id || a.userId || a.updated_by_id || '').trim();
+    if (userId && aid && aid === String(userId)) return true;
+    const aname = normalizedPersonName(a.usuario || a.user || a.updated_by || '');
+    const uname = normalizedPersonName(userName || '');
+    return !!uname && !!aname && aname === uname;
+  };
+
+  const demandApontamentosForDate = (demand={}, dateStr='', { onlyCurrentUser=false } = {}) => {
+    return normalizeDemandApontamentos(demand).filter(a => {
+      if (String(a.data || '') !== String(dateStr || '')) return false;
+      if (onlyCurrentUser && !apontamentoMatchesUser(a)) return false;
+      return true;
+    });
+  };
+
+  const dailyExecutionRows = ({ dateStr=todayISO(), resourceIds=null, onlyCurrentUser=false } = {}) => {
+    return (state.demands || []).map(d => {
+      const planned = plannedDemandHoursForDate(d, dateStr, resourceIds);
+      const apontamentos = demandApontamentosForDate(d, dateStr, { onlyCurrentUser });
+      const real = apontamentos.reduce((acc, a) => acc + Number(a.horas || 0), 0);
+      return { demand:d, planned, real, apontamentos };
+    }).filter(row => row.planned > 0 || row.real > 0);
+  };
+
+  const summarizeDailyExecutionRows = (rows=[]) => {
+    const planned = rows.reduce((acc, r) => acc + Number(r.planned || 0), 0);
+    const real = rows.reduce((acc, r) => acc + Number(r.real || 0), 0);
+    const apontamentos = rows.reduce((acc, r) => acc + (Array.isArray(r.apontamentos) ? r.apontamentos.length : 0), 0);
+    return {
+      planned,
+      real,
+      apontamentos,
+      adherence: planned > 0 ? (real / planned) * 100 : (real > 0 ? 100 : 0),
+      pending: Math.max(0, planned - real),
+      extra: Math.max(0, real - planned),
+    };
+  };
+
+  const viewDailyExecution = () => {
+    const unlockInput = el('input', { type:'password', placeholder:'Digite a senha', autocomplete:'off' });
+    const unlockStatus = el('div', { class:'tiny muted' }, ['Acesso restrito aos indicadores de execução diária.']);
+    const unlock = () => {
+      if (String(unlockInput.value || '') === DAILY_EXECUTION_PASSWORD) {
+        dailyExecutionUnlocked = true;
+        render();
+      } else {
+        unlockStatus.textContent = 'Senha inválida.';
+        unlockStatus.style.color = 'var(--danger)';
+      }
+    };
+    if (!dailyExecutionUnlocked) {
+      return el('div', { class:'grid' }, [
+        card('Execução diária - acesso restrito', null, el('div', { class:'grid', style:'max-width:420px' }, [
+          el('div', { class:'tiny muted' }, ['Informe a senha para visualizar aderência diária, horas apontadas e pendências de execução.']),
+          el('div', { class:'field' }, [el('label', {}, ['Senha']), unlockInput]),
+          el('div', { class:'row end' }, [button('Liberar acesso', 'primary', unlock)]),
+          unlockStatus
+        ]))
+      ]);
+    }
+
+    const dateInput = el('input', { type:'date', value:dailyExecutionDate || todayISO(), onchange:(ev) => { dailyExecutionDate = ev.target.value || todayISO(); render(); } });
+    const rows = dailyExecutionRows({ dateStr: dailyExecutionDate || todayISO() })
+      .sort((a,b) => (Number(b.planned || 0) - Number(a.planned || 0)) || String(a.demand.titulo || '').localeCompare(String(b.demand.titulo || '')));
+    const totals = summarizeDailyExecutionRows(rows);
+    const pct = (v) => `${Math.max(0, Number(v || 0)).toFixed(0)}%`;
+    const metric = (label, value, hint='', tone='') => el('div', {
+      style:`border:1px solid var(--border);border-radius:14px;padding:12px;background:${tone === 'warn' ? 'var(--warning-soft)' : tone === 'danger' ? 'var(--danger-soft)' : 'var(--surface)'}`
+    }, [
+      el('div', { class:'tiny muted', style:'text-transform:uppercase;font-weight:950;letter-spacing:.08em' }, [label]),
+      el('div', { class:'mono', style:'font-size:20px;font-weight:950;margin-top:6px' }, [value]),
+      hint ? el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint]) : null
+    ].filter(Boolean));
+
+    const tbl = el('table', { class:'demandsTable' });
+    tbl.appendChild(el('thead', {}, [
+      el('tr', {}, ['Demanda','Planejado no dia','Executado no dia','Aderência','Saldo','Apontamentos'].map(h => el('th', {}, [h])))
+    ]));
+    const tbody = el('tbody');
+    for (const row of rows) {
+      const adherence = Number(row.planned || 0) > 0 ? (Number(row.real || 0) / Number(row.planned || 0)) * 100 : (row.real > 0 ? 100 : 0);
+      const balance = Number(row.planned || 0) - Number(row.real || 0);
+      const tone = balance < 0 ? 'bad' : balance > 0 ? 'warn' : 'info';
+      tbody.appendChild(el('tr', {}, [
+        el('td', {}, [el('div', { style:'font-weight:950' }, [row.demand.titulo || row.demand.id || 'Demanda']), el('div', { class:'tiny muted' }, [effectiveStatus(row.demand)])]),
+        el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]),
+        el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]),
+        el('td', {}, [el('span', { class:`pill ${adherence >= 100 ? 'info' : adherence > 0 ? 'warn' : 'bad'}` }, [pct(adherence)])]),
+        el('td', {}, [el('span', { class:`pill ${tone}` }, [balance >= 0 ? `${fmtHours(balance)}h pend.` : `${fmtHours(Math.abs(balance))}h extra`])]),
+        el('td', {}, [String(row.apontamentos.length)])
+      ]));
+    }
+    if (!rows.length) tbody.appendChild(el('tr', {}, [el('td', { colspan:'6', style:'padding:18px;text-align:center;color:var(--muted)' }, ['Nenhum planejamento ou apontamento para a data selecionada.'])]));
+    tbl.appendChild(tbody);
+
+    return el('div', { class:'grid' }, [
+      card('Execução diária', el('div', { class:'row' }, [
+        el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
+        button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); }),
+        button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
+      ]), el('div', { class:'grid', style:'gap:12px' }, [
+        el('div', { class:'tiny muted' }, ['Indicador gerencial baseado em apontamentos reais. Não altera a capacidade planejada nem trava ocupação acima de 100%.']),
+        el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px' }, [
+          metric('Planejado no dia', `${fmtHours(totals.planned)}h`, 'demandas planejadas'),
+          metric('Executado no dia', `${fmtHours(totals.real)}h`, `${totals.apontamentos} apontamento(s)`),
+          metric('Aderência', pct(totals.adherence), 'executado ÷ planejado', totals.adherence < 60 ? 'warn' : ''),
+          metric('Pendente', `${fmtHours(totals.pending)}h`, 'planejado ainda sem execução'),
+          metric('Extra', `${fmtHours(totals.extra)}h`, 'executado acima do planejado', totals.extra > 0 ? 'warn' : ''),
+        ]),
+        el('div', { class:'scrollX' }, [tbl])
+      ]))
+    ]);
+  };
+
 
   const viewResources = () => {
     const form = (() => {
@@ -9873,6 +10007,51 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]);
 
     const resourceIds = activeUserResourceIds();
+    const today = todayISO();
+    const myDayRows = dailyExecutionRows({ dateStr: today, resourceIds, onlyCurrentUser:true })
+      .sort((a,b) => (Number(b.planned || 0) - Number(a.planned || 0)) || String(a.demand.titulo || '').localeCompare(String(b.demand.titulo || '')));
+    const myDayTotals = summarizeDailyExecutionRows(myDayRows);
+    const myInternalToday = (state.internalActivities || [])
+      .filter(canViewInternalActivityDetails)
+      .filter(a => {
+        const ini = normalizeDateLikeToISO(a?.data_inicio || a?.dataInicio || a?.start_date || a?.data || '');
+        const fim = normalizeDateLikeToISO(a?.data_fim || a?.dataFim || a?.end_date || ini || a?.data || '') || ini;
+        return ini && today >= ini && today <= fim;
+      })
+      .reduce((acc, a) => acc + Math.max(0, Number(a?.horas_dia || a?.horas || 0)), 0);
+    const myMetric = (label, value, hint='') => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface)' }, [
+      el('div', { class:'tiny muted', style:'text-transform:uppercase;font-weight:950;letter-spacing:.08em' }, [label]),
+      el('div', { class:'mono', style:'font-size:19px;font-weight:950;margin-top:5px' }, [value]),
+      hint ? el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint]) : null
+    ].filter(Boolean));
+    const myDayPanel = card('Meu dia', null, el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'tiny muted' }, [`Resumo operacional de hoje (${formatDateBR(today)}). Use como guia para escolher a demanda no lançamento abaixo.`]),
+      el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px' }, [
+        myMetric('Planejado', `${fmtHours(myDayTotals.planned)}h`, 'demandas de hoje'),
+        myMetric('Apontado', `${fmtHours(myDayTotals.real)}h`, `${myDayTotals.apontamentos} apontamento(s)`),
+        myMetric('Aderência', `${Math.max(0, myDayTotals.adherence).toFixed(0)}%`, 'executado ÷ planejado'),
+        myMetric('Pendente', `${fmtHours(myDayTotals.pending)}h`, 'falta apontar'),
+        myMetric('Internas', `${fmtHours(myInternalToday)}h`, 'informativo'),
+      ]),
+      myDayRows.length ? el('div', { class:'scrollX' }, [
+        (() => {
+          const t = el('table');
+          t.appendChild(el('thead', {}, [el('tr', {}, ['Demanda','Planejado','Apontado','Saldo'].map(h => el('th', {}, [h])))]));
+          const b = el('tbody');
+          for (const row of myDayRows.slice(0, 6)) {
+            const saldo = Number(row.planned || 0) - Number(row.real || 0);
+            b.appendChild(el('tr', {}, [
+              el('td', {}, [row.demand.titulo || row.demand.id || 'Demanda']),
+              el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]),
+              el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]),
+              el('td', { class:'mono' }, [saldo >= 0 ? `${fmtHours(saldo)}h` : `+${fmtHours(Math.abs(saldo))}h`]),
+            ]));
+          }
+          t.appendChild(b);
+          return t;
+        })()
+      ]) : el('div', { class:'hint tiny' }, ['Nenhuma demanda planejada ou apontada hoje para o usuário atual.'])
+    ]));
     const userDemandRows = (state.demands || [])
       .filter(d => resourceIds.length && demandAssignedResourceIds(d).some(rid => resourceIds.includes(String(rid))))
       .filter(d => !['Concluída','Congelada'].includes(effectiveStatus(d)))
@@ -9884,9 +10063,21 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     }, [
       el('option', { value:'' }, [userDemandRows.length ? 'Selecione uma demanda...' : 'Nenhuma demanda aberta vinculada a você'])
     ]);
+    const plannedTodayIds = new Set(myDayRows.filter(r => Number(r.planned || 0) > 0).map(r => String(r.demand.id)));
+    const appendDemandOption = (parent, d) => {
+      const dayRow = myDayRows.find(r => String(r.demand.id) === String(d.id));
+      const suffix = dayRow
+        ? ` · hoje: ${fmtHours(dayRow.planned)}h plan. / ${fmtHours(dayRow.real)}h apont.`
+        : ` · ${effectiveStatus(d)} · ${formatDateBR(d.data_fim)}`;
+      parent.appendChild(el('option', { value:d.id }, [`${d.titulo || 'Sem título'}${suffix}`]));
+    };
+    const plannedGroup = el('optgroup', { label:'Planejadas hoje' });
+    const otherGroup = el('optgroup', { label:'Outras demandas abertas' });
     for (const d of userDemandRows) {
-      demandSelect.appendChild(el('option', { value:d.id }, [`${d.titulo || 'Sem título'} · ${effectiveStatus(d)} · ${formatDateBR(d.data_fim)}`]));
+      appendDemandOption(plannedTodayIds.has(String(d.id)) ? plannedGroup : otherGroup, d);
     }
+    if (plannedGroup.children.length) demandSelect.appendChild(plannedGroup);
+    if (otherGroup.children.length) demandSelect.appendChild(otherGroup);
     demandSelect.value = launchDemandId;
     const selectedDemand = userDemandRows.find(d => String(d.id) === String(launchDemandId)) || null;
     const aptData = el('input', { type:'date', value:todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
@@ -9970,6 +10161,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]));
 
     return el('div',{class:'grid'},[
+      myDayPanel,
       modeSelector,
       launchMode === 'internal' ? internalActivityPanel : demandLaunchPanel
     ]);
@@ -10870,6 +11062,7 @@ return el('div', { class:'grid' }, [
     { id:'he', label:'Horas Extras (HE)', icon:'⏱' },
     { id:'windows', label:'Janelas Livres', icon:'🔎' },
     { id:'internal', label:'Lançamentos', icon:'✍️' },
+    { id:'dailyExecution', label:'Execução diária', icon:'📆' },
     { id:'consolidation', label:'Sincronização de BD', icon:'📦' },
   ];
 
@@ -10941,6 +11134,7 @@ return el('div', { class:'grid' }, [
     else if (activeTab === 'he') view = viewOvertime();
     else if (activeTab === 'windows') view = viewWindows();
     else if (activeTab === 'internal') view = viewInternalActivities();
+    else if (activeTab === 'dailyExecution') view = viewDailyExecution();
     else if (activeTab === 'consolidation') view = viewConsolidation();
     else view = el('div', {}, ['Aba inválida.']);
 
