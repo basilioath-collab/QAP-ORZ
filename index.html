@@ -840,19 +840,6 @@ main{padding:14px;overflow-x:hidden}
     </div>
   </dialog>
 
-  <dialog id="heatModal" class="modal">
-    <div class="modalCard">
-      <div class="modalHd">
-        <div>
-          <div class="modalTitle" id="heatModalTitle">Janelas livres - Detalhes</div>
-          <div class="modalSub" id="heatModalSub"></div>
-        </div>
-        <button class="btn ghost" id="heatModalClose" type="button">Fechar ×</button>
-      </div>
-      <div class="modalBd" id="heatModalBody"></div>
-    </div>
-  </dialog>
-
   <dialog id="monthModal" class="modal">
     <div class="modalCard">
       <div class="modalHd">
@@ -2544,15 +2531,6 @@ main{padding:14px;overflow-x:hidden}
     }
   }, 0);
 
-  // close button (heat map modal)
-  setTimeout(() => {
-    const closeBtn = qs('#heatModalClose');
-    if (closeBtn && !closeBtn.__bound) {
-      closeBtn.__bound = true;
-      closeBtn.addEventListener('click', () => qs('#heatModal')?.close());
-    }
-  }, 0);
-
   const toast = (msg) => {
     const el = qs('#toast');
     const openDialogs = qsa('dialog[open]');
@@ -3103,7 +3081,6 @@ main{padding:14px;overflow-x:hidden}
     // Janelas Livres
     windowsHeatPage: 1,   // Heatmap (Janelas por recurso x meses)
     windowsNextPage: 1,   // Próxima janela livre
-    windowsMatrixPage: 1, // Matriz de janelas livres
   };
 
 
@@ -9006,15 +8983,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   
   const viewWindows = () => {
-  // Matriz de Janelas (janela deslizante, sem limite de período) + Próxima Janela Livre
+  // Heatmap gerencial + Próxima Janela Livre
 
-  // Heatmap mensal (Recursos × Meses) + Drilldown em barras (Top 10 / Todos)
+  // Heatmap mensal (Recursos × Meses) + drilldown diário por célula
 
   // UI state (não persistido)
   if (!uiFilters.windows) {
     uiFilters.windows = {
       start: formatDate(new Date()),
-      days: 14,
       minFree: 4,
     };
   }
@@ -9028,7 +9004,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       months: 6,
       metric: 'occupation', // 'occupation' | 'freePct' | 'freeHH'
       view: 'occupation', // 'occupation' | 'capacity_free' | 'bottleneck' | 'idleness'
-      // Padrão: mostrar TODOS e usar paginação (evita confusão de ?sumiu recurso).
+      // Padrão: mostrar todos e usar paginação (evita confusão de recurso "sumir").
       show: 'all',  // 'top' | 'all'
       topN: 10,
       dynamicOrder: true,
@@ -9039,12 +9015,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   const w = uiFilters.windows;
   const wh = uiFilters.windowsHeat;
-
-  const clampDays = (n) => {
-    const v = Math.max(1, Math.min(365, Number(n||14)));
-    return isFinite(v) ? v : 14;
-  };
-
+  wh.show = 'all';
+  wh.dynamicOrder = true;
 
   const toDate = (iso) => {
     if (!iso) return new Date();
@@ -9238,90 +9210,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     return list;
   };
 
-  const openHeatModal = ({ y, m0, focusResourceId=null } = {}) => {
-    const modal = qs('#heatModal');
-    const title = qs('#heatModalTitle');
-    const sub = qs('#heatModalSub');
-    const body = qs('#heatModalBody');
-
-    const label = fmtMonthLabel(y, m0);
-    title.textContent = `Heatmap gerencial - ${label}`;
-
-    const rows = (state.resources||[]).map(r => ({
-      r,
-      m: monthlyWindow(r.id, y, m0)
-    }));
-
-    const metric = wh.metric || wh.view || 'occupation';
-    const val = (x) => heatValueFor(x.m, metric);
-    const dir = wh.sortDir === 'desc' ? -1 : 1;
-    rows.sort((a,b) => (val(a) - val(b)) * dir);
-
-    sub.textContent = `${rows.length} recurso(s) ? modo: ${metric === 'capacity_free' ? 'capacidade livre' : metric === 'bottleneck' ? 'risco de gargalo' : metric === 'idleness' ? 'ociosidade' : 'ocupação'}`;
-    body.innerHTML = '';
-
-    const modeRow = el('div', { class:'row', style:'margin-bottom:10px' }, [
-      el('span', { class:'tag' }, ['Drilldown: ranking por recurso'] ),
-      button(wh.show === 'top' ? 'Mostrar Todos' : 'Mostrar Top 10', '', () => {
-        wh.show = (wh.show === 'top') ? 'all' : 'top';
-        openHeatModal({ y, m0, focusResourceId });
-      }),
-      button('Abrir matriz do mês', 'primary', () => {
-        // Ajusta matriz diária para o mês inteiro
-        const first = new Date(y, m0, 1);
-        w.start = formatDate(first);
-        w.days = Math.min(365, getDaysInMonth(y, m0).length);
-        if (focusResourceId) w.scrollToResourceId = focusResourceId;
-        modal.close();
-        render();
-        toast('Matriz ajustada para o mês.');
-      })
-    ]);
-    body.appendChild(modeRow);
-
-    const list = (wh.show === 'top') ? rows.slice(0, Math.max(1, Number(wh.topN||10))) : rows;
-    const maxV = Math.max(1e-9, ...list.map(val));
-
-    const wrap = el('div', { class:'grid' });
-    for (const item of list) {
-      const r = item.r;
-      const m = item.m;
-      const v = val(item);
-      const pctTxt = `${Math.max(0, m.pct).toFixed(0)}% livre`;
-      const occTxt = `${Math.max(0, m.occPct).toFixed(0)}% ocup.`;
-      const hhTxt = `${m.free.toFixed(1)}h`;
-      const isFocus = focusResourceId && focusResourceId === r.id;
-
-      const row = el('div', { class:'card', style:`box-shadow:none;${isFocus?'border-color:rgba(18,129,120,.55)':''}` }, [
-        el('div', { class:'bd' }, [
-          el('div', { class:'row', style:'justify-content:space-between;gap:12px' }, [
-            el('div', {}, [
-              el('div', { style:'font-weight:950' }, [r.nome]),
-              el('div', { class:'tiny' }, [`Ocupação: ${occTxt} - Livre: ${hhTxt} (${pctTxt}) - Cap: ${m.cap.toFixed(1)}h - Alocado: ${m.alloc.toFixed(1)}h - Demandas: ${m.demandsCount} - HE: ${m.heTotal.toFixed(1)}h`])
-            ]),
-            button('Abrir matriz (recurso)', '', () => {
-              const first = new Date(y, m0, 1);
-              w.start = formatDate(first);
-              w.days = Math.min(365, getDaysInMonth(y, m0).length);
-              w.scrollToResourceId = r.id;
-              modal.close();
-              render();
-            })
-          ]),
-          el('div', { style:'margin-top:10px' }, [
-            el('div', { class:'bar', title: `${occTxt} - ${pctTxt} - ${hhTxt}` }, [
-              el('span', { style:`width:${Math.max(0, Math.min(100, (v/maxV)*100)).toFixed(1)}%` })
-            ])
-          ])
-        ])
-      ]);
-      wrap.appendChild(row);
-    }
-
-    body.appendChild(wrap);
-    if (!modal.open) openDialog(modal);
-  };
-
   // Drilldown mensal: dias do mês (Horas + % por dia) para um recurso
   const openMonthModal = ({ resourceId, y, m0 } = {}) => {
     const modal = qs('#monthModal');
@@ -9344,16 +9232,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('span', { class:'pill' }, [el('span', { class:'dot bg-he' }), `HE: ${monthInfo.heTotal.toFixed(1)}h`]),
       ]),
       el('div', { class:'row', style:'gap:8px;flex-wrap:wrap' }, [
-        button('Ranking do mês', '', () => { try{ modal.close(); }catch{ modal.removeAttribute('open'); } openHeatModal({ y, m0, focusResourceId: resourceId }); }),
-        button('Abrir matriz do mês', 'primary', () => {
-          const first = new Date(y, m0, 1);
-          w.start = formatDate(first);
-          w.days = Math.min(365, getDaysInMonth(y, m0).length);
-          w.scrollToResourceId = resourceId;
-          try{ modal.close(); }catch{ modal.removeAttribute('open'); }
-          render();
-          toast('Matriz ajustada para o mês (recurso em foco).');
-        })
+        button('Voltar ao heatmap', '', () => { try{ modal.close(); }catch{ modal.removeAttribute('open'); } })
       ])
     ]);
     body.appendChild(summary);
@@ -9442,13 +9321,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
   }
   const freeHoursInfo = (resourceId, dateObj) => CapacityEngine.freeHoursInfo(resourceId, dateObj);
 
-  const buildDays = () => {
-    const start = toDate(w.start);
-    const list = [];
-    for (let i=0;i<clampDays(w.days);i++) list.push(addDays(start, i));
-    return list;
-  };
-
   const findNextWindow = (resourceId) => {
     const start = toDate(w.start);
     const minFree = Math.max(0, Number(w.minFree||0));
@@ -9464,40 +9336,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     return null;
   };
 
-  const days = buildDays();
   const months = buildMonths();
 
-  // controls
-  const startInput = el('input', { type:'date' });
-  startInput.value = w.start;
-  startInput.addEventListener('change', () => { w.start = startInput.value || formatDate(new Date()); render(); });
-
-  const daysInput = el('input', { type:'number', min:'1', max:'365', step:'1' });
-  daysInput.value = String(clampDays(w.days));
-  daysInput.addEventListener('change', () => { w.days = clampDays(daysInput.value); render(); });
-
-  const minFreeInput = el('input', { type:'number', min:'0', max:'9', step:'0.5' });
-  minFreeInput.value = String(Number(w.minFree||0));
-  minFreeInput.addEventListener('change', () => { w.minFree = Number(minFreeInput.value||0); render(); });
-
-  const shift = (dir) => {
-    const start = toDate(w.start);
-    const n = clampDays(w.days) * (dir < 0 ? -1 : 1);
-    w.start = formatDate(addDays(start, n));
-    render();
-  };
-
-  const jumpToday = () => { w.start = formatDate(new Date()); render(); };
-
-  const right = el('div', { class:'row' }, [
-    button('◀', 'ghost', () => shift(-1)),
-    button('Hoje', '', jumpToday),
-    button('▶', 'ghost', () => shift(1)),
-  ]);
-
   const hint = el('div', { class:'hint tiny' }, [
-    el('b', {}, ['Modo rápido: ']),
-    'matriz por janelas deslizantes (sem limite) + ?Próxima janela livre. ',
+    el('b', {}, ['Leitura rápida: ']),
+    'use o heatmap para enxergar gargalos por mês e a tabela de próxima janela para decidir onde encaixar novas demandas. ',
     el('b', {}, ['Janelas = capacidade remanescente diária. ']),
     'Feriado/Bloqueio/Férias/OFF zeram o dia. Excedente (negativo) é permitido.'
   ]);
@@ -9524,7 +9367,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const idx = new Map(wh.fixedOrderIds.map((id,i)=>[id,i]));
       perRes.sort((a,b) => (idx.get(a.r.id) ?? 1e9) - (idx.get(b.r.id) ?? 1e9));
     }
-    // show Top N or all (com paginação quando 'Todos')
+    // Todos os recursos com paginação
     const allRows = (wh.show === 'top') ? perRes.slice(0, Math.max(1, Number(wh.topN||10))) : perRes;
 
     const HEAT_PAGE_SIZE = 10;
@@ -9549,12 +9392,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       monthsInp.value = String(clampMonths(wh.months));
       monthsInp.addEventListener('change', () => { wh.months = clampMonths(monthsInp.value); render(); });
 
-      const showSel = el('select');
-      showSel.appendChild(el('option', { value:'top' }, ['Top 10']));
-      showSel.appendChild(el('option', { value:'all' }, ['Todos']));
-      showSel.value = wh.show;
-      showSel.addEventListener('change', () => { wh.show = showSel.value; uiPagination.windowsHeatPage = 1; render(); });
-
       const metricSel = el('select');
       metricSel.appendChild(el('option', { value:'occupation' }, ['Ocupação']));
       metricSel.appendChild(el('option', { value:'capacity_free' }, ['Capacidade livre']));
@@ -9562,29 +9399,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       metricSel.appendChild(el('option', { value:'idleness' }, ['Ociosidade']));
       metricSel.value = wh.metric || wh.view || 'occupation';
       metricSel.addEventListener('change', () => { wh.metric = metricSel.value; wh.view = metricSel.value; render(); });
-
-      const dirSel = el('select');
-      dirSel.appendChild(el('option', { value:'desc' }, ['Maior risco / ocupação']));
-      dirSel.appendChild(el('option', { value:'asc' }, ['Menor risco / ociosidade'])) ;
-      dirSel.value = wh.sortDir;
-      dirSel.addEventListener('change', () => { wh.sortDir = dirSel.value; render(); });
-
-      const dynChk = el('input', { type:'checkbox' });
-      dynChk.checked = !!wh.dynamicOrder;
-      dynChk.addEventListener('change', () => {
-        wh.dynamicOrder = dynChk.checked;
-        if (!wh.dynamicOrder && !Array.isArray(wh.fixedOrderIds)) {
-          wh.fixedOrderIds = (state.resources||[]).map(r => r.id);
-        }
-        render();
-      });
-
-      const fixBtn = button('Fixar ordem atual', '', () => {
-        wh.fixedOrderIds = (perRes||[]).map(x => x.r.id);
-        wh.dynamicOrder = false;
-        render();
-        toast('Ordem fixada.');
-      });
 
       const shiftMonth = (dir) => {
         const { y, m } = parseMonth(wh.startMonth);
@@ -9596,11 +9410,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       return el('div', { class:'row' }, [
         el('div', { class:'field' }, [el('label', {}, ['Mês inicial']), monthInp]),
         el('div', { class:'field' }, [el('label', {}, ['Meses na tela']), monthsInp]),
-        el('div', { class:'field' }, [el('label', {}, ['Mostrar']), showSel]),
         el('div', { class:'field' }, [el('label', {}, ['Visualização']), metricSel]),
-        el('div', { class:'field' }, [el('label', {}, ['Ordenar por']), dirSel]),
-        el('div', { class:'field' }, [el('label', {}, ['Ordenação dinâmica']), el('div', { class:'row' }, [dynChk, el('span', { class:'tiny muted' }, ['(desligue para manter fixa)'])])]),
-        fixBtn,
         button('◀', 'ghost', () => shiftMonth(-1)),
         button('Hoje', '', () => {
           const n = new Date();
@@ -9638,9 +9448,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso']));
       for (const mm of months) {
         const key = monthKey(mm.y, mm.m);
-        trh.appendChild(el('th', { class:'dayHead', title:key, style:'min-width:70px;cursor:pointer', onclick: () => openHeatModal({ y:mm.y, m0:mm.m }) }, [
+        trh.appendChild(el('th', { class:'dayHead', title:key, style:'min-width:70px' }, [
           el('div', { style:'font-weight:950' }, [fmtMonthLabel(mm.y, mm.m)]),
-          el('div', { class:'tiny' }, ['(clique)'])
+          el('div', { class:'tiny' }, ['mês'])
         ]));
       }
       thead.appendChild(trh);
@@ -9689,39 +9499,70 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]));
   })();
 
-  // Próxima Janela Livre (cards)
+  // Próxima Janela Livre (tabela comparativa)
   const nextCards = (() => {
     if (state.resources.length === 0) {
       return el('div', { class:'warn' }, ['Cadastre recursos para ver a próxima janela livre.']);
     }
 
-    const NEXT_PAGE_SIZE = 8;
-    const allRes = (state.resources||[]);
+    const nextStartInput = el('input', { type:'date' });
+    nextStartInput.value = w.start;
+    nextStartInput.addEventListener('change', () => { w.start = nextStartInput.value || formatDate(new Date()); uiPagination.windowsNextPage = 1; render(); });
+
+    const nextMinFreeInput = el('input', { type:'number', min:'0', max:'24', step:'0.5' });
+    nextMinFreeInput.value = String(Number(w.minFree||0));
+    nextMinFreeInput.addEventListener('change', () => { w.minFree = Math.max(0, Number(nextMinFreeInput.value||0)); uiPagination.windowsNextPage = 1; render(); });
+
+    const nextControls = el('div', { class:'row' }, [
+      el('div', { class:'field' }, [el('label', {}, ['Buscar a partir de']), nextStartInput]),
+      el('div', { class:'field compact' }, [el('label', {}, ['Janela mínima']), nextMinFreeInput]),
+      button('Hoje', '', () => { w.start = formatDate(new Date()); uiPagination.windowsNextPage = 1; render(); }),
+    ]);
+
+    const allRes = (state.resources||[]).map(r => ({ r, found: findNextWindow(r.id) }))
+      .sort((a,b) => {
+        if (a.found && b.found) return String(a.found.date).localeCompare(String(b.found.date)) || String(a.r.nome||'').localeCompare(String(b.r.nome||''));
+        if (a.found) return -1;
+        if (b.found) return 1;
+        return String(a.r.nome||'').localeCompare(String(b.r.nome||''));
+      });
+    const NEXT_PAGE_SIZE = 10;
     let nextPage = Math.max(1, Number(uiPagination.windowsNextPage||1));
     const nextTotalPages = Math.max(1, Math.ceil(allRes.length / NEXT_PAGE_SIZE));
     nextPage = Math.min(nextPage, nextTotalPages);
     uiPagination.windowsNextPage = nextPage;
     const resPage = allRes.slice((nextPage-1)*NEXT_PAGE_SIZE, nextPage*NEXT_PAGE_SIZE);
 
-    const grid = el('div', { class:'kpi', style:'grid-template-columns:repeat(3,minmax(0,1fr))' });
-    for (const r of resPage) {
-      const found = findNextWindow(r.id);
-      const val = found ? `${formatDateBR(found.date)}` : '-';
-      const sub = found ? `${found.free.toFixed(1)}h livres (≥ ${Number(w.minFree||0)}h)` : `Não encontrado (até ~10 anos)`;
-      const cardEl = el('div', { class:'k' }, [
-        el('div', { class:'lbl' }, [r.nome]),
-        el('div', { class:'val mono' }, [val]),
-        el('div', { class:'tiny' }, [sub]),
-        found ? el('div', { style:'margin-top:10px' }, [
-          button('Abrir dia', 'primary', () => {
-            // abre modal de detalhes do dia
-            const d = toDate(found.date);
-            openDayDetails(r.id, d);
-          })
-        ]) : el('div', { style:'height:0' })
-      ]);
-      grid.appendChild(cardEl);
+    const tableWrap = el('div', { class:'scrollX' });
+    const tbl = el('table', { class:'demandsTable' });
+    tbl.appendChild(el('thead', {}, [
+      el('tr', {}, ['Recurso','Tipo','Próxima data','Horas livres','Status','Ação'].map(h => el('th', {}, [h])))
+    ]));
+    const tbody = el('tbody');
+    for (const item of resPage) {
+      const r = item.r;
+      const found = item.found;
+      const daysUntil = found ? Math.max(0, Math.round((toDate(found.date).getTime() - toDate(w.start).getTime()) / 86400000)) : null;
+      const status = !found
+        ? el('span', { class:'pill bad' }, ['Sem janela'])
+        : daysUntil <= 7
+          ? el('span', { class:'pill info' }, ['Curto prazo'])
+          : daysUntil <= 30
+            ? el('span', { class:'pill warn' }, ['Médio prazo'])
+            : el('span', { class:'pill' }, ['Longo prazo']);
+      tbody.appendChild(el('tr', {}, [
+        el('td', {}, [el('div', { style:'font-weight:950' }, [r.nome || '-'])]),
+        el('td', {}, [String(r.tipo || '-')]),
+        el('td', { class:'mono' }, [found ? formatDateBR(found.date) : '-']),
+        el('td', { class:'mono' }, [found ? `${found.free.toFixed(1)}h` : '-']),
+        el('td', {}, [status]),
+        el('td', {}, [
+          found ? button('Abrir dia', 'primary', () => openDayDetails(r.id, toDate(found.date))) : el('span', { class:'tiny muted' }, ['-'])
+        ]),
+      ]));
     }
+    tbl.appendChild(tbody);
+    tableWrap.appendChild(tbl);
     const pager = (() => {
       if (allRes.length <= NEXT_PAGE_SIZE) return null;
       const total = allRes.length;
@@ -9742,100 +9583,12 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     })();
 
     return card('Próxima janela livre', null, el('div', { class:'grid' }, [
-      grid,
+      el('div', { class:'tiny muted' }, ['Lista comparativa ordenada pela data mais próxima em que cada recurso atinge a janela mínima configurada.']),
+      nextControls,
+      tableWrap,
       pager || el('div', { style:'display:none' }),
     ]));
   })();
-
-  // Matriz
-  const table = el('div', { class:'scrollX' }, [
-    (() => {
-      const t = el('table', { class:'calTable' });
-      const thead = el('thead');
-      const trh = el('tr');
-      trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso / Dia (Horas livres)']));
-
-      for (const d of days) {
-        const wd = d.toLocaleString('pt-BR', { weekday:'short' }).slice(0,3);
-        const dateStr = formatDate(d);
-        const holidayDay = isHoliday(dateStr);
-        const headCls = ['dayHead', (!holidayDay && isWeekend(d)) ? 'bg-wknd' : '', holidayDay ? 'bg-holiday' : ''].filter(Boolean).join(' ');
-        trh.appendChild(el('th', { class:headCls, title: formatDateBR(dateStr) }, [
-          el('div', { class:'mono', style:'font-weight:900' }, [String(d.getDate()).padStart(2,'0')]),
-          el('div', { class:'tiny' }, [holidayDay ? 'FER' : wd])
-        ]));
-      }
-
-      thead.appendChild(trh);
-      t.appendChild(thead);
-
-      const tbody = el('tbody');
-      if (state.resources.length === 0) {
-        tbody.appendChild(el('tr', {}, [el('td', { colspan:String(days.length+1), style:'padding:24px;text-align:center;color:var(--muted)' }, ['Cadastre recursos para ver janelas.'])]));
-      } else {
-        const MATRIX_PAGE_SIZE = 10;
-        const allRes = (state.resources||[]);
-
-        // Se veio de um drilldown (heatmap), ajustar pagina para conter o recurso
-        if (w.scrollToResourceId) {
-          const idx = allRes.findIndex(x => x.id === w.scrollToResourceId);
-          if (idx >= 0) uiPagination.windowsMatrixPage = Math.floor(idx / MATRIX_PAGE_SIZE) + 1;
-        }
-
-        let matrixPage = Math.max(1, Number(uiPagination.windowsMatrixPage||1));
-        const matrixTotalPages = Math.max(1, Math.ceil(allRes.length / MATRIX_PAGE_SIZE));
-        matrixPage = Math.min(matrixPage, matrixTotalPages);
-        uiPagination.windowsMatrixPage = matrixPage;
-        const resPage = allRes.slice((matrixPage-1)*MATRIX_PAGE_SIZE, matrixPage*MATRIX_PAGE_SIZE);
-
-        for (const r of resPage) {
-          const tr = el('tr');
-          tr.id = `winres-${r.id}`;
-          tr.appendChild(el('td', { class:'stickyCol' }, [
-            el('div', { style:'font-weight:950' }, [r.nome]),
-            el('div', { class:'tiny' }, [`${r.tipo} - ${getResourceHoursPerDay(r)}h/dia`])
-          ]));
-
-          for (const d of days) {
-            const info = freeHoursInfo(r.id, d);
-            const heTotal = overtimeInfo(r.id, info.dateStr).total;
-            let cls = 'cell '+info.cls;
-
-            // Mantém destaque visual para fim de semana, mas sem bloquear o dia.
-            if (!isHoliday(info.dateStr) && isWeekend(d)) cls += ' bg-wknd';
-
-            tr.appendChild(el('td', { class: cls+' clickable', title: formatDateBR(info.dateStr), onclick: () => openDayDetails(r.id, d) }, [
-              el('div', { class:'top' }, [`${info.free.toFixed(1)}h`]),
-              el('div', { class:'sub' }, [info.tag]),
-              (heTotal > 0) ? el('div', { class:'heLine mono' }, [`HE +${fmtHours(heTotal)}h`]) : null
-            ].filter(Boolean)));
-          }
-          tbody.appendChild(tr);
-        }
-      }
-
-      t.appendChild(tbody);
-      return t;
-    })()
-  ]);
-
-  // Scroll helper (para drilldown do heatmap -> matriz)
-  setTimeout(() => {
-    const rid = w.scrollToResourceId;
-    if (!rid) return;
-    const rowEl = qs(`#winres-${rid}`);
-    if (rowEl && typeof rowEl.scrollIntoView === 'function') {
-      rowEl.scrollIntoView({ behavior:'smooth', block:'center' });
-      w.scrollToResourceId = null;
-    }
-  }, 0);
-
-  const controls = el('div', { class:'row' }, [
-    el('div', { class:'field' }, [el('label', {}, ['Data inicial (matriz)']), startInput]),
-    el('div', { class:'field' }, [el('label', {}, ['Dias na tela']), daysInput]),
-    el('div', { class:'field' }, [el('label', {}, ['Janela mínima (Próxima janela)']), minFreeInput]),
-  ]);
-
 
   // Hora Extra (HE) ? capacidade pontual (principalmente fins de semana)
   const overtimeCard = (() => {
@@ -9929,29 +9682,8 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
 
   return el('div', { class:'grid' }, [
     hint,
-	    heatmap,
-	    nextCards,
-	    card('Controles', right, controls),
-    (() => {
-      const MATRIX_PAGE_SIZE = 10;
-      const total = (state.resources||[]).length;
-      if (total <= MATRIX_PAGE_SIZE) return card('Matriz de janelas livres', null, table);
-      const totalPages = Math.max(1, Math.ceil(total / MATRIX_PAGE_SIZE));
-      const startIdx = (uiPagination.windowsMatrixPage-1) * MATRIX_PAGE_SIZE;
-      const shown = Math.min(MATRIX_PAGE_SIZE, Math.max(0, total - startIdx));
-      const pager = buildPager({
-        page: uiPagination.windowsMatrixPage,
-        totalPages,
-        total,
-        startIdx,
-        shown,
-        onPrev: () => { uiPagination.windowsMatrixPage = Math.max(1, uiPagination.windowsMatrixPage-1); render(); },
-        onNext: () => { uiPagination.windowsMatrixPage = Math.min(totalPages, uiPagination.windowsMatrixPage+1); render(); },
-        onFirst: () => { uiPagination.windowsMatrixPage = 1; render(); },
-        onLast: () => { uiPagination.windowsMatrixPage = totalPages; render(); },
-      });
-      return card('Matriz de janelas livres', null, el('div', { class:'grid' }, [pager, table]));
-    })()
+    heatmap,
+    nextCards,
   ]);
 };
 
@@ -11231,11 +10963,7 @@ return el('div', { class:'grid' }, [
   dlg.addEventListener('close', syncModalBlur);
   dlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ dlg.close(); }catch{ dlg.removeAttribute('open'); } syncModalBlur(); });
 
-  const hdlg = qs('#heatModal');
-  qs('#heatModalClose').addEventListener('click', () => { try{ hdlg.close(); }catch{ hdlg.removeAttribute('open'); } });
-  hdlg.addEventListener('click', (e) => { if (e.target === hdlg) { try{ hdlg.close(); }catch{ hdlg.removeAttribute('open'); } } });
-  hdlg.addEventListener('close', syncModalBlur);
-  hdlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ hdlg.close(); }catch{ hdlg.removeAttribute('open'); } syncModalBlur(); });
+
 
   const mdlg = qs('#monthModal');
   if (mdlg) {
