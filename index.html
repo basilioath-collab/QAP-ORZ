@@ -6453,6 +6453,225 @@ main{padding:14px;overflow-x:hidden}
     openDialog(dlg);
   };
 
+  const concludeDemand = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    if (!confirm(`Concluir demanda "${latest.titulo || 'sem título'}"?`)) return;
+    dispatch('UPDATE_DEMAND', {
+      ...latest,
+      status: 'Concluída',
+      completed_at: Date.now(),
+      completed_by: userName || 'Sessão local',
+      completed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: 'Demanda concluída pelas ações.',
+    });
+    toast('Demanda concluída.');
+    render();
+  };
+
+  const openDemandCancelModal = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    let dlg = qs('#demandCancelModal');
+    if (dlg) dlg.remove();
+    const reason = el('textarea', { placeholder:'Informe a justificativa obrigatória do cancelamento...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const err = el('div', { class:'tiny', style:'color:var(--danger);display:none' }, ['Justificativa obrigatória.']);
+    const confirmCancel = () => {
+      const text = String(reason.value || '').trim();
+      const validation = validateTextLimit(text, 'Justificativa do cancelamento', INPUT_LIMITS.justification, { required:true });
+      if (validation) {
+        err.textContent = validation;
+        err.style.display = '';
+        return;
+      }
+      dispatch('UPDATE_DEMAND', {
+        ...latest,
+        status: 'Cancelada',
+        cancelled_at: Date.now(),
+        cancelled_by: userName || 'Sessão local',
+        cancelled_by_id: userId || '',
+        cancel_reason: text,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: `Cancelamento: ${text}`,
+      });
+      closeDialog(dlg);
+      toast('Demanda cancelada.');
+      render();
+    };
+    dlg = el('dialog', { id:'demandCancelModal', class:'modal' }, [
+      el('div', { class:'modalCard', style:'max-width:620px' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Cancelar demanda']),
+            el('div', { class:'modalSub' }, [latest.titulo || 'Demanda'])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'warn', style:'margin-bottom:12px' }, ['Cancelamento bloqueia futuras alterações e exige justificativa para auditoria.']),
+          el('div', { class:'field' }, [el('label', {}, ['Justificativa obrigatória']), reason, err]),
+          el('div', { class:'modalActions' }, [
+            button('Voltar', '', () => closeDialog(dlg)),
+            button('Confirmar cancelamento', 'danger', confirmCancel)
+          ])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
+  };
+
+  const concludeDemand = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    if (!confirm(`Concluir demanda "${latest.titulo || 'sem título'}"?`)) return;
+    dispatch('UPDATE_DEMAND', {
+      ...latest,
+      status: 'Concluída',
+      completed_at: Date.now(),
+      completed_by: userName || 'Sessão local',
+      completed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: 'Demanda concluída pelas ações.',
+    });
+    toast('Demanda concluída.');
+    render();
+  };
+
+  const openDemandCancelModal = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    let dlg = qs('#demandCancelModal');
+    if (dlg) dlg.remove();
+    const reason = el('textarea', { placeholder:'Informe a justificativa obrigatória do cancelamento...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const err = el('div', { class:'tiny', style:'color:var(--danger);display:none' }, ['Justificativa obrigatória.']);
+    const confirmCancel = () => {
+      const text = String(reason.value || '').trim();
+      const validation = validateTextLimit(text, 'Justificativa do cancelamento', INPUT_LIMITS.justification, { required:true });
+      if (validation) {
+        err.textContent = validation;
+        err.style.display = '';
+        return;
+      }
+      dispatch('UPDATE_DEMAND', {
+        ...latest,
+        status: 'Cancelada',
+        cancelled_at: Date.now(),
+        cancelled_by: userName || 'Sessão local',
+        cancelled_by_id: userId || '',
+        cancel_reason: text,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: `Cancelamento: ${text}`,
+      });
+      closeDialog(dlg);
+      toast('Demanda cancelada.');
+      render();
+    };
+    dlg = el('dialog', { id:'demandCancelModal', class:'modal' }, [
+      el('div', { class:'modalCard', style:'max-width:620px' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Cancelar demanda']),
+            el('div', { class:'modalSub' }, [latest.titulo || 'Demanda'])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'warn', style:'margin-bottom:12px' }, ['Cancelamento bloqueia futuras alterações e exige justificativa para auditoria.']),
+          el('div', { class:'field' }, [el('label', {}, ['Justificativa obrigatória']), reason, err]),
+          el('div', { class:'modalActions' }, [
+            button('Voltar', '', () => closeDialog(dlg)),
+            button('Confirmar cancelamento', 'danger', confirmCancel)
+          ])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
+  };
+
+  const concludeDemand = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    if (!confirm(`Concluir demanda "${latest.titulo || 'sem título'}"?`)) return;
+    dispatch('UPDATE_DEMAND', {
+      ...latest,
+      status: 'Concluída',
+      completed_at: Date.now(),
+      completed_by: userName || 'Sessão local',
+      completed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: 'Demanda concluída pelas ações.',
+    });
+    toast('Demanda concluída.');
+    render();
+  };
+
+  const openDemandCancelModal = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    let dlg = qs('#demandCancelModal');
+    if (dlg) dlg.remove();
+    const reason = el('textarea', { placeholder:'Informe a justificativa obrigatória do cancelamento...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const err = el('div', { class:'tiny', style:'color:var(--danger);display:none' }, ['Justificativa obrigatória.']);
+    const confirmCancel = () => {
+      const text = String(reason.value || '').trim();
+      const validation = validateTextLimit(text, 'Justificativa do cancelamento', INPUT_LIMITS.justification, { required:true });
+      if (validation) {
+        err.textContent = validation;
+        err.style.display = '';
+        return;
+      }
+      dispatch('UPDATE_DEMAND', {
+        ...latest,
+        status: 'Cancelada',
+        cancelled_at: Date.now(),
+        cancelled_by: userName || 'Sessão local',
+        cancelled_by_id: userId || '',
+        cancel_reason: text,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: `Cancelamento: ${text}`,
+      });
+      closeDialog(dlg);
+      toast('Demanda cancelada.');
+      render();
+    };
+    dlg = el('dialog', { id:'demandCancelModal', class:'modal' }, [
+      el('div', { class:'modalCard', style:'max-width:620px' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Cancelar demanda']),
+            el('div', { class:'modalSub' }, [latest.titulo || 'Demanda'])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'warn', style:'margin-bottom:12px' }, ['Cancelamento bloqueia futuras alterações e exige justificativa para auditoria.']),
+          el('div', { class:'field' }, [el('label', {}, ['Justificativa obrigatória']), reason, err]),
+          el('div', { class:'modalActions' }, [
+            button('Voltar', '', () => closeDialog(dlg)),
+            button('Confirmar cancelamento', 'danger', confirmCancel)
+          ])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
+  };
+
   // ----------------------
   // Reprogramar Demanda (modal: novo prazo final + justificativa obrigatória)
   // ----------------------
