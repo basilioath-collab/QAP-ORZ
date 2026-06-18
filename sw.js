@@ -1,4 +1,4 @@
-const ORIZON_CACHE = 'orizon-static-v10-nav-fix';
+const ORIZON_CACHE = 'orizon-static-v11-rollback';
 const ORIZON_ASSETS = [
   './index.html',
   './manifest.webmanifest',
