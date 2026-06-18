@@ -2922,7 +2922,7 @@ main{padding:14px;overflow-x:hidden}
     return normalizeDateLikeToISO(raw) || '';
   };
 
-  const demandAllocationEndDate = (demand={}) => {
+  const demandBaseAllocationEndDate = (demand={}) => {
     const baseEnd = String(demand.data_fim || demand.end || '').trim();
     if (normalizeStatus(demand.status) !== 'Concluída') return baseEnd;
     const completedDate = demandCompletedDate(demand);
@@ -2931,6 +2931,54 @@ main{padding:14px;overflow-x:hidden}
     if (!previousDay) return '';
     previousDay.setDate(previousDay.getDate() - 1);
     return formatDate(previousDay);
+  };
+
+  const resourceHasCapacityForDemandDate = (resourceId='', dateStr='', { ignoreResourceBlockings=false } = {}) => {
+    const d = isoToLocalMidnight(dateStr);
+    if (!d) return false;
+    const rid = String(resourceId || '').trim();
+    if (!ignoreResourceBlockings) return !nonWorkingReasonForDay(rid, d);
+    if (isHoliday(dateStr) || isWeekend(d)) return false;
+    const res = (state.resources || []).find(r => r.id === rid);
+    return !isThirdPartyOff(res, dateStr);
+  };
+
+  const demandAllocationEndDateForResource = (demand={}, resourceId='') => {
+    const start = String(demand.data_inicio || '').trim();
+    const baseEnd = demandBaseAllocationEndDate(demand);
+    const rid = String(resourceId || '').trim();
+    if (!start || !baseEnd || !rid || normalizeStatus(demand.status) === 'Concluída') return baseEnd;
+
+    let plannedWorkingDays = 0;
+    let cursor = isoToLocalMidnight(start);
+    const baseLimit = isoToLocalMidnight(baseEnd);
+    while (cursor && baseLimit && cursor.getTime() <= baseLimit.getTime()) {
+      if (resourceHasCapacityForDemandDate(rid, formatDate(cursor), { ignoreResourceBlockings:true })) plannedWorkingDays++;
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    if (!plannedWorkingDays) return baseEnd;
+
+    let deliveredWorkingDays = 0;
+    cursor = isoToLocalMidnight(start);
+    let guard = 0;
+    while (cursor && guard < 3700) {
+      const ds = formatDate(cursor);
+      if (resourceHasCapacityForDemandDate(rid, ds)) deliveredWorkingDays++;
+      if (deliveredWorkingDays >= plannedWorkingDays) return ds;
+      cursor.setDate(cursor.getDate() + 1);
+      guard++;
+    }
+    return baseEnd;
+  };
+
+  const demandAllocationEndDate = (demand={}) => {
+    const baseEnd = demandBaseAllocationEndDate(demand);
+    const ids = demandAssignedResourceIds(demand);
+    if (!ids.length) return baseEnd;
+    return ids.reduce((maxEnd, rid) => {
+      const end = demandAllocationEndDateForResource(demand, rid);
+      return end && (!maxEnd || end > maxEnd) ? end : maxEnd;
+    }, baseEnd);
   };
 
   const demandIsAllocatedOnDate = (demand={}, dateStr='') => {
@@ -2972,6 +3020,7 @@ main{padding:14px;overflow-x:hidden}
     demandDateEnd: '',   // YYYY-MM-DD
     dashboardDemandTitle: '',  // pesquisa por título no Visão Geral
     evaluationDemandTitle: '', // pesquisa por projeto no Apontamentos
+    evaluationUserKey: '', // filtro por usuário nos apontamentos
     demandsDemandTitle: '',    // pesquisa por título na aba Demandas
     focusDemandsList: false,
     focusDemandsForm: false,
@@ -5503,7 +5552,9 @@ main{padding:14px;overflow-x:hidden}
 
       let total = 0;
       for (const dem of (state.demands || [])) {
-        if (!demandIsAllocatedOnDate(dem, dateStr)) continue;
+        const demStart = String(dem.data_inicio || '').trim();
+        const demEnd = demandAllocationEndDateForResource(dem, resourceId);
+        if (!demStart || !demEnd || dateStr < demStart || dateStr > demEnd) continue;
         const allocHours = demandAllocations(dem)
           .filter(a => String(a.resourceId || '') === String(resourceId || ''))
           .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
@@ -8071,9 +8122,28 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       return { label:'Não iniciado', tone:'neutral', hint:'Sem apontamentos reais registrados para a demanda.' };
     };
 
+    const apontamentoUserKey = (a={}) => {
+      const id = String(a.user_id || a.userId || a.updated_by_id || a.updatedById || '').trim();
+      const name = String(a.usuario || a.user || a.updated_by || a.updatedBy || 'Não informado').trim() || 'Não informado';
+      return id ? `id:${id}` : `name:${normalizedPersonName(name) || name}`;
+    };
+    const apontamentoUserLabel = (a={}) => String(a.usuario || a.user || a.updated_by || a.updatedBy || 'Não informado').trim() || 'Não informado';
+    const userOptionsMap = new Map();
+    for (const d of dashboardFilteredDemands || []) {
+      for (const a of normalizeDemandApontamentos(d)) {
+        const key = apontamentoUserKey(a);
+        if (!userOptionsMap.has(key)) userOptionsMap.set(key, apontamentoUserLabel(a));
+      }
+    }
+    const userOptions = [...userOptionsMap.entries()].sort((a,b) => a[1].localeCompare(b[1]));
+    if (uiFilters.evaluationUserKey && !userOptionsMap.has(uiFilters.evaluationUserKey)) uiFilters.evaluationUserKey = '';
+    const filterApontamentosByUser = (items=[]) => uiFilters.evaluationUserKey
+      ? items.filter(a => apontamentoUserKey(a) === uiFilters.evaluationUserKey)
+      : items;
+
     const projects = (dashboardFilteredDemands || []).map(d => {
-      const metrics = demandExecutionMetrics(d);
-      const apontamentos = normalizeDemandApontamentos(d);
+      const apontamentos = filterApontamentosByUser(normalizeDemandApontamentos(d));
+      const metrics = demandExecutionMetrics(d, apontamentos);
       const windowClassification = demandWindowClassification(d, apontamentos);
       const plannedWindowPct = elapsedWindowPct({
         data_inicio: windowClassification.baselineStart || d.data_inicio,
@@ -8090,7 +8160,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const stepBadges = [...new Set(apontamentos.map(a => normalizeProjectStep(a.etapa)).filter(Boolean))].slice(0,6);
       const windowSummary = demandApontamentoWindowSummary(d, apontamentos);
       return { demand:d, metrics, apontamentos, windowPct, plannedWindowPct, reprogrammedPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, windowClassification, remainingDays: remainingDaysLabel(d) };
-    }).sort((a,b) => {
+    }).filter(p => !uiFilters.evaluationUserKey || p.apontamentos.length > 0).sort((a,b) => {
       const toneWeight = { danger:0, warn:1, neutral:2, ok:3 };
       return (toneWeight[a.health.tone] ?? 9) - (toneWeight[b.health.tone] ?? 9) || String(a.demand.data_fim||'').localeCompare(String(b.demand.data_fim||''));
     });
@@ -8202,9 +8272,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         ...STATUS.map(s => el('option', { value:s, selected: uiFilters.demandStatus === s }, [s]))
       ]);
       status.addEventListener('change', () => { uiFilters.demandStatus = status.value; uiPagination.evaluationPage = 1; render(); });
+      const user = el('select', {}, [
+        el('option', { value:'' }, ['Todos os usuários']),
+        ...userOptions.map(([key, label]) => el('option', { value:key, selected: uiFilters.evaluationUserKey === key }, [label]))
+      ]);
+      user.addEventListener('change', () => { uiFilters.evaluationUserKey = user.value; uiPagination.evaluationPage = 1; render(); });
       return el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;align-items:end' }, [
         el('div', { class:'field', style:'min-width:220px;flex:1' }, [el('label', {}, ['Projeto']), title]),
         el('div', { class:'field', style:'min-width:180px' }, [el('label', {}, ['Status']), status]),
+        el('div', { class:'field', style:'min-width:200px' }, [el('label', {}, ['Usuário do apontamento']), user]),
       ]);
     })();
 
@@ -8233,7 +8309,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
     return el('div', { class:'grid', style:'gap:14px' }, [
       card('Apontamentos', null, el('div', { class:'grid', style:'gap:12px' }, [
-        el('div', { class:'tiny muted' }, ['Visão por projeto: compara a janela planejada com as horas reais apontadas, sem ranking por colaborador.']),
+        el('div', { class:'tiny muted' }, ['Visão por projeto: compara a janela planejada com as horas reais apontadas e permite filtrar por usuário do apontamento.']),
         filtersBar,
         el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px' }, [
           miniMetric('Projetos avaliados', String(projects.length), 'demandas no filtro atual'),
@@ -8249,10 +8325,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   const plannedDemandHoursForDate = (demand={}, dateStr='', resourceIds=null) => {
     const ids = Array.isArray(resourceIds) ? resourceIds.map(String) : null;
-    if (!demandIsAllocatedOnDate(demand, dateStr)) return 0;
     return demandAllocations(demand).reduce((acc, a) => {
       const rid = String(a.resourceId || '').trim();
       if (ids && !ids.includes(rid)) return acc;
+      const start = String(demand.data_inicio || '').trim();
+      const end = demandAllocationEndDateForResource(demand, rid);
+      if (!start || !end || dateStr < start || dateStr > end) return acc;
       const reason = rid ? nonWorkingReasonForDay(rid, isoToLocalMidnight(dateStr)) : null;
       if (reason) return acc;
       return acc + Number(a.horas_planejadas_dia || a.horas_dia || 0);
