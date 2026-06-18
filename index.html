@@ -2933,14 +2933,39 @@ main{padding:14px;overflow-x:hidden}
     return formatDate(previousDay);
   };
 
+  const demandResourceIdsForWindow = (demand={}) => {
+    const ids = [];
+    const add = (id) => {
+      const rid = String(id || '').trim();
+      if (rid && !ids.includes(rid)) ids.push(rid);
+    };
+    if (Array.isArray(demand.allocations)) demand.allocations.forEach(a => add(a?.resourceId || a?.recurso_id || a?.responsavel_id));
+    if (Array.isArray(demand.responsaveis)) demand.responsaveis.forEach(add);
+    add(demand.responsavel_id || demand.resourceId || demand.recurso_id);
+    return ids;
+  };
+
   const resourceHasCapacityForDemandDate = (resourceId='', dateStr='', { ignoreResourceBlockings=false } = {}) => {
     const d = isoToLocalMidnight(dateStr);
     if (!d) return false;
     const rid = String(resourceId || '').trim();
-    if (!ignoreResourceBlockings) return !nonWorkingReasonForDay(rid, d);
-    if (isHoliday(dateStr) || isWeekend(d)) return false;
-    const res = (state.resources || []).find(r => r.id === rid);
-    return !isThirdPartyOff(res, dateStr);
+    const holidays = Array.isArray(state?.holidays) ? state.holidays : [];
+    if (holidays.some(h => String(h?.data || h?.date || '') === dateStr)) return false;
+    if (isWeekend(d)) return false;
+    const res = (state?.resources || []).find(r => String(r?.id || '') === rid);
+    if (res && String(res.tipo || '').trim() === 'Terceiro') {
+      if (res.vigencia_inicio && dateStr < res.vigencia_inicio) return false;
+      if (res.vigencia_fim && dateStr > res.vigencia_fim) return false;
+    }
+    if (ignoreResourceBlockings) return true;
+    const blockings = Array.isArray(state?.blockings) ? state.blockings : [];
+    return !blockings.some(b => {
+      const bid = String(b?.recurso_id || b?.resourceId || '').trim();
+      if (!bid || bid !== rid) return false;
+      const start = normalizeDateLikeToISO(b?.data_inicio || b?.start || b?.dateStart || b?.data || b?.date || '');
+      const end = normalizeDateLikeToISO(b?.data_fim || b?.end || b?.dateEnd || b?.data || b?.date || start) || start;
+      return !!(start && end && dateStr >= start && dateStr <= end);
+    });
   };
 
   const demandAllocationEndDateForResource = (demand={}, resourceId='') => {
@@ -2973,7 +2998,7 @@ main{padding:14px;overflow-x:hidden}
 
   const demandAllocationEndDate = (demand={}) => {
     const baseEnd = demandBaseAllocationEndDate(demand);
-    const ids = demandAssignedResourceIds(demand);
+    const ids = demandResourceIdsForWindow(demand);
     if (!ids.length) return baseEnd;
     return ids.reduce((maxEnd, rid) => {
       const end = demandAllocationEndDateForResource(demand, rid);
