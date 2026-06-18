@@ -8237,12 +8237,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
   };
 
   const countsAsExecutionTargetDay = (resource={}, dateObj) => {
-    const dateStr = formatDate(dateObj);
     if (!resource || resource.ativo === false) return false;
-    if (isWeekend(dateObj) || isHoliday(dateStr)) return false;
-    if (blockingFor(resource.id, dateStr)) return false;
-    if (isThirdPartyOff(resource, dateStr)) return false;
-    return true;
+    return !isWeekend(dateObj);
   };
 
   const monthlyResourceExecutionRows = (monthStr=dailyExecutionMonth) => {
@@ -8554,11 +8550,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
       ]), el('div', { class:'grid', style:'gap:12px' }, [
         el('div', { class:'tiny muted' }, [isMonthlyMode
-          ? 'Indicador mensal por recurso. A meta mensal soma os dias úteis do mês com 9h para interno e 8h para terceiro.'
+          ? 'Indicador mensal por recurso. A meta mensal soma os dias úteis corridos do mês com 9h para interno e 8h para terceiro, sem descontar feriados ou bloqueios.'
           : 'Indicador gerencial do dia selecionado. A meta de execução é fixa: 9h para interno e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.'
         ]),
         el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px' }, [
-          metric(isMonthlyMode ? 'Meta mensal' : 'Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, isMonthlyMode ? 'dias úteis × meta do recurso' : '9h interno / 8h terceiro'),
+          metric(isMonthlyMode ? 'Meta mensal' : 'Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, isMonthlyMode ? 'dias úteis do mês × meta' : '9h interno / 8h terceiro'),
           metric(isMonthlyMode ? 'Executado no mês' : 'Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
           metric('Aderência', pct(totalsWithInternal.adherence), 'executado ÷ planejado', totalsWithInternal.adherence < 60 ? 'warn' : ''),
           metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
