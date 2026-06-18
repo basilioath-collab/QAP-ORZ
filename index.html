@@ -806,7 +806,7 @@ main{padding:14px;overflow-x:hidden}
   </div>
 </header>
 
-    <nav id="tabs"><button class="active"><span>📊</span>Visão Geral</button><button class=""><span>📈</span>Apontamentos</button><button class=""><span>📋</span>Demandas</button><button class=""><span>👥</span>Recursos</button><button class=""><span>📅</span>Bloqueio de Janela</button><button class=""><span>⏱</span>Horas Extras (HE)</button><button class=""><span>🔎</span>Janelas Livres</button><button class=""><span>📦</span>Sincronização de BD</button></nav>
+    <nav id="tabs"><button class="active"><span>📊</span>Visão Geral</button><button class=""><span>📈</span>Apontamentos</button><button class=""><span>📋</span>Demandas</button><button class=""><span>👥</span>Recursos</button><button class=""><span>📅</span>Bloqueio de Janela</button><button class=""><span>⏱</span>Horas Extras (HE)</button><button class=""><span>🔎</span>Janelas Livres</button><button class=""><span>✍️</span>Lançamentos</button><button class=""><span>📆</span>Execução diária</button><button class=""><span>📦</span>Sincronização de BD</button></nav>
   </div>
 
   <main id="app"><div class="globalDbWarn" style="margin-bottom:14px">Nenhum BD Vinculado<span class="tiny" style="display:block;margin-top:4px">Vá em <b>Sincronização de BD</b> &gt; <b>Banco de Dados</b> e selecione o arquivo da pasta de rede.</span></div><div class="grid"><div class="kpi"><div class="k"><div class="lbl">Recursos (total)</div><div class="val">0</div></div><div class="k"><div class="lbl">Recursos (ativos)</div><div class="val">0</div></div><div class="k"><div class="lbl">Demandas (total)</div><div class="val">0</div></div><div class="k"><div class="lbl">Demandas (abertas)</div><div class="val">0</div></div></div><div class="split"><div class="card"><div class="hd"><h2>Demandas (Geral)</h2><div></div></div><div class="bd"><div class="grid"><div class="grid" style="gap:10px"><div class="row"><div class="field"><label>Status</label><select><option value="">Todos os status</option><option value="Em andamento">Em andamento</option><option value="Atrasada">Atrasada</option><option value="Concluída">Concluída</option><option value="Mapeada">Mapeada</option><option value="Congelada">Congelada</option></select></div><div class="field"><label>Recurso</label><select><option value="">Todos os recursos</option><option value="__NONE__">Sem responsável (Mapeada)</option></select></div><div class="field" style="flex:1;min-width:240px"><label>Pesquisar título</label><input type="search" placeholder="Digite parte do título..." id="dashboardDemandTitleSearch"></div><div class="field"><label>De</label><input type="date"></div><div class="field"><label>Até</label><input type="date"></div></div><div style="display:none"></div></div><div class="donutWrap"><div class="donut empty" style="background:conic-gradient(var(--border) 0 100%);"></div><div class="legend"><div class="item" title="Filtrar demandas: Em andamento"><span class="sw" style="background:var(--indigo)"></span>Em andamento: 0</div><div class="item" title="Filtrar demandas: Atrasada"><span class="sw" style="background:var(--red)"></span>Atrasada: 0</div><div class="item" title="Filtrar demandas: Concluída"><span class="sw" style="background:var(--green)"></span>Concluída: 0</div><div class="item" title="Filtrar demandas: Mapeada"><span class="sw" style="background:var(--slate)"></span>Mapeada: 0</div><div class="item" title="Filtrar demandas: Congelada"><span class="sw" style="background:var(--yellow)"></span>Congelada: 0</div></div></div></div></div></div><div class="card"><div class="hd"><h2>Por Recurso (mês)</h2><div></div></div><div class="bd"><div><div class="scrollX"><table><thead><tr><th>Recurso</th><th>Demandas ativas (mês)</th><th>% médio alocado (mês)</th><th>Pico</th><th>Barra</th></tr></thead><tbody><tr><td colspan="5" style="padding:16px;text-align:center;color:var(--muted)">Cadastre recursos para ver o gráfico por recurso.</td></tr></tbody></table></div><div class="pager"><div class="info">Nenhum item - Página 1 de 1</div><div class="controls"><button class="btn " disabled="">« Início</button><button class="btn " disabled="">‹ Anterior</button><button class="btn " disabled="">Próxima ›</button><button class="btn " disabled="">Final »</button></div></div></div></div></div></div><div class="card"><div class="hd"><h2>Ocupação Consolidada - Ano</h2><div class="row" style="gap:10px;flex-wrap:wrap;justify-content:flex-end"><div class="tag" title="Uso do mês atual (Planejado/Capacidade)">Mês: 0% - Overcap: 0h - Estourados: 0/0</div><button class="btn ghost">Exportar SVG</button><button class="btn ghost">Exportar PNG</button></div></div><div class="bd"><div class="grid" style="gap:10px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px"><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Ocupação média</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0%</div><div class="tiny muted" style="margin-top:3px">média dos meses com capacidade</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Maior pico</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0%</div><div class="tiny muted" style="margin-top:3px">em jan</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Meses estourados</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0</div><div class="tiny muted" style="margin-top:3px">acima de 100%</div></div><div style="border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--success-soft)"><div class="tiny muted">Horas acima da capacidade</div><div class="mono" style="font-weight:950;font-size:18px;line-height:1.15">0h</div><div class="tiny muted" style="margin-top:3px">soma anual de overcap</div></div></div><div style="max-width:100%;overflow:auto"><svg viewBox="0 0 1200 440" width="1200" height="440" style="max-width:100%;height:auto;display:block;" role="img"><rect x="0" y="0" width="1200" height="440" rx="0" fill="#ffffff"></rect><rect x="70" y="34" width="1094" height="98.66666666666669" rx="0" fill="var(--danger-soft)" opacity=".42"></rect><rect x="70" y="132.66666666666669" width="1094" height="197.33333333333331" rx="0" fill="#ffffff"></rect><text x="70" y="20" fill="var(--text)" font-size="16" font-weight="950" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Ocupação Consolidada - Ano</text><text x="1164" y="20" fill="var(--muted)" font-size="11" font-weight="800" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">escala visual 0-150%</text><line x1="70" y1="330" x2="1164" y2="330" stroke="var(--border)" stroke-width="1"></line><text x="60" y="334" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><line x1="70" y1="270.8" x2="1164" y2="270.8" stroke="var(--border)" stroke-width="1"></line><text x="60" y="274.8" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">30%</text><line x1="70" y1="211.6" x2="1164" y2="211.6" stroke="var(--border)" stroke-width="1"></line><text x="60" y="215.6" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">60%</text><line x1="70" y1="152.4" x2="1164" y2="152.4" stroke="var(--border)" stroke-width="1"></line><text x="60" y="156.4" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">90%</text><line x1="70" y1="93.19999999999999" x2="1164" y2="93.19999999999999" stroke="var(--border)" stroke-width="1"></line><text x="60" y="97.19999999999999" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">120%</text><line x1="70" y1="34" x2="1164" y2="34" stroke="var(--border)" stroke-width="1"></line><text x="60" y="38" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">150%</text><line x1="70" y1="132.66666666666669" x2="1164" y2="132.66666666666669" stroke="var(--danger)" stroke-width="2" stroke-dasharray="6 6"></line><text x="1160" y="124.66666666666669" fill="var(--danger)" font-size="12" font-weight="900" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">limite 100%</text><rect x="90.96833333333333" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="90.96833333333333" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jan"><title>jan: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="115.58333333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jan</text><text x="115.58333333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="115.58333333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="182.13500000000002" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="182.13500000000002" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="fev"><title>fev: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="206.75000000000003" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">fev</text><text x="206.75000000000003" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="206.75000000000003" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="273.3016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="273.3016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="mar"><title>mar: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="297.9166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">mar</text><text x="297.9166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="297.9166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="364.4683333333333" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="364.4683333333333" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="abr"><title>abr: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="389.0833333333333" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">abr</text><text x="389.0833333333333" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="389.0833333333333" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="455.635" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="455.635" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="mai"><title>mai: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><rect x="450.635" y="29" width="59.230000000000004" height="306" rx="14" fill="none" stroke="var(--primary)" stroke-width="2" stroke-dasharray="5 5"></rect><text x="480.25" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">mai</text><text x="480.25" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="480.25" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="546.8016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="546.8016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jun"><title>jun: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="571.4166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jun</text><text x="571.4166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="571.4166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="637.9683333333334" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="637.9683333333334" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="jul"><title>jul: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="662.5833333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">jul</text><text x="662.5833333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="662.5833333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="729.1350000000001" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="729.1350000000001" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="ago"><title>ago: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="753.7500000000001" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">ago</text><text x="753.7500000000001" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="753.7500000000001" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="820.3016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="820.3016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="set"><title>set: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="844.9166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">set</text><text x="844.9166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="844.9166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="911.4683333333334" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="911.4683333333334" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="out"><title>out: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="936.0833333333334" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">out</text><text x="936.0833333333334" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="936.0833333333334" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="1002.635" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="1002.635" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="nov"><title>nov: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="1027.25" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">nov</text><text x="1027.25" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="1027.25" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="1093.8016666666667" y="34" width="49.230000000000004" height="296" rx="12" fill="var(--surface)" opacity="0.72"></rect><rect x="1093.8016666666667" y="330" width="49.230000000000004" height="0" rx="12" fill="var(--border)" data-month="dez"><title>dez: 0% de ocupação | Planejado 0h | Capacidade 0h | Livre 0h | Overcap 0h</title></rect><text x="1118.4166666666667" y="356" fill="var(--text)" font-size="12" font-weight="800" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">dez</text><text x="1118.4166666666667" y="322" fill="var(--text)" font-size="13" font-weight="950" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0%</text><text x="1118.4166666666667" y="378" fill="var(--muted)" font-size="10" font-weight="750" text-anchor="middle" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">0/0</text><rect x="70" y="412" width="14" height="10" rx="2" fill="var(--success)"></rect><text x="90" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Saudável</text><rect x="200" y="412" width="14" height="10" rx="2" fill="var(--warning)"></rect><text x="220" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Atenção</text><rect x="320" y="412" width="14" height="10" rx="2" fill="var(--danger)"></rect><text x="340" y="421" fill="var(--text)" font-size="12" font-weight="800" text-anchor="start" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">Acima da capacidade</text><text x="1164" y="421" fill="var(--muted)" font-size="11" font-weight="750" text-anchor="end" font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial">rótulo inferior: planejado/capacidade (Horas)</text></svg></div></div></div></div><div class="card"><div class="hd"><h2>Visão Geral</h2><div class="row" style="gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center"><div class="row"><button class="btn ghost">◀</button><div class="tag">maio de 2026</div><button class="btn ghost">▶</button></div><div class="legendDropdown"><button class="legendBtn" type="button" title="Abrir menu de legendas" aria-haspopup="true" aria-expanded="false">☰ Legendas<span class="chev">▾</span></button><div class="legendMenu" role="menu"><div class="legendGroup"><div class="legendGroupTitle">Capacidade</div><div class="legendItem"><span class="legendDot ok"></span><span>≤ 80%<small>Alocação confortável</small></span></div><div class="legendItem"><span class="legendDot mid"></span><span>81?100%<small>Próximo do limite</small></span></div><div class="legendItem"><span class="legendDot over"></span><span>&gt; 100%<small>Capacidade excedida</small></span></div></div><div class="legendGroup"><div class="legendGroupTitle">Bloqueios</div><div class="legendItem"><span class="legendDot block"></span><span>Bloqueio<small>Dia sem capacidade</small></span></div><div class="legendItem"><span class="legendDot vac"></span><span>Férias<small>Recurso indisponível</small></span></div><div class="legendItem"><span class="legendDot off"></span><span>Fora vigência<small>Terceiro fora do período</small></span></div></div><div class="legendGroup"><div class="legendGroupTitle">Eventos especiais</div><div class="legendItem"><span class="legendDot holiday"></span><span>Feriado<small>Capacidade zerada</small></span></div><div class="legendItem"><span class="legendDot vac"></span><span>HE<small>Hora extra registrada</small></span></div></div></div></div></div></div><div class="bd"><div><div class="scrollX"><table class="calTable"><thead><tr><th class="stickyCol" style="min-width:220px">Recurso / Dia</th><th class="dayHead " title="01/05/2026"><div class="mono" style="font-weight:900">1</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="02/05/2026"><div class="mono" style="font-weight:900">2</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="03/05/2026"><div class="mono" style="font-weight:900">3</div><div class="tiny">dom</div></th><th class="dayHead " title="04/05/2026"><div class="mono" style="font-weight:900">4</div><div class="tiny">seg</div></th><th class="dayHead " title="05/05/2026"><div class="mono" style="font-weight:900">5</div><div class="tiny">ter</div></th><th class="dayHead " title="06/05/2026"><div class="mono" style="font-weight:900">6</div><div class="tiny">qua</div></th><th class="dayHead " title="07/05/2026"><div class="mono" style="font-weight:900">7</div><div class="tiny">qui</div></th><th class="dayHead " title="08/05/2026"><div class="mono" style="font-weight:900">8</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="09/05/2026"><div class="mono" style="font-weight:900">9</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="10/05/2026"><div class="mono" style="font-weight:900">10</div><div class="tiny">dom</div></th><th class="dayHead " title="11/05/2026"><div class="mono" style="font-weight:900">11</div><div class="tiny">seg</div></th><th class="dayHead " title="12/05/2026"><div class="mono" style="font-weight:900">12</div><div class="tiny">ter</div></th><th class="dayHead " title="13/05/2026"><div class="mono" style="font-weight:900">13</div><div class="tiny">qua</div></th><th class="dayHead " title="14/05/2026"><div class="mono" style="font-weight:900">14</div><div class="tiny">qui</div></th><th class="dayHead " title="15/05/2026"><div class="mono" style="font-weight:900">15</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="16/05/2026"><div class="mono" style="font-weight:900">16</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="17/05/2026"><div class="mono" style="font-weight:900">17</div><div class="tiny">dom</div></th><th class="dayHead " title="18/05/2026"><div class="mono" style="font-weight:900">18</div><div class="tiny">seg</div></th><th class="dayHead " title="19/05/2026"><div class="mono" style="font-weight:900">19</div><div class="tiny">ter</div></th><th class="dayHead " title="20/05/2026"><div class="mono" style="font-weight:900">20</div><div class="tiny">qua</div></th><th class="dayHead " title="21/05/2026"><div class="mono" style="font-weight:900">21</div><div class="tiny">qui</div></th><th class="dayHead " title="22/05/2026"><div class="mono" style="font-weight:900">22</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="23/05/2026"><div class="mono" style="font-weight:900">23</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="24/05/2026"><div class="mono" style="font-weight:900">24</div><div class="tiny">dom</div></th><th class="dayHead " title="25/05/2026"><div class="mono" style="font-weight:900">25</div><div class="tiny">seg</div></th><th class="dayHead " title="26/05/2026"><div class="mono" style="font-weight:900">26</div><div class="tiny">ter</div></th><th class="dayHead " title="27/05/2026"><div class="mono" style="font-weight:900">27</div><div class="tiny">qua</div></th><th class="dayHead " title="28/05/2026"><div class="mono" style="font-weight:900">28</div><div class="tiny">qui</div></th><th class="dayHead " title="29/05/2026"><div class="mono" style="font-weight:900">29</div><div class="tiny">sex</div></th><th class="dayHead bg-wknd" title="30/05/2026"><div class="mono" style="font-weight:900">30</div><div class="tiny">sáb</div></th><th class="dayHead bg-wknd" title="31/05/2026"><div class="mono" style="font-weight:900">31</div><div class="tiny">dom</div></th></tr></thead><tbody><tr><td colspan="32" style="padding:34px;text-align:center;color:var(--muted)">Nenhum recurso cadastrado. Vá em "Recursos" para começar.</td></tr></tbody></table></div><div class="pager"><div class="info">Nenhum item - Página 1 de 1</div><div class="controls"><button class="btn " disabled="">« Início</button><button class="btn " disabled="">‹ Anterior</button><button class="btn " disabled="">Próxima ›</button><button class="btn " disabled="">Final »</button></div></div></div></div></div></div></main>
@@ -837,19 +837,6 @@ main{padding:14px;overflow-x:hidden}
         <button class="btn ghost" id="donutModalClose" type="button">Fechar ×</button>
       </div>
       <div class="modalBd" id="donutModalBody"></div>
-    </div>
-  </dialog>
-
-  <dialog id="heatModal" class="modal">
-    <div class="modalCard">
-      <div class="modalHd">
-        <div>
-          <div class="modalTitle" id="heatModalTitle">Janelas livres - Detalhes</div>
-          <div class="modalSub" id="heatModalSub"></div>
-        </div>
-        <button class="btn ghost" id="heatModalClose" type="button">Fechar ×</button>
-      </div>
-      <div class="modalBd" id="heatModalBody"></div>
     </div>
   </dialog>
 
@@ -2544,15 +2531,6 @@ main{padding:14px;overflow-x:hidden}
     }
   }, 0);
 
-  // close button (heat map modal)
-  setTimeout(() => {
-    const closeBtn = qs('#heatModalClose');
-    if (closeBtn && !closeBtn.__bound) {
-      closeBtn.__bound = true;
-      closeBtn.addEventListener('click', () => qs('#heatModal')?.close());
-    }
-  }, 0);
-
   const toast = (msg) => {
     const el = qs('#toast');
     const openDialogs = qsa('dialog[open]');
@@ -3085,6 +3063,13 @@ main{padding:14px;overflow-x:hidden}
 
   // paginação (não persistida)
   let editingInternalActivityId = '';
+  let launchMode = 'demand';
+  let launchDemandId = '';
+  let dailyExecutionUnlocked = false;
+  let dailyExecutionDate = todayISO();
+  let dailyExecutionMode = 'daily';
+  let dailyExecutionMonth = todayISO().slice(0, 7);
+  const DAILY_EXECUTION_PASSWORD = 'CAPVIEW';
 
   const uiPagination = {
     demandsPage: 1,
@@ -3101,7 +3086,6 @@ main{padding:14px;overflow-x:hidden}
     // Janelas Livres
     windowsHeatPage: 1,   // Heatmap (Janelas por recurso x meses)
     windowsNextPage: 1,   // Próxima janela livre
-    windowsMatrixPage: 1, // Matriz de janelas livres
   };
 
 
@@ -5510,7 +5494,9 @@ main{padding:14px;overflow-x:hidden}
       const allocatedFromDemandsHH = this.dailyDemandHoursAllocated(resourceId, dateObj);
       const perc = demandHoursToPercent(allocatedFromDemandsHH, resourceId, state.resources || []);
       const allocatedFromInternalHH = internalActivityHoursForDay(resourceId, dateObj);
-      const allocated = allocatedFromDemandsHH + allocatedFromInternalHH;
+      // Ocupação/janelas consideram somente demandas planejadas.
+      // Atividades internas permanecem disponíveis como indicador separado, sem consumir a janela.
+      const allocated = allocatedFromDemandsHH;
       const free = capacity - allocated;
 
       let cls = '';
@@ -5604,11 +5590,11 @@ main{padding:14px;overflow-x:hidden}
     }
     if (!nonWorkingReason) {
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-ok' }), `${totalDemands} demandas`]));
-      summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-mid' }), `${Math.max(0, Math.round(allocTotalPct))}% alocado total (conta)`]));
+      summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-mid' }), `${Math.max(0, Math.round(allocTotalPct))}% planejado em demandas`]));
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-holiday' }), `${allocTotalHH.toFixed(1)}h de ${capFinal.toFixed(1)}h`]));
       if (allocFromInternalHH > 0) {
-        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `Atividade interna: ${allocFromInternalHH.toFixed(1)}h`]));
-        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `${internalActivities.length} atividade(s) interna(s)`]));
+        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `Internas informativas: ${allocFromInternalHH.toFixed(1)}h`]));
+        summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-vac' }), `${internalActivities.length} registro(s) interno(s)`]));
       }
       summaryBadges.push(el('span', { class:'pill' }, [el('span', { class:'dot bg-ok' }), `Demandas: ${allocFromDemandsHH.toFixed(1)}h`]));
     } else if (heInfo.total <= 0) {
@@ -5706,8 +5692,8 @@ main{padding:14px;overflow-x:hidden}
           trIa.appendChild(el('td', {}, [
             el('div', { style:'font-weight:950;color:#446A0C' }, [`Interna - ${iaTitle}`]),
             el('div', { class:'tiny' }, [canSeeIaDetails
-              ? (ia.observacoes ? `Obs: ${ia.observacoes}` : 'Atividade interna contabilizada na capacidade')
-              : 'Detalhes visíveis apenas para quem lançou; horas seguem contabilizadas na capacidade.'
+              ? (ia.observacoes ? `Obs: ${ia.observacoes}` : 'Registro interno informativo; não consome a janela planejada')
+              : 'Detalhes visíveis apenas para quem lançou; horas não consomem a janela planejada.'
             ])
           ]));
           trIa.appendChild(el('td', {}, [el('span', { class:'statusPill s-andamento' }, [el('span', { class:'sDot' }), 'Atividade interna'])]));
@@ -6417,7 +6403,7 @@ main{padding:14px;overflow-x:hidden}
         apontamentos,
         last_edit_by: userName,
         last_edit_at: Date.now(),
-        last_edit_justification: 'Apontamento registrado pela aba Demandas.',
+        last_edit_justification: 'Apontamento registrado.',
       });
       renderHistory();
       toast(message);
@@ -8119,6 +8105,476 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     ]);
   };
 
+  const plannedDemandHoursForDate = (demand={}, dateStr='', resourceIds=null) => {
+    const ids = Array.isArray(resourceIds) ? resourceIds.map(String) : null;
+    if (!dateStr || String(demand.data_inicio || '') > dateStr || String(demand.data_fim || '') < dateStr) return 0;
+    const st = effectiveStatus(demand);
+    if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) return 0;
+    return demandAllocations(demand).reduce((acc, a) => {
+      const rid = String(a.resourceId || '').trim();
+      if (ids && !ids.includes(rid)) return acc;
+      const reason = rid ? nonWorkingReasonForDay(rid, isoToLocalMidnight(dateStr)) : null;
+      if (reason) return acc;
+      return acc + Number(a.horas_planejadas_dia || a.horas_dia || 0);
+    }, 0);
+  };
+
+  const apontamentoMatchesUser = (a={}) => {
+    const aid = String(a.user_id || a.userId || a.updated_by_id || '').trim();
+    if (userId && aid && aid === String(userId)) return true;
+    const aname = normalizedPersonName(a.usuario || a.user || a.updated_by || '');
+    const uname = normalizedPersonName(userName || '');
+    return !!uname && !!aname && aname === uname;
+  };
+
+  const demandApontamentosForDate = (demand={}, dateStr='', { onlyCurrentUser=false } = {}) => {
+    return normalizeDemandApontamentos(demand).filter(a => {
+      if (String(a.data || '') !== String(dateStr || '')) return false;
+      if (onlyCurrentUser && !apontamentoMatchesUser(a)) return false;
+      return true;
+    });
+  };
+
+  const dailyExecutionRows = ({ dateStr=todayISO(), resourceIds=null, onlyCurrentUser=false } = {}) => {
+    return (state.demands || []).map(d => {
+      const planned = plannedDemandHoursForDate(d, dateStr, resourceIds);
+      const apontamentos = demandApontamentosForDate(d, dateStr, { onlyCurrentUser });
+      const real = apontamentos.reduce((acc, a) => acc + Number(a.horas || 0), 0);
+      return { demand:d, planned, real, apontamentos };
+    }).filter(row => row.planned > 0 || row.real > 0);
+  };
+
+  const summarizeDailyExecutionRows = (rows=[]) => {
+    const planned = rows.reduce((acc, r) => acc + Number(r.planned || 0), 0);
+    const real = rows.reduce((acc, r) => acc + Number(r.real || 0), 0);
+    const apontamentos = rows.reduce((acc, r) => acc + (Array.isArray(r.apontamentos) ? r.apontamentos.length : 0), 0);
+    return {
+      planned,
+      real,
+      apontamentos,
+      adherence: planned > 0 ? (real / planned) * 100 : (real > 0 ? 100 : 0),
+      pending: Math.max(0, planned - real),
+      extra: Math.max(0, real - planned),
+    };
+  };
+
+  const resourceIdForApontamento = (apontamento={}, demand={}) => {
+    const aid = String(apontamento.user_id || apontamento.userId || apontamento.updated_by_id || '').trim();
+    const aname = normalizedPersonName(apontamento.usuario || apontamento.user || apontamento.updated_by || '');
+    for (const r of (state.resources || [])) {
+      const rid = String(r?.id || '').trim();
+      if (!rid) continue;
+      const owner = resourceOwnerId(r);
+      const rname = normalizedPersonName(r?.nome || r?.name || '');
+      if ((aid && owner && aid === owner) || (aname && rname && aname === rname)) return rid;
+    }
+    const assigned = demandAssignedResourceIds(demand);
+    if (assigned.length === 1) return assigned[0];
+    return assigned[0] || '';
+  };
+
+  const expectedExecutionHoursForResource = (resource={}) => String(resource?.tipo || '').trim() === 'Terceiro' ? HOURS_PER_DAY_THIRD : HOURS_PER_DAY;
+
+  const dailyResourceExecutionRows = (dateStr=todayISO(), { includeAllResources=false } = {}) => {
+    const byResource = new Map();
+    const ensure = (resource) => {
+      const rid = String(resource?.id || '').trim();
+      if (!rid) return null;
+      if (!byResource.has(rid)) {
+        byResource.set(rid, {
+          resource,
+          planned: expectedExecutionHoursForResource(resource),
+          demandReal: 0,
+          internalReal: 0,
+          items: [],
+        });
+      }
+      return byResource.get(rid);
+    };
+    for (const r of (state.resources || [])) {
+      if (includeAllResources || r?.ativo !== false) ensure(r);
+    }
+    for (const demand of (state.demands || [])) {
+      for (const apontamento of demandApontamentosForDate(demand, dateStr)) {
+        const rid = resourceIdForApontamento(apontamento, demand);
+        const row = ensure((state.resources || []).find(r => String(r?.id || '') === rid));
+        if (!row) continue;
+        const hours = Math.max(0, Number(apontamento.horas || 0));
+        if (hours > 0) {
+          row.demandReal += hours;
+          row.items.push({ type:'demand', label:demand.titulo || demand.id || 'Demanda', hours, hint:apontamento.etapa || 'apontamento', obs: apontamento.observacao || '', user: apontamento.usuario || '' });
+        }
+      }
+    }
+    const dateObj = isoToLocalMidnight(dateStr);
+    for (const r of (state.resources || [])) {
+      const row = ensure(r);
+      if (!row) continue;
+      for (const ia of internalActivitiesForResourceOnDate(r.id, dateObj, { onlyCapacity:false })) {
+        const hours = Math.max(0, Number(ia?.horas_dia || ia?.horas || 0));
+        if (hours > 0) {
+          row.internalReal += hours;
+          row.items.push({ type:'internal', label:ia.titulo || ia.nome || ia.descricao || 'Atividade interna', hours, hint:'interna', obs: ia.observacoes || ia.observacao || '', user: internalActivityOwnerName(ia) || '' });
+        }
+      }
+    }
+    return [...byResource.values()]
+      .map(row => ({
+        ...row,
+        planned: roundDemandHours(row.planned),
+        demandReal: roundDemandHours(row.demandReal),
+        internalReal: roundDemandHours(row.internalReal),
+        real: roundDemandHours(row.demandReal + row.internalReal),
+      }))
+      .filter(row => includeAllResources || row.planned > 0 || row.real > 0)
+      .sort((a,b) => (Number(b.real || 0) - Number(a.real || 0)) || String(a.resource?.nome || '').localeCompare(String(b.resource?.nome || '')));
+  };
+
+  const executionMonthDays = (monthStr='') => {
+    const match = String(monthStr || '').match(/^(\d{4})-(\d{2})$/);
+    const base = match ? new Date(Number(match[1]), Number(match[2]) - 1, 1) : isoToLocalMidnight(todayISO());
+    return getDaysInMonth(base.getFullYear(), base.getMonth());
+  };
+
+  const countsAsExecutionTargetDay = (resource={}, dateObj) => {
+    const dateStr = formatDate(dateObj);
+    if (!resource || resource.ativo === false) return false;
+    if (isWeekend(dateObj) || isHoliday(dateStr)) return false;
+    if (blockingFor(resource.id, dateStr)) return false;
+    if (isThirdPartyOff(resource, dateStr)) return false;
+    return true;
+  };
+
+  const monthlyResourceExecutionRows = (monthStr=dailyExecutionMonth) => {
+    const byResource = new Map();
+    const ensure = (resource) => {
+      const rid = String(resource?.id || '').trim();
+      if (!rid) return null;
+      if (!byResource.has(rid)) {
+        byResource.set(rid, {
+          resource,
+          planned: 0,
+          demandReal: 0,
+          internalReal: 0,
+          real: 0,
+          items: [],
+          daysBelow: 0,
+          daysAbove: 0,
+          daysWithExecution: 0,
+        });
+      }
+      return byResource.get(rid);
+    };
+    for (const r of (state.resources || [])) ensure(r);
+    for (const day of executionMonthDays(monthStr)) {
+      const dateStr = formatDate(day);
+      const dailyRows = new Map(dailyResourceExecutionRows(dateStr, { includeAllResources:true }).map(r => [String(r.resource?.id || ''), r]));
+      for (const r of (state.resources || [])) {
+        const row = ensure(r);
+        if (!row) continue;
+        const daily = dailyRows.get(String(r.id || '')) || { real:0, demandReal:0, internalReal:0, items:[] };
+        const target = countsAsExecutionTargetDay(r, day) ? expectedExecutionHoursForResource(r) : 0;
+        row.planned += target;
+        row.demandReal += Number(daily.demandReal || 0);
+        row.internalReal += Number(daily.internalReal || 0);
+        row.real += Number(daily.real || 0);
+        if (Number(daily.real || 0) > 0) row.daysWithExecution += 1;
+        if (target > 0 && Number(daily.real || 0) < target) row.daysBelow += 1;
+        if (target > 0 && Number(daily.real || 0) > target) row.daysAbove += 1;
+        for (const item of (daily.items || [])) {
+          row.items.push({ ...item, date: dateStr });
+        }
+      }
+    }
+    return [...byResource.values()]
+      .map(row => ({
+        ...row,
+        planned: roundDemandHours(row.planned),
+        demandReal: roundDemandHours(row.demandReal),
+        internalReal: roundDemandHours(row.internalReal),
+        real: roundDemandHours(row.real),
+      }))
+      .filter(row => row.planned > 0 || row.real > 0)
+      .sort((a,b) => (Number(b.real || 0) - Number(a.real || 0)) || String(a.resource?.nome || '').localeCompare(String(b.resource?.nome || '')));
+  };
+
+  const summarizeExecutionResourceRows = (rows=[]) => {
+    const planned = rows.reduce((acc, r) => acc + Number(r.planned || 0), 0);
+    const real = rows.reduce((acc, r) => acc + Number(r.real || 0), 0);
+    const internal = rows.reduce((acc, r) => acc + Number(r.internalReal || 0), 0);
+    const apontamentos = rows.reduce((acc, r) => acc + (r.items || []).filter(i => i.type === 'demand').length, 0);
+    return {
+      planned,
+      real,
+      internal,
+      apontamentos,
+      adherence: planned > 0 ? (real / planned) * 100 : (real > 0 ? 100 : 0),
+      pending: Math.max(0, planned - real),
+      extra: Math.max(0, real - planned),
+    };
+  };
+
+  const executionExportDateBounds = () => {
+    const dates = [];
+    const add = (value) => {
+      const iso = normalizeDateLikeToISO(value);
+      if (iso) dates.push(iso);
+    };
+    for (const d of (state.demands || [])) {
+      add(d.data_inicio);
+      add(d.data_fim);
+      for (const a of normalizeDemandApontamentos(d)) add(a.data);
+    }
+    for (const ia of (state.internalActivities || [])) {
+      const ini = normalizeDateLikeToISO(ia?.data_inicio || ia?.dataInicio || ia?.start_date || ia?.data || '');
+      const fim = normalizeDateLikeToISO(ia?.data_fim || ia?.dataFim || ia?.end_date || ini || ia?.data || '') || ini;
+      add(ini);
+      add(fim);
+    }
+    if (!dates.length) return { start: todayISO(), end: todayISO() };
+    dates.sort();
+    return { start: dates[0], end: dates[dates.length - 1] };
+  };
+
+  const allDailyExecutionExportRows = () => {
+    const { start, end } = executionExportDateBounds();
+    const rows = [];
+    let cursor = start;
+    let guard = 0;
+    while (cursor && cursor <= end && guard < 8000) {
+      for (const row of dailyResourceExecutionRows(cursor, { includeAllResources:true })) {
+        const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
+        rows.push({
+          data: cursor,
+          data_br: formatDateBR(cursor),
+          recurso: row.resource?.nome || row.resource?.name || row.resource?.id || '',
+          tipo_recurso: row.resource?.tipo || '',
+          planejado_meta_horas: row.planned,
+          executado_total_horas: row.real,
+          executado_demandas_horas: row.demandReal,
+          executado_internas_horas: row.internalReal,
+          aderencia_pct: Math.round(adherence * 10) / 10,
+          saldo_horas: roundDemandHours(row.real - row.planned),
+          lancamentos_resumo: row.items.filter(i => i.type !== 'planned').map(i => `${i.type === 'internal' ? 'Interna' : 'Demanda'}: ${i.label} (${fmtHours(i.hours)}h)`).join(' | ')
+        });
+      }
+      cursor = addDaysISO(cursor, 1);
+      guard++;
+    }
+    return rows;
+  };
+
+  const exportDailyExecutionAllDaysCSV = () => {
+    const rows = allDailyExecutionExportRows();
+    const headers = ['data','data_br','recurso','tipo_recurso','planejado_meta_horas','executado_total_horas','executado_demandas_horas','executado_internas_horas','aderencia_pct','saldo_horas','lancamentos_resumo'];
+    downloadText(`execucao_diaria_todos_recursos_${formatDate(new Date())}.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
+    toast('CSV de Execução diária exportado com todos os dias e recursos.');
+  };
+
+  const monthKeyFromISO = (iso='') => String(iso || '').slice(0, 7);
+  const addMonthsKey = (monthStr='', delta=1) => {
+    const match = String(monthStr || '').match(/^(\d{4})-(\d{2})$/);
+    const d = match ? new Date(Number(match[1]), Number(match[2]) - 1, 1) : isoToLocalMidnight(todayISO());
+    d.setMonth(d.getMonth() + Number(delta || 0));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+
+  const allMonthlyExecutionExportRows = () => {
+    const bounds = executionExportDateBounds();
+    const startMonth = monthKeyFromISO(bounds.start);
+    const endMonth = monthKeyFromISO(bounds.end);
+    const rows = [];
+    let cursor = startMonth;
+    let guard = 0;
+    while (cursor && cursor <= endMonth && guard < 300) {
+      for (const row of monthlyResourceExecutionRows(cursor)) {
+        const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
+        rows.push({
+          mes: cursor,
+          recurso: row.resource?.nome || row.resource?.name || row.resource?.id || '',
+          tipo_recurso: row.resource?.tipo || '',
+          planejado_meta_horas: row.planned,
+          executado_total_horas: row.real,
+          executado_demandas_horas: row.demandReal,
+          executado_internas_horas: row.internalReal,
+          aderencia_pct: Math.round(adherence * 10) / 10,
+          saldo_horas: roundDemandHours(row.real - row.planned),
+          dias_com_execucao: row.daysWithExecution,
+          dias_abaixo_meta: row.daysBelow,
+          dias_acima_meta: row.daysAbove,
+        });
+      }
+      cursor = addMonthsKey(cursor, 1);
+      guard++;
+    }
+    return rows;
+  };
+
+  const exportMonthlyExecutionCSV = () => {
+    const rows = allMonthlyExecutionExportRows();
+    const headers = ['mes','recurso','tipo_recurso','planejado_meta_horas','executado_total_horas','executado_demandas_horas','executado_internas_horas','aderencia_pct','saldo_horas','dias_com_execucao','dias_abaixo_meta','dias_acima_meta'];
+    downloadText(`execucao_mensal_recursos_${formatDate(new Date())}.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
+    toast('CSV de Execução mensal exportado.');
+  };
+
+  const openDailyResourceLaunchesModal = (row, dateStr) => {
+    let dlg = qs('#dailyResourceLaunchesModal');
+    if (dlg) dlg.remove();
+    const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
+    const items = row.items.filter(i => i.type !== 'planned');
+    const tbl = el('table', { class:'demandsTable' });
+    tbl.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Lançamento','Horas','Detalhe','Usuário'].map(h => el('th', {}, [h])))]));
+    const tbody = el('tbody');
+    for (const item of items) {
+      tbody.appendChild(el('tr', {}, [
+        el('td', {}, [item.type === 'internal' ? 'Atividade interna' : 'Demanda']),
+        el('td', {}, [item.label || '-']),
+        el('td', { class:'mono' }, [`${fmtHours(item.hours)}h`]),
+        el('td', {}, [item.obs || item.hint || '-']),
+        el('td', {}, [item.user || '-']),
+      ]));
+    }
+    if (!items.length) tbody.appendChild(el('tr', {}, [el('td', { colspan:'5', style:'padding:18px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento registrado para este recurso na data.'])]));
+    tbl.appendChild(tbody);
+    dlg = el('dialog', { id:'dailyResourceLaunchesModal', class:'modal' }, [
+      el('div', { class:'modalCard' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, [`Lançamentos de ${resourceName}`]),
+            el('div', { class:'modalSub' }, [`${formatDateBR(dateStr)} · Meta ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'tiny muted', style:'margin-bottom:10px' }, ['Resumo do dia selecionado. A exportação da aba gera todos os dias de todos os recursos.']),
+          el('div', { class:'scrollX' }, [tbl])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
+  };
+
+  const viewDailyExecution = () => {
+    const unlockInput = el('input', { type:'password', placeholder:'Digite a senha', autocomplete:'off' });
+    const unlockStatus = el('div', { class:'tiny muted' }, ['Acesso restrito aos indicadores de execução diária.']);
+    const unlock = () => {
+      if (String(unlockInput.value || '') === DAILY_EXECUTION_PASSWORD) {
+        dailyExecutionUnlocked = true;
+        render();
+      } else {
+        unlockStatus.textContent = 'Senha inválida.';
+        unlockStatus.style.color = 'var(--danger)';
+      }
+    };
+    if (!dailyExecutionUnlocked) {
+      return el('div', { class:'grid' }, [
+        card('Execução diária - acesso restrito', null, el('div', { class:'grid', style:'max-width:420px' }, [
+          el('div', { class:'tiny muted' }, ['Informe a senha para visualizar aderência diária, horas apontadas e pendências de execução.']),
+          el('div', { class:'field' }, [el('label', {}, ['Senha']), unlockInput]),
+          el('div', { class:'row end' }, [button('Liberar acesso', 'primary', unlock)]),
+          unlockStatus
+        ]))
+      ]);
+    }
+
+    const isMonthlyMode = dailyExecutionMode === 'monthly';
+    const dateInput = el('input', { type:'date', value:dailyExecutionDate || todayISO(), onchange:(ev) => { dailyExecutionDate = ev.target.value || todayISO(); render(); } });
+    const monthInput = el('input', { type:'month', value:dailyExecutionMonth || todayISO().slice(0, 7), onchange:(ev) => { dailyExecutionMonth = ev.target.value || todayISO().slice(0, 7); render(); } });
+    const resourceRows = isMonthlyMode ? monthlyResourceExecutionRows(dailyExecutionMonth || todayISO().slice(0, 7)) : dailyResourceExecutionRows(dailyExecutionDate || todayISO());
+    const totalsWithInternal = summarizeExecutionResourceRows(resourceRows);
+    const pct = (v) => `${Math.max(0, Number(v || 0)).toFixed(0)}%`;
+    const metric = (label, value, hint='', tone='') => el('div', {
+      style:`border:1px solid var(--border);border-radius:14px;padding:12px;background:${tone === 'warn' ? 'var(--warning-soft)' : tone === 'danger' ? 'var(--danger-soft)' : 'var(--surface)'}`
+    }, [
+      el('div', { class:'tiny muted', style:'text-transform:uppercase;font-weight:950;letter-spacing:.08em' }, [label]),
+      el('div', { class:'mono', style:'font-size:20px;font-weight:950;margin-top:6px' }, [value]),
+      hint ? el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint]) : null
+    ].filter(Boolean));
+
+    const resourceCards = resourceRows.length
+      ? el('div', { style:'display:grid;gap:10px' }, resourceRows.map(row => {
+          const maxHours = Math.max(1, row.planned, row.real);
+          const plannedW = Math.max(4, Math.round((row.planned / maxHours) * 100));
+          const realW = Math.max(4, Math.round((row.real / maxHours) * 100));
+          const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
+          const tone = row.planned <= 0 ? 'info' : adherence > 130 ? 'bad' : adherence < 80 ? 'warn' : 'info';
+          const workedItems = row.items
+            .filter(i => i.type !== 'planned')
+            .sort((a,b) => Number(b.hours || 0) - Number(a.hours || 0))
+            .slice(0, 4);
+          const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
+          return el('div', { style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:12px;align-items:center' }, [
+            el('div', {}, [
+              isMonthlyMode
+                ? el('div', { style:'font-weight:950' }, [resourceName])
+                : el('button', { type:'button', style:'font-weight:950;text-align:left;padding:0;border:0;background:transparent;color:var(--primary);cursor:pointer', onclick:() => openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()) }, [resourceName]),
+              el('div', { class:'tiny muted', style:'margin-top:4px' }, [`${isMonthlyMode ? 'Meta mensal' : 'Meta'} ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`]),
+              el('div', { style:'margin-top:8px' }, [el('span', { class:`pill ${tone}` }, [pct(adherence)])])
+            ]),
+            el('div', { style:'display:grid;gap:8px' }, [
+              el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
+                el('div', { class:'tiny muted' }, ['Planejado']),
+                el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
+                  el('div', { title:`Planejado: ${fmtHours(row.planned)}h`, style:`width:${plannedW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),#8db7ff)` })
+                ]),
+                el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.planned)}h`])
+              ]),
+              el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
+                el('div', { class:'tiny muted' }, ['Executado']),
+                el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
+                  el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:${realW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--success),#9be7b2)` })
+                ]),
+                el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.real)}h`])
+              ]),
+              el('div', { class:'tiny muted' }, [
+                `Demandas: ${fmtHours(row.demandReal)}h · Internas: ${fmtHours(row.internalReal)}h`,
+                workedItems.length ? ` · ${workedItems.map(i => i.label).slice(0,2).join(', ')}${workedItems.length > 2 ? '...' : ''}` : ''
+              ])
+            ])
+          ]);
+        }))
+      : el('div', { class:'hint tiny' }, ['Nenhum recurso com planejamento, apontamento ou atividade interna na data selecionada.']);
+
+    return el('div', { class:'grid' }, [
+      card('Execução diária', el('div', { class:'row' }, [
+        button('Diário', dailyExecutionMode === 'daily' ? 'primary' : '', () => { dailyExecutionMode = 'daily'; render(); }),
+        button('Mensal', dailyExecutionMode === 'monthly' ? 'primary' : '', () => { dailyExecutionMode = 'monthly'; render(); }),
+        isMonthlyMode
+          ? el('div', { class:'field' }, [el('label', {}, ['Mês']), monthInput])
+          : el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
+        isMonthlyMode
+          ? button('Mês atual', '', () => { dailyExecutionMonth = todayISO().slice(0, 7); render(); })
+          : button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); }),
+        isMonthlyMode
+          ? button('Exportar mensal', 'primary', exportMonthlyExecutionCSV)
+          : button('Exportar todos os dias', 'primary', exportDailyExecutionAllDaysCSV),
+        button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
+      ]), el('div', { class:'grid', style:'gap:12px' }, [
+        el('div', { class:'tiny muted' }, [isMonthlyMode
+          ? 'Indicador mensal por recurso. A meta mensal soma os dias úteis disponíveis do mês com 9h para interno e 8h para terceiro, descontando feriados, férias e bloqueios cadastrados.'
+          : 'Indicador gerencial do dia selecionado. A meta de execução é fixa: 9h para interno e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.'
+        ]),
+        el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px' }, [
+          metric(isMonthlyMode ? 'Meta mensal' : 'Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, isMonthlyMode ? 'dias úteis disponíveis × meta' : '9h interno / 8h terceiro'),
+          metric(isMonthlyMode ? 'Executado no mês' : 'Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
+          metric('Aderência', pct(totalsWithInternal.adherence), 'executado ÷ planejado', totalsWithInternal.adherence < 60 ? 'warn' : ''),
+          metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
+          metric('Extra', `${fmtHours(totalsWithInternal.extra)}h`, 'executado acima da meta', totalsWithInternal.extra > 0 ? 'warn' : ''),
+        ]),
+        card(isMonthlyMode ? 'Execução mensal por recurso' : 'Execução por recurso', null, el('div', { class:'grid', style:'gap:10px' }, [
+          el('div', { class:'tiny muted' }, [isMonthlyMode
+            ? 'Mês × recurso com duas barras: meta mensal e executado mensal. Executado soma apontamentos em demandas e atividades internas.'
+            : 'Gráfico horizontal por recurso. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.'
+          ]),
+          resourceCards
+        ]))
+      ]))
+    ]);
+  };
+
 
   const viewResources = () => {
     const form = (() => {
@@ -8728,10 +9184,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 	        openDemandReprogramModal(primaryDemand);
         };
 
-        const apontamento = () => {
-          openDemandStagesModal(primaryDemand);
-        };
-
         const del = () => {
           if (!confirm(`Excluir demanda "${d.titulo}"?`)) return;
           dispatch('DELETE_DEMANDS', {
@@ -8746,7 +9198,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           el('div', { class:'actionBtns' }, [
             iconButton('Editar', '✎', '', edit),
             iconButton('Reprogramar', '↻', '', reprogram),
-            iconButton('Apontamento', '📝', 'primary', apontamento),
             iconButton('Excluir', '🗑', 'danger', del),
           ])
         ]));
@@ -9009,15 +9460,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   
   const viewWindows = () => {
-  // Matriz de Janelas (janela deslizante, sem limite de período) + Próxima Janela Livre
+  // Heatmap gerencial + Próxima Janela Livre
 
-  // Heatmap mensal (Recursos × Meses) + Drilldown em barras (Top 10 / Todos)
+  // Heatmap mensal (Recursos × Meses) + drilldown diário por célula
 
   // UI state (não persistido)
   if (!uiFilters.windows) {
     uiFilters.windows = {
       start: formatDate(new Date()),
-      days: 14,
       minFree: 4,
     };
   }
@@ -9031,7 +9481,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       months: 6,
       metric: 'occupation', // 'occupation' | 'freePct' | 'freeHH'
       view: 'occupation', // 'occupation' | 'capacity_free' | 'bottleneck' | 'idleness'
-      // Padrão: mostrar TODOS e usar paginação (evita confusão de ?sumiu recurso).
+      // Padrão: mostrar todos e usar paginação (evita confusão de recurso "sumir").
       show: 'all',  // 'top' | 'all'
       topN: 10,
       dynamicOrder: true,
@@ -9042,12 +9492,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   const w = uiFilters.windows;
   const wh = uiFilters.windowsHeat;
-
-  const clampDays = (n) => {
-    const v = Math.max(1, Math.min(365, Number(n||14)));
-    return isFinite(v) ? v : 14;
-  };
-
+  wh.show = 'all';
+  wh.dynamicOrder = true;
 
   const toDate = (iso) => {
     if (!iso) return new Date();
@@ -9241,90 +9687,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     return list;
   };
 
-  const openHeatModal = ({ y, m0, focusResourceId=null } = {}) => {
-    const modal = qs('#heatModal');
-    const title = qs('#heatModalTitle');
-    const sub = qs('#heatModalSub');
-    const body = qs('#heatModalBody');
-
-    const label = fmtMonthLabel(y, m0);
-    title.textContent = `Heatmap gerencial - ${label}`;
-
-    const rows = (state.resources||[]).map(r => ({
-      r,
-      m: monthlyWindow(r.id, y, m0)
-    }));
-
-    const metric = wh.metric || wh.view || 'occupation';
-    const val = (x) => heatValueFor(x.m, metric);
-    const dir = wh.sortDir === 'desc' ? -1 : 1;
-    rows.sort((a,b) => (val(a) - val(b)) * dir);
-
-    sub.textContent = `${rows.length} recurso(s) ? modo: ${metric === 'capacity_free' ? 'capacidade livre' : metric === 'bottleneck' ? 'risco de gargalo' : metric === 'idleness' ? 'ociosidade' : 'ocupação'}`;
-    body.innerHTML = '';
-
-    const modeRow = el('div', { class:'row', style:'margin-bottom:10px' }, [
-      el('span', { class:'tag' }, ['Drilldown: ranking por recurso'] ),
-      button(wh.show === 'top' ? 'Mostrar Todos' : 'Mostrar Top 10', '', () => {
-        wh.show = (wh.show === 'top') ? 'all' : 'top';
-        openHeatModal({ y, m0, focusResourceId });
-      }),
-      button('Abrir matriz do mês', 'primary', () => {
-        // Ajusta matriz diária para o mês inteiro
-        const first = new Date(y, m0, 1);
-        w.start = formatDate(first);
-        w.days = Math.min(365, getDaysInMonth(y, m0).length);
-        if (focusResourceId) w.scrollToResourceId = focusResourceId;
-        modal.close();
-        render();
-        toast('Matriz ajustada para o mês.');
-      })
-    ]);
-    body.appendChild(modeRow);
-
-    const list = (wh.show === 'top') ? rows.slice(0, Math.max(1, Number(wh.topN||10))) : rows;
-    const maxV = Math.max(1e-9, ...list.map(val));
-
-    const wrap = el('div', { class:'grid' });
-    for (const item of list) {
-      const r = item.r;
-      const m = item.m;
-      const v = val(item);
-      const pctTxt = `${Math.max(0, m.pct).toFixed(0)}% livre`;
-      const occTxt = `${Math.max(0, m.occPct).toFixed(0)}% ocup.`;
-      const hhTxt = `${m.free.toFixed(1)}h`;
-      const isFocus = focusResourceId && focusResourceId === r.id;
-
-      const row = el('div', { class:'card', style:`box-shadow:none;${isFocus?'border-color:rgba(18,129,120,.55)':''}` }, [
-        el('div', { class:'bd' }, [
-          el('div', { class:'row', style:'justify-content:space-between;gap:12px' }, [
-            el('div', {}, [
-              el('div', { style:'font-weight:950' }, [r.nome]),
-              el('div', { class:'tiny' }, [`Ocupação: ${occTxt} - Livre: ${hhTxt} (${pctTxt}) - Cap: ${m.cap.toFixed(1)}h - Alocado: ${m.alloc.toFixed(1)}h - Demandas: ${m.demandsCount} - HE: ${m.heTotal.toFixed(1)}h`])
-            ]),
-            button('Abrir matriz (recurso)', '', () => {
-              const first = new Date(y, m0, 1);
-              w.start = formatDate(first);
-              w.days = Math.min(365, getDaysInMonth(y, m0).length);
-              w.scrollToResourceId = r.id;
-              modal.close();
-              render();
-            })
-          ]),
-          el('div', { style:'margin-top:10px' }, [
-            el('div', { class:'bar', title: `${occTxt} - ${pctTxt} - ${hhTxt}` }, [
-              el('span', { style:`width:${Math.max(0, Math.min(100, (v/maxV)*100)).toFixed(1)}%` })
-            ])
-          ])
-        ])
-      ]);
-      wrap.appendChild(row);
-    }
-
-    body.appendChild(wrap);
-    if (!modal.open) openDialog(modal);
-  };
-
   // Drilldown mensal: dias do mês (Horas + % por dia) para um recurso
   const openMonthModal = ({ resourceId, y, m0 } = {}) => {
     const modal = qs('#monthModal');
@@ -9347,16 +9709,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         el('span', { class:'pill' }, [el('span', { class:'dot bg-he' }), `HE: ${monthInfo.heTotal.toFixed(1)}h`]),
       ]),
       el('div', { class:'row', style:'gap:8px;flex-wrap:wrap' }, [
-        button('Ranking do mês', '', () => { try{ modal.close(); }catch{ modal.removeAttribute('open'); } openHeatModal({ y, m0, focusResourceId: resourceId }); }),
-        button('Abrir matriz do mês', 'primary', () => {
-          const first = new Date(y, m0, 1);
-          w.start = formatDate(first);
-          w.days = Math.min(365, getDaysInMonth(y, m0).length);
-          w.scrollToResourceId = resourceId;
-          try{ modal.close(); }catch{ modal.removeAttribute('open'); }
-          render();
-          toast('Matriz ajustada para o mês (recurso em foco).');
-        })
+        button('Voltar ao heatmap', '', () => { try{ modal.close(); }catch{ modal.removeAttribute('open'); } })
       ])
     ]);
     body.appendChild(summary);
@@ -9445,13 +9798,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
   }
   const freeHoursInfo = (resourceId, dateObj) => CapacityEngine.freeHoursInfo(resourceId, dateObj);
 
-  const buildDays = () => {
-    const start = toDate(w.start);
-    const list = [];
-    for (let i=0;i<clampDays(w.days);i++) list.push(addDays(start, i));
-    return list;
-  };
-
   const findNextWindow = (resourceId) => {
     const start = toDate(w.start);
     const minFree = Math.max(0, Number(w.minFree||0));
@@ -9467,40 +9813,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     return null;
   };
 
-  const days = buildDays();
   const months = buildMonths();
 
-  // controls
-  const startInput = el('input', { type:'date' });
-  startInput.value = w.start;
-  startInput.addEventListener('change', () => { w.start = startInput.value || formatDate(new Date()); render(); });
-
-  const daysInput = el('input', { type:'number', min:'1', max:'365', step:'1' });
-  daysInput.value = String(clampDays(w.days));
-  daysInput.addEventListener('change', () => { w.days = clampDays(daysInput.value); render(); });
-
-  const minFreeInput = el('input', { type:'number', min:'0', max:'9', step:'0.5' });
-  minFreeInput.value = String(Number(w.minFree||0));
-  minFreeInput.addEventListener('change', () => { w.minFree = Number(minFreeInput.value||0); render(); });
-
-  const shift = (dir) => {
-    const start = toDate(w.start);
-    const n = clampDays(w.days) * (dir < 0 ? -1 : 1);
-    w.start = formatDate(addDays(start, n));
-    render();
-  };
-
-  const jumpToday = () => { w.start = formatDate(new Date()); render(); };
-
-  const right = el('div', { class:'row' }, [
-    button('◀', 'ghost', () => shift(-1)),
-    button('Hoje', '', jumpToday),
-    button('▶', 'ghost', () => shift(1)),
-  ]);
-
   const hint = el('div', { class:'hint tiny' }, [
-    el('b', {}, ['Modo rápido: ']),
-    'matriz por janelas deslizantes (sem limite) + ?Próxima janela livre. ',
+    el('b', {}, ['Leitura rápida: ']),
+    'use o heatmap para enxergar gargalos por mês e a tabela de próxima janela para decidir onde encaixar novas demandas. ',
     el('b', {}, ['Janelas = capacidade remanescente diária. ']),
     'Feriado/Bloqueio/Férias/OFF zeram o dia. Excedente (negativo) é permitido.'
   ]);
@@ -9527,7 +9844,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       const idx = new Map(wh.fixedOrderIds.map((id,i)=>[id,i]));
       perRes.sort((a,b) => (idx.get(a.r.id) ?? 1e9) - (idx.get(b.r.id) ?? 1e9));
     }
-    // show Top N or all (com paginação quando 'Todos')
+    // Todos os recursos com paginação
     const allRows = (wh.show === 'top') ? perRes.slice(0, Math.max(1, Number(wh.topN||10))) : perRes;
 
     const HEAT_PAGE_SIZE = 10;
@@ -9552,12 +9869,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       monthsInp.value = String(clampMonths(wh.months));
       monthsInp.addEventListener('change', () => { wh.months = clampMonths(monthsInp.value); render(); });
 
-      const showSel = el('select');
-      showSel.appendChild(el('option', { value:'top' }, ['Top 10']));
-      showSel.appendChild(el('option', { value:'all' }, ['Todos']));
-      showSel.value = wh.show;
-      showSel.addEventListener('change', () => { wh.show = showSel.value; uiPagination.windowsHeatPage = 1; render(); });
-
       const metricSel = el('select');
       metricSel.appendChild(el('option', { value:'occupation' }, ['Ocupação']));
       metricSel.appendChild(el('option', { value:'capacity_free' }, ['Capacidade livre']));
@@ -9565,29 +9876,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       metricSel.appendChild(el('option', { value:'idleness' }, ['Ociosidade']));
       metricSel.value = wh.metric || wh.view || 'occupation';
       metricSel.addEventListener('change', () => { wh.metric = metricSel.value; wh.view = metricSel.value; render(); });
-
-      const dirSel = el('select');
-      dirSel.appendChild(el('option', { value:'desc' }, ['Maior risco / ocupação']));
-      dirSel.appendChild(el('option', { value:'asc' }, ['Menor risco / ociosidade'])) ;
-      dirSel.value = wh.sortDir;
-      dirSel.addEventListener('change', () => { wh.sortDir = dirSel.value; render(); });
-
-      const dynChk = el('input', { type:'checkbox' });
-      dynChk.checked = !!wh.dynamicOrder;
-      dynChk.addEventListener('change', () => {
-        wh.dynamicOrder = dynChk.checked;
-        if (!wh.dynamicOrder && !Array.isArray(wh.fixedOrderIds)) {
-          wh.fixedOrderIds = (state.resources||[]).map(r => r.id);
-        }
-        render();
-      });
-
-      const fixBtn = button('Fixar ordem atual', '', () => {
-        wh.fixedOrderIds = (perRes||[]).map(x => x.r.id);
-        wh.dynamicOrder = false;
-        render();
-        toast('Ordem fixada.');
-      });
 
       const shiftMonth = (dir) => {
         const { y, m } = parseMonth(wh.startMonth);
@@ -9599,11 +9887,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       return el('div', { class:'row' }, [
         el('div', { class:'field' }, [el('label', {}, ['Mês inicial']), monthInp]),
         el('div', { class:'field' }, [el('label', {}, ['Meses na tela']), monthsInp]),
-        el('div', { class:'field' }, [el('label', {}, ['Mostrar']), showSel]),
         el('div', { class:'field' }, [el('label', {}, ['Visualização']), metricSel]),
-        el('div', { class:'field' }, [el('label', {}, ['Ordenar por']), dirSel]),
-        el('div', { class:'field' }, [el('label', {}, ['Ordenação dinâmica']), el('div', { class:'row' }, [dynChk, el('span', { class:'tiny muted' }, ['(desligue para manter fixa)'])])]),
-        fixBtn,
         button('◀', 'ghost', () => shiftMonth(-1)),
         button('Hoje', '', () => {
           const n = new Date();
@@ -9641,9 +9925,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso']));
       for (const mm of months) {
         const key = monthKey(mm.y, mm.m);
-        trh.appendChild(el('th', { class:'dayHead', title:key, style:'min-width:70px;cursor:pointer', onclick: () => openHeatModal({ y:mm.y, m0:mm.m }) }, [
+        trh.appendChild(el('th', { class:'dayHead', title:key, style:'min-width:70px' }, [
           el('div', { style:'font-weight:950' }, [fmtMonthLabel(mm.y, mm.m)]),
-          el('div', { class:'tiny' }, ['(clique)'])
+          el('div', { class:'tiny' }, ['mês'])
         ]));
       }
       thead.appendChild(trh);
@@ -9692,39 +9976,70 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]));
   })();
 
-  // Próxima Janela Livre (cards)
+  // Próxima Janela Livre (tabela comparativa)
   const nextCards = (() => {
     if (state.resources.length === 0) {
       return el('div', { class:'warn' }, ['Cadastre recursos para ver a próxima janela livre.']);
     }
 
-    const NEXT_PAGE_SIZE = 8;
-    const allRes = (state.resources||[]);
+    const nextStartInput = el('input', { type:'date' });
+    nextStartInput.value = w.start;
+    nextStartInput.addEventListener('change', () => { w.start = nextStartInput.value || formatDate(new Date()); uiPagination.windowsNextPage = 1; render(); });
+
+    const nextMinFreeInput = el('input', { type:'number', min:'0', max:'24', step:'0.5' });
+    nextMinFreeInput.value = String(Number(w.minFree||0));
+    nextMinFreeInput.addEventListener('change', () => { w.minFree = Math.max(0, Number(nextMinFreeInput.value||0)); uiPagination.windowsNextPage = 1; render(); });
+
+    const nextControls = el('div', { class:'row' }, [
+      el('div', { class:'field' }, [el('label', {}, ['Buscar a partir de']), nextStartInput]),
+      el('div', { class:'field compact' }, [el('label', {}, ['Janela mínima']), nextMinFreeInput]),
+      button('Hoje', '', () => { w.start = formatDate(new Date()); uiPagination.windowsNextPage = 1; render(); }),
+    ]);
+
+    const allRes = (state.resources||[]).map(r => ({ r, found: findNextWindow(r.id) }))
+      .sort((a,b) => {
+        if (a.found && b.found) return String(a.found.date).localeCompare(String(b.found.date)) || String(a.r.nome||'').localeCompare(String(b.r.nome||''));
+        if (a.found) return -1;
+        if (b.found) return 1;
+        return String(a.r.nome||'').localeCompare(String(b.r.nome||''));
+      });
+    const NEXT_PAGE_SIZE = 10;
     let nextPage = Math.max(1, Number(uiPagination.windowsNextPage||1));
     const nextTotalPages = Math.max(1, Math.ceil(allRes.length / NEXT_PAGE_SIZE));
     nextPage = Math.min(nextPage, nextTotalPages);
     uiPagination.windowsNextPage = nextPage;
     const resPage = allRes.slice((nextPage-1)*NEXT_PAGE_SIZE, nextPage*NEXT_PAGE_SIZE);
 
-    const grid = el('div', { class:'kpi', style:'grid-template-columns:repeat(3,minmax(0,1fr))' });
-    for (const r of resPage) {
-      const found = findNextWindow(r.id);
-      const val = found ? `${formatDateBR(found.date)}` : '-';
-      const sub = found ? `${found.free.toFixed(1)}h livres (≥ ${Number(w.minFree||0)}h)` : `Não encontrado (até ~10 anos)`;
-      const cardEl = el('div', { class:'k' }, [
-        el('div', { class:'lbl' }, [r.nome]),
-        el('div', { class:'val mono' }, [val]),
-        el('div', { class:'tiny' }, [sub]),
-        found ? el('div', { style:'margin-top:10px' }, [
-          button('Abrir dia', 'primary', () => {
-            // abre modal de detalhes do dia
-            const d = toDate(found.date);
-            openDayDetails(r.id, d);
-          })
-        ]) : el('div', { style:'height:0' })
-      ]);
-      grid.appendChild(cardEl);
+    const tableWrap = el('div', { class:'scrollX' });
+    const tbl = el('table', { class:'demandsTable' });
+    tbl.appendChild(el('thead', {}, [
+      el('tr', {}, ['Recurso','Tipo','Próxima data','Horas livres','Status','Ação'].map(h => el('th', {}, [h])))
+    ]));
+    const tbody = el('tbody');
+    for (const item of resPage) {
+      const r = item.r;
+      const found = item.found;
+      const daysUntil = found ? Math.max(0, Math.round((toDate(found.date).getTime() - toDate(w.start).getTime()) / 86400000)) : null;
+      const status = !found
+        ? el('span', { class:'pill bad' }, ['Sem janela'])
+        : daysUntil <= 7
+          ? el('span', { class:'pill info' }, ['Curto prazo'])
+          : daysUntil <= 30
+            ? el('span', { class:'pill warn' }, ['Médio prazo'])
+            : el('span', { class:'pill' }, ['Longo prazo']);
+      tbody.appendChild(el('tr', {}, [
+        el('td', {}, [el('div', { style:'font-weight:950' }, [r.nome || '-'])]),
+        el('td', {}, [String(r.tipo || '-')]),
+        el('td', { class:'mono' }, [found ? formatDateBR(found.date) : '-']),
+        el('td', { class:'mono' }, [found ? `${found.free.toFixed(1)}h` : '-']),
+        el('td', {}, [status]),
+        el('td', {}, [
+          found ? button('Abrir dia', 'primary', () => openDayDetails(r.id, toDate(found.date))) : el('span', { class:'tiny muted' }, ['-'])
+        ]),
+      ]));
     }
+    tbl.appendChild(tbody);
+    tableWrap.appendChild(tbl);
     const pager = (() => {
       if (allRes.length <= NEXT_PAGE_SIZE) return null;
       const total = allRes.length;
@@ -9745,100 +10060,12 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     })();
 
     return card('Próxima janela livre', null, el('div', { class:'grid' }, [
-      grid,
+      el('div', { class:'tiny muted' }, ['Lista comparativa ordenada pela data mais próxima em que cada recurso atinge a janela mínima configurada.']),
+      nextControls,
+      tableWrap,
       pager || el('div', { style:'display:none' }),
     ]));
   })();
-
-  // Matriz
-  const table = el('div', { class:'scrollX' }, [
-    (() => {
-      const t = el('table', { class:'calTable' });
-      const thead = el('thead');
-      const trh = el('tr');
-      trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso / Dia (Horas livres)']));
-
-      for (const d of days) {
-        const wd = d.toLocaleString('pt-BR', { weekday:'short' }).slice(0,3);
-        const dateStr = formatDate(d);
-        const holidayDay = isHoliday(dateStr);
-        const headCls = ['dayHead', (!holidayDay && isWeekend(d)) ? 'bg-wknd' : '', holidayDay ? 'bg-holiday' : ''].filter(Boolean).join(' ');
-        trh.appendChild(el('th', { class:headCls, title: formatDateBR(dateStr) }, [
-          el('div', { class:'mono', style:'font-weight:900' }, [String(d.getDate()).padStart(2,'0')]),
-          el('div', { class:'tiny' }, [holidayDay ? 'FER' : wd])
-        ]));
-      }
-
-      thead.appendChild(trh);
-      t.appendChild(thead);
-
-      const tbody = el('tbody');
-      if (state.resources.length === 0) {
-        tbody.appendChild(el('tr', {}, [el('td', { colspan:String(days.length+1), style:'padding:24px;text-align:center;color:var(--muted)' }, ['Cadastre recursos para ver janelas.'])]));
-      } else {
-        const MATRIX_PAGE_SIZE = 10;
-        const allRes = (state.resources||[]);
-
-        // Se veio de um drilldown (heatmap), ajustar pagina para conter o recurso
-        if (w.scrollToResourceId) {
-          const idx = allRes.findIndex(x => x.id === w.scrollToResourceId);
-          if (idx >= 0) uiPagination.windowsMatrixPage = Math.floor(idx / MATRIX_PAGE_SIZE) + 1;
-        }
-
-        let matrixPage = Math.max(1, Number(uiPagination.windowsMatrixPage||1));
-        const matrixTotalPages = Math.max(1, Math.ceil(allRes.length / MATRIX_PAGE_SIZE));
-        matrixPage = Math.min(matrixPage, matrixTotalPages);
-        uiPagination.windowsMatrixPage = matrixPage;
-        const resPage = allRes.slice((matrixPage-1)*MATRIX_PAGE_SIZE, matrixPage*MATRIX_PAGE_SIZE);
-
-        for (const r of resPage) {
-          const tr = el('tr');
-          tr.id = `winres-${r.id}`;
-          tr.appendChild(el('td', { class:'stickyCol' }, [
-            el('div', { style:'font-weight:950' }, [r.nome]),
-            el('div', { class:'tiny' }, [`${r.tipo} - ${getResourceHoursPerDay(r)}h/dia`])
-          ]));
-
-          for (const d of days) {
-            const info = freeHoursInfo(r.id, d);
-            const heTotal = overtimeInfo(r.id, info.dateStr).total;
-            let cls = 'cell '+info.cls;
-
-            // Mantém destaque visual para fim de semana, mas sem bloquear o dia.
-            if (!isHoliday(info.dateStr) && isWeekend(d)) cls += ' bg-wknd';
-
-            tr.appendChild(el('td', { class: cls+' clickable', title: formatDateBR(info.dateStr), onclick: () => openDayDetails(r.id, d) }, [
-              el('div', { class:'top' }, [`${info.free.toFixed(1)}h`]),
-              el('div', { class:'sub' }, [info.tag]),
-              (heTotal > 0) ? el('div', { class:'heLine mono' }, [`HE +${fmtHours(heTotal)}h`]) : null
-            ].filter(Boolean)));
-          }
-          tbody.appendChild(tr);
-        }
-      }
-
-      t.appendChild(tbody);
-      return t;
-    })()
-  ]);
-
-  // Scroll helper (para drilldown do heatmap -> matriz)
-  setTimeout(() => {
-    const rid = w.scrollToResourceId;
-    if (!rid) return;
-    const rowEl = qs(`#winres-${rid}`);
-    if (rowEl && typeof rowEl.scrollIntoView === 'function') {
-      rowEl.scrollIntoView({ behavior:'smooth', block:'center' });
-      w.scrollToResourceId = null;
-    }
-  }, 0);
-
-  const controls = el('div', { class:'row' }, [
-    el('div', { class:'field' }, [el('label', {}, ['Data inicial (matriz)']), startInput]),
-    el('div', { class:'field' }, [el('label', {}, ['Dias na tela']), daysInput]),
-    el('div', { class:'field' }, [el('label', {}, ['Janela mínima (Próxima janela)']), minFreeInput]),
-  ]);
-
 
   // Hora Extra (HE) ? capacidade pontual (principalmente fins de semana)
   const overtimeCard = (() => {
@@ -9932,29 +10159,8 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
 
   return el('div', { class:'grid' }, [
     hint,
-	    heatmap,
-	    nextCards,
-	    card('Controles', right, controls),
-    (() => {
-      const MATRIX_PAGE_SIZE = 10;
-      const total = (state.resources||[]).length;
-      if (total <= MATRIX_PAGE_SIZE) return card('Matriz de janelas livres', null, table);
-      const totalPages = Math.max(1, Math.ceil(total / MATRIX_PAGE_SIZE));
-      const startIdx = (uiPagination.windowsMatrixPage-1) * MATRIX_PAGE_SIZE;
-      const shown = Math.min(MATRIX_PAGE_SIZE, Math.max(0, total - startIdx));
-      const pager = buildPager({
-        page: uiPagination.windowsMatrixPage,
-        totalPages,
-        total,
-        startIdx,
-        shown,
-        onPrev: () => { uiPagination.windowsMatrixPage = Math.max(1, uiPagination.windowsMatrixPage-1); render(); },
-        onNext: () => { uiPagination.windowsMatrixPage = Math.min(totalPages, uiPagination.windowsMatrixPage+1); render(); },
-        onFirst: () => { uiPagination.windowsMatrixPage = 1; render(); },
-        onLast: () => { uiPagination.windowsMatrixPage = totalPages; render(); },
-      });
-      return card('Matriz de janelas livres', null, el('div', { class:'grid' }, [pager, table]));
-    })()
+    heatmap,
+    nextCards,
   ]);
 };
 
@@ -10117,7 +10323,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     }
     if (!rows.length) tb.appendChild(el('tr',{},[el('td',{colspan:'6',style:'padding:16px;text-align:center;color:var(--muted)'},['Nenhuma atividade interna sua cadastrada.'])]));
     table.appendChild(tb);
-    return el('div',{class:'grid'},[
+    const internalActivityPanel = el('div',{class:'grid'},[
       card(isEditing ? 'Editar atividade interna' : 'Cadastrar atividade interna', null, el('div',{class:'grid'},[
         el('div', { class:'tiny muted' }, ['As atividades internas são vinculadas automaticamente ao usuário atual; o campo Recurso fica oculto nesta tela.']),
         el('div',{class:'row'},[
@@ -10141,6 +10347,166 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         pager,
         el('div',{class:'scrollX'},[table])
       ].filter(Boolean)))
+    ]);
+
+    const resourceIds = activeUserResourceIds();
+    const today = todayISO();
+    const myDayRows = dailyExecutionRows({ dateStr: today, resourceIds, onlyCurrentUser:true })
+      .sort((a,b) => (Number(b.planned || 0) - Number(a.planned || 0)) || String(a.demand.titulo || '').localeCompare(String(b.demand.titulo || '')));
+    const myDayTotals = summarizeDailyExecutionRows(myDayRows);
+    const myInternalToday = (state.internalActivities || [])
+      .filter(canViewInternalActivityDetails)
+      .filter(a => {
+        const ini = normalizeDateLikeToISO(a?.data_inicio || a?.dataInicio || a?.start_date || a?.data || '');
+        const fim = normalizeDateLikeToISO(a?.data_fim || a?.dataFim || a?.end_date || ini || a?.data || '') || ini;
+        return ini && today >= ini && today <= fim;
+      })
+      .reduce((acc, a) => acc + Math.max(0, Number(a?.horas_dia || a?.horas || 0)), 0);
+    const myMetric = (label, value, hint='') => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface)' }, [
+      el('div', { class:'tiny muted', style:'text-transform:uppercase;font-weight:950;letter-spacing:.08em' }, [label]),
+      el('div', { class:'mono', style:'font-size:19px;font-weight:950;margin-top:5px' }, [value]),
+      hint ? el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint]) : null
+    ].filter(Boolean));
+    const myDayPanel = card('Meu dia', null, el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'tiny muted' }, [`Resumo operacional de hoje (${formatDateBR(today)}). Use como guia para escolher a demanda no lançamento abaixo.`]),
+      el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px' }, [
+        myMetric('Planejado', `${fmtHours(myDayTotals.planned)}h`, 'demandas de hoje'),
+        myMetric('Apontado', `${fmtHours(myDayTotals.real)}h`, `${myDayTotals.apontamentos} apontamento(s)`),
+        myMetric('Aderência', `${Math.max(0, myDayTotals.adherence).toFixed(0)}%`, 'executado ÷ planejado'),
+        myMetric('Pendente', `${fmtHours(myDayTotals.pending)}h`, 'falta apontar'),
+        myMetric('Internas', `${fmtHours(myInternalToday)}h`, 'informativo'),
+      ]),
+      myDayRows.length ? el('div', { class:'scrollX' }, [
+        (() => {
+          const t = el('table');
+          t.appendChild(el('thead', {}, [el('tr', {}, ['Demanda','Planejado','Apontado','Saldo'].map(h => el('th', {}, [h])))]));
+          const b = el('tbody');
+          for (const row of myDayRows.slice(0, 6)) {
+            const saldo = Number(row.planned || 0) - Number(row.real || 0);
+            b.appendChild(el('tr', {}, [
+              el('td', {}, [row.demand.titulo || row.demand.id || 'Demanda']),
+              el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]),
+              el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]),
+              el('td', { class:'mono' }, [saldo >= 0 ? `${fmtHours(saldo)}h` : `+${fmtHours(Math.abs(saldo))}h`]),
+            ]));
+          }
+          t.appendChild(b);
+          return t;
+        })()
+      ]) : el('div', { class:'hint tiny' }, ['Nenhuma demanda planejada ou apontada hoje para o usuário atual.'])
+    ]));
+    const userDemandRows = (state.demands || [])
+      .filter(d => resourceIds.length && demandAssignedResourceIds(d).some(rid => resourceIds.includes(String(rid))))
+      .filter(d => !['Concluída','Congelada'].includes(effectiveStatus(d)))
+      .slice()
+      .sort((a,b) => String(a.data_fim || '').localeCompare(String(b.data_fim || '')) || String(a.titulo || '').localeCompare(String(b.titulo || '')));
+    if (!launchDemandId || !userDemandRows.some(d => String(d.id) === String(launchDemandId))) launchDemandId = userDemandRows[0]?.id || '';
+    const demandSelect = el('select', {
+      onchange: (ev) => { launchDemandId = ev.target.value; render(); }
+    }, [
+      el('option', { value:'' }, [userDemandRows.length ? 'Selecione uma demanda...' : 'Nenhuma demanda aberta vinculada a você'])
+    ]);
+    const plannedTodayIds = new Set(myDayRows.filter(r => Number(r.planned || 0) > 0).map(r => String(r.demand.id)));
+    const appendDemandOption = (parent, d) => {
+      const dayRow = myDayRows.find(r => String(r.demand.id) === String(d.id));
+      const suffix = dayRow
+        ? ` · hoje: ${fmtHours(dayRow.planned)}h plan. / ${fmtHours(dayRow.real)}h apont.`
+        : ` · ${effectiveStatus(d)} · ${formatDateBR(d.data_fim)}`;
+      parent.appendChild(el('option', { value:d.id }, [`${d.titulo || 'Sem título'}${suffix}`]));
+    };
+    const plannedGroup = el('optgroup', { label:'Planejadas hoje' });
+    const otherGroup = el('optgroup', { label:'Outras demandas abertas' });
+    for (const d of userDemandRows) {
+      appendDemandOption(plannedTodayIds.has(String(d.id)) ? plannedGroup : otherGroup, d);
+    }
+    if (plannedGroup.children.length) demandSelect.appendChild(plannedGroup);
+    if (otherGroup.children.length) demandSelect.appendChild(otherGroup);
+    demandSelect.value = launchDemandId;
+    const selectedDemand = userDemandRows.find(d => String(d.id) === String(launchDemandId)) || null;
+    const aptData = el('input', { type:'date', value:todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const aptEtapa = el('select');
+    for (const step of PROJECT_STEP_OPTIONS) aptEtapa.appendChild(el('option', { value:step }, [step]));
+    const aptHoras = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:30 ou 2.5' });
+    const aptObs = el('textarea', { placeholder:'Descreva rapidamente a atividade realizada...', maxlength:String(INPUT_LIMITS.shortNote), style:'min-height:92px' });
+    const saveDemandLaunch = () => {
+      const demand = (state.demands || []).find(d => String(d.id) === String(launchDemandId));
+      if (!demand) return toast('Selecione uma demanda para apontar.');
+      const nextData = String(aptData.value || '').trim();
+      const nextEtapa = normalizeProjectStep(aptEtapa.value);
+      const nextHoras = parseApontamentoHours(aptHoras.value);
+      const validation = validateApontamentoInput({ data: nextData, etapa: nextEtapa, horas: nextHoras }, demand);
+      if (validation) { toast(validation); return; }
+      const obsValidation = validateTextLimit(aptObs.value, 'Observação do apontamento', INPUT_LIMITS.shortNote);
+      if (obsValidation) { toast(obsValidation); return; }
+      const apontamentos = normalizeDemandApontamentos(demand);
+      apontamentos.push(normalizeApontamento({
+        id: generateId('apt'),
+        data: nextData,
+        etapa: nextEtapa,
+        horas: nextHoras,
+        observacao: String(aptObs.value || '').trim(),
+        usuario: userName || 'Sessão local',
+        user_id: userId || '',
+        created_at: Date.now(),
+        updated_at: Date.now(),
+        updated_by: userName || 'Sessão local',
+        updated_by_id: userId || '',
+      }));
+      dispatch('UPDATE_DEMAND', {
+        ...demand,
+        apontamentos,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: 'Apontamento registrado pela aba Lançamentos.',
+      });
+      toast('Apontamento cadastrado.');
+      render();
+    };
+    const selectedApontamentos = selectedDemand ? normalizeDemandApontamentos(selectedDemand) : [];
+    const selectedMetrics = selectedDemand ? demandExecutionMetrics(selectedDemand, selectedApontamentos) : null;
+    const demandLaunchPanel = card('Apontamento de demanda', null, el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'tiny muted' }, ['Selecione uma demanda vinculada ao seu usuário e registre horas realizadas sem sair da aba Lançamentos.']),
+      !hasUser() ? el('div', { class:'warn' }, ['Defina o usuário no topo da tela para localizar suas demandas.']) : null,
+      el('div', { class:'field' }, [el('label', {}, ['Demanda']), demandSelect]),
+      selectedDemand ? el('div', { class:'hint' }, [
+        el('b', {}, [selectedDemand.titulo || 'Demanda']),
+        el('div', { class:'row', style:'gap:8px;margin-top:8px;flex-wrap:wrap' }, [
+          statusPill(selectedDemand),
+          el('span', { class:'pill' }, [`Prazo: ${formatDateBR(selectedDemand.data_inicio)} → ${formatDateBR(selectedDemand.data_fim)}`]),
+          el('span', { class:'pill info' }, [`Realizado: ${fmtHours(selectedMetrics?.realHours || 0)}h`]),
+        ])
+      ]) : el('div', { class:'hint' }, ['Nenhuma demanda aberta vinculada ao usuário atual.']),
+      selectedDemand ? el('div', { class:'row' }, [
+        el('div', { class:'field', style:'min-width:150px;flex:0 0 150px' }, [el('label', {}, ['Data']), aptData]),
+        el('div', { class:'field', style:'min-width:180px;flex:0 0 180px' }, [el('label', {}, ['Etapa / atividade']), aptEtapa]),
+        el('div', { class:'field compact' }, [el('label', {}, ['Horas gastas']), aptHoras]),
+      ]) : null,
+      selectedDemand ? el('div', { class:'field' }, [el('label', {}, ['Observação']), aptObs]) : null,
+      selectedDemand ? el('div', { class:'row end' }, [button('Salvar apontamento', 'primary', saveDemandLaunch)]) : null,
+      selectedDemand ? el('div', { class:'grid', style:'gap:8px' }, [
+        el('div', { class:'tiny muted' }, [`Histórico recente: ${selectedApontamentos.length} apontamento(s) / ${fmtHours((selectedMetrics?.realHours || 0))}h.`]),
+        selectedApontamentos.length
+          ? el('div', { style:'display:flex;flex-direction:column;gap:8px' }, [...selectedApontamentos].reverse().slice(0,5).map(a => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:#fff' }, [
+              el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa} - ${fmtHours(a.horas || 0)}h`]),
+              el('div', { class:'tiny muted', style:'margin-top:4px' }, [a.observacao || 'Sem observação.']),
+              el('div', { class:'tiny muted', style:'margin-top:4px' }, [a.usuario || 'Sessão local'])
+            ])))
+          : el('div', { style:'padding:14px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:var(--surface)' }, ['Nenhum apontamento cadastrado para esta demanda.'])
+      ]) : null,
+    ].filter(Boolean)));
+
+    const modeSelector = card('Novo lançamento', null, el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'tiny muted' }, ['Centralize aqui os registros do dia: apontamentos de demandas e atividades internas.']),
+      el('div', { class:'row', style:'gap:10px' }, [
+        button('📝 Apontamento de demanda', launchMode === 'demand' ? 'primary' : '', () => { launchMode = 'demand'; editingInternalActivityId = ''; render(); }),
+        button('🧩 Atividade interna', launchMode === 'internal' ? 'primary' : '', () => { launchMode = 'internal'; render(); }),
+      ])
+    ]));
+
+    return el('div',{class:'grid'},[
+      myDayPanel,
+      modeSelector,
+      launchMode === 'internal' ? internalActivityPanel : demandLaunchPanel
     ]);
   };
 
@@ -11038,7 +11404,8 @@ return el('div', { class:'grid' }, [
     { id:'calendar', label:'Bloqueio de Janela', icon:'📅' },
     { id:'he', label:'Horas Extras (HE)', icon:'⏱' },
     { id:'windows', label:'Janelas Livres', icon:'🔎' },
-    { id:'internal', label:'Atividades Internas', icon:'🧩' },
+    { id:'internal', label:'Lançamentos', icon:'✍️' },
+    { id:'dailyExecution', label:'Execução diária', icon:'📆' },
     { id:'consolidation', label:'Sincronização de BD', icon:'📦' },
   ];
 
@@ -11110,6 +11477,7 @@ return el('div', { class:'grid' }, [
     else if (activeTab === 'he') view = viewOvertime();
     else if (activeTab === 'windows') view = viewWindows();
     else if (activeTab === 'internal') view = viewInternalActivities();
+    else if (activeTab === 'dailyExecution') view = viewDailyExecution();
     else if (activeTab === 'consolidation') view = viewConsolidation();
     else view = el('div', {}, ['Aba inválida.']);
 
@@ -11132,11 +11500,7 @@ return el('div', { class:'grid' }, [
   dlg.addEventListener('close', syncModalBlur);
   dlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ dlg.close(); }catch{ dlg.removeAttribute('open'); } syncModalBlur(); });
 
-  const hdlg = qs('#heatModal');
-  qs('#heatModalClose').addEventListener('click', () => { try{ hdlg.close(); }catch{ hdlg.removeAttribute('open'); } });
-  hdlg.addEventListener('click', (e) => { if (e.target === hdlg) { try{ hdlg.close(); }catch{ hdlg.removeAttribute('open'); } } });
-  hdlg.addEventListener('close', syncModalBlur);
-  hdlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ hdlg.close(); }catch{ hdlg.removeAttribute('open'); } syncModalBlur(); });
+
 
   const mdlg = qs('#monthModal');
   if (mdlg) {
