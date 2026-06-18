@@ -1,4 +1,4 @@
-const ORIZON_CACHE = 'orizon-static-v11-rollback';
+const ORIZON_CACHE = 'orizon-static-v12-interactions';
 const ORIZON_ASSETS = [
   './index.html',
   './manifest.webmanifest',
@@ -26,6 +26,22 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  // Navegações precisam ser sempre network-first para evitar que uma versão PWA
+  // antiga mantenha uma tela travada mesmo depois da publicação de correção.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request, { cache: 'no-store' })
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(ORIZON_CACHE).then((cache) => cache.put('./index.html', copy));
+          return response;
+        })
+        .catch(async () => (await caches.match('./index.html')) || Response.error())
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -36,7 +52,6 @@ self.addEventListener('fetch', (event) => {
       .catch(async () => {
         const cached = await caches.match(event.request);
         if (cached) return cached;
-        if (event.request.mode === 'navigate') return caches.match('./index.html');
         return Response.error();
       })
   );
