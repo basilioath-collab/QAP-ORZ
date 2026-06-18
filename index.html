@@ -2912,6 +2912,45 @@ main{padding:14px;overflow-x:hidden}
   const DEMAND_LOCKED_STATUSES = new Set(['Concluída','Cancelada']);
   const isDemandLocked = (demand={}) => DEMAND_LOCKED_STATUSES.has(effectiveStatus(demand));
 
+  const demandCompletedDate = (demand={}) => {
+    const raw = demand.completed_at || demand.completedAt || demand.concluded_at || demand.concluida_em || '';
+    if (!raw) return '';
+    if (typeof raw === 'number' || /^\d+$/.test(String(raw))) {
+      const dt = new Date(Number(raw));
+      return Number.isFinite(dt.getTime()) ? formatDate(dt) : '';
+    }
+    return normalizeDateLikeToISO(raw) || '';
+  };
+
+  const demandAllocationEndDate = (demand={}) => {
+    const baseEnd = String(demand.data_fim || demand.end || '').trim();
+    if (normalizeStatus(demand.status) !== 'Concluída') return baseEnd;
+    const completedDate = demandCompletedDate(demand);
+    if (!completedDate) return baseEnd;
+    const previousDay = isoToLocalMidnight(completedDate);
+    if (!previousDay) return '';
+    previousDay.setDate(previousDay.getDate() - 1);
+    return formatDate(previousDay);
+  };
+
+  const demandIsAllocatedOnDate = (demand={}, dateStr='') => {
+    if (!dateStr) return false;
+    const st = effectiveStatus(demand);
+    if (st === 'Cancelada' || st === 'Congelada' || st === 'Mapeada') return false;
+    if (!(st === 'Concluída' || STATUS_COUNTS_IN_ALLOCATION.has(st))) return false;
+    const start = String(demand.data_inicio || '').trim();
+    const end = demandAllocationEndDate(demand);
+    if (!start || !end) return false;
+    return dateStr >= start && dateStr <= end;
+  };
+
+  const demandOverlapsAllocationRange = (demand={}, startDate='', endDate='') => {
+    const start = String(demand.data_inicio || '').trim();
+    const end = demandAllocationEndDate(demand);
+    if (!start || !end || !startDate || !endDate) return false;
+    return start <= endDate && end >= startDate;
+  };
+
   const overdueTooltip = (demand) => {
     const dl = daysLate(demand);
     if (!dl) return '';
@@ -5458,9 +5497,7 @@ main{padding:14px;overflow-x:hidden}
 
       let total = 0;
       for (const dem of (state.demands || [])) {
-        const st = effectiveStatus(dem);
-        if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) continue;
-        if (!(dateStr >= dem.data_inicio && dateStr <= dem.data_fim)) continue;
+        if (!demandIsAllocatedOnDate(dem, dateStr)) continue;
         const allocHours = demandAllocations(dem)
           .filter(a => String(a.resourceId || '') === String(resourceId || ''))
           .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
@@ -5548,7 +5585,7 @@ main{padding:14px;overflow-x:hidden}
     return (state.demands||[]).filter(d => {
       const hasResource = demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId || ''));
       if (!hasResource) return false;
-      return dateStr >= d.data_inicio && dateStr <= d.data_fim;
+      return demandIsAllocatedOnDate(d, dateStr);
     });
   };
 
@@ -6143,6 +6180,24 @@ main{padding:14px;overflow-x:hidden}
       aptList
     ]);
 
+    const auditInfoBox = (() => {
+      const lines = [];
+      const cancelReason = String(demand.cancel_reason || demand.cancelReason || '').trim();
+      const lastJustification = String(demand.last_edit_justification || '').trim();
+      const completedDate = demandCompletedDate(demand);
+      if (cancelReason) lines.push(['Justificativa do cancelamento', cancelReason]);
+      else if (lastJustification) lines.push(['Última justificativa', lastJustification]);
+      if (completedDate) lines.push(['Conclusão registrada em', formatDateBR(completedDate)]);
+      if (!lines.length) return null;
+      return el('div', { class:'field', style:'border:1px solid var(--border);border-radius:18px;padding:14px;background:var(--surface)' }, [
+        el('label', {}, ['Histórico / justificativa']),
+        ...lines.map(([label, value]) => el('div', { style:'margin-top:8px' }, [
+          el('div', { class:'tiny muted' }, [label]),
+          el('div', { style:'font-weight:850;white-space:pre-wrap' }, [value])
+        ]))
+      ]);
+    })();
+
       const syncMapeada = () => {
         const st = normalizeStatus(status.value);
         if (st === 'Mapeada') {
@@ -6304,8 +6359,9 @@ main{padding:14px;overflow-x:hidden}
         el('div', { class:'field' }, [el('label', {}, ['Início']), ini]),
         el('div', { class:'field' }, [el('label', {}, ['Fim']), fim]),
       ]),
-	      el('div', { class:'field' }, [el('label', {}, ['Observações']), obs]),
-	      footer
+		      el('div', { class:'field' }, [el('label', {}, ['Observações']), obs]),
+		      auditInfoBox,
+		      footer
 	    ]));
 
     if (locked) {
@@ -6315,6 +6371,86 @@ main{padding:14px;overflow-x:hidden}
       }
     }
 
+    if (locked) {
+      for (const node of qsa('input, select, textarea, button', body)) {
+        if (node.textContent === 'Cancelar') continue;
+        node.disabled = true;
+      }
+    }
+
+    openDialog(dlg);
+  };
+
+  const concludeDemand = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    if (!confirm(`Concluir demanda "${latest.titulo || 'sem título'}"?`)) return;
+    dispatch('UPDATE_DEMAND', {
+      ...latest,
+      status: 'Concluída',
+      completed_at: Date.now(),
+      completed_by: userName || 'Sessão local',
+      completed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: 'Demanda concluída pelas ações.',
+    });
+    toast('Demanda concluída.');
+    render();
+  };
+
+  const openDemandCancelModal = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    let dlg = qs('#demandCancelModal');
+    if (dlg) dlg.remove();
+    const reason = el('textarea', { placeholder:'Informe a justificativa obrigatória do cancelamento...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const err = el('div', { class:'tiny', style:'color:var(--danger);display:none' }, ['Justificativa obrigatória.']);
+    const confirmCancel = () => {
+      const text = String(reason.value || '').trim();
+      const validation = validateTextLimit(text, 'Justificativa do cancelamento', INPUT_LIMITS.justification, { required:true });
+      if (validation) {
+        err.textContent = validation;
+        err.style.display = '';
+        return;
+      }
+      dispatch('UPDATE_DEMAND', {
+        ...latest,
+        status: 'Cancelada',
+        cancelled_at: Date.now(),
+        cancelled_by: userName || 'Sessão local',
+        cancelled_by_id: userId || '',
+        cancel_reason: text,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: `Cancelamento: ${text}`,
+      });
+      closeDialog(dlg);
+      toast('Demanda cancelada.');
+      render();
+    };
+    dlg = el('dialog', { id:'demandCancelModal', class:'modal' }, [
+      el('div', { class:'modalCard', style:'max-width:620px' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Cancelar demanda']),
+            el('div', { class:'modalSub' }, [latest.titulo || 'Demanda'])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'warn', style:'margin-bottom:12px' }, ['Cancelamento bloqueia futuras alterações e exige justificativa para auditoria.']),
+          el('div', { class:'field' }, [el('label', {}, ['Justificativa obrigatória']), reason, err]),
+          el('div', { class:'modalActions' }, [
+            button('Voltar', '', () => closeDialog(dlg)),
+            button('Confirmar cancelamento', 'danger', confirmCancel)
+          ])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
     openDialog(dlg);
   };
 
@@ -7735,17 +7871,13 @@ function buildConsolidatedYearSeries(year) {
       const daysInMonth = days;
 
       for (const r of pageResources) {
-        // demandas ativas no mês (exclui Concluída e Mapeada)
+        // demandas que ocupam janela no mês (concluídas contam só até a véspera da conclusão)
         const active = (dashboardFilteredDemands||[]).filter(d => {
           if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(r.id))) return false;
-          const st = effectiveStatus(d);
-          if (st === 'Mapeada' || st === 'Concluída' || st === 'Cancelada') return false;
-          // overlap com o mês
-          const start = d.data_inicio;
-          const end = d.data_fim;
+          // overlap com o mês considerando que concluídas só ocupam até a véspera da conclusão
           const monthStart = formatDate(daysInMonth[0]);
           const monthEnd = formatDate(daysInMonth[daysInMonth.length-1]);
-          return !(end < monthStart || start > monthEnd);
+          return demandOverlapsAllocationRange(d, monthStart, monthEnd);
         }).length;
 
         // % medio/pico alocado considerando apenas dias úteis disponíveis; FDS/feriado só entram com HE
@@ -8191,9 +8323,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
   const plannedDemandHoursForDate = (demand={}, dateStr='', resourceIds=null) => {
     const ids = Array.isArray(resourceIds) ? resourceIds.map(String) : null;
-    if (!dateStr || String(demand.data_inicio || '') > dateStr || String(demand.data_fim || '') < dateStr) return 0;
-    const st = effectiveStatus(demand);
-    if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) return 0;
+    if (!demandIsAllocatedOnDate(demand, dateStr)) return 0;
     return demandAllocations(demand).reduce((acc, a) => {
       const rid = String(a.resourceId || '').trim();
       if (ids && !ids.includes(rid)) return acc;
@@ -9245,7 +9375,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         const primaryDemand = groupItems[0] || d;
         const tr = el('tr');
         if (effectiveStatus(d) === 'Atrasada') tr.classList.add('overdueRow');
-        tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [d.titulo]), el('div', { class:'tiny' }, [d.observacoes||''])]));
+        const cancelReason = String(d.cancel_reason || d.cancelReason || '').trim();
+        tr.appendChild(el('td', {}, [
+          el('div', { style:'font-weight:950' }, [d.titulo]),
+          el('div', { class:'tiny' }, [d.observacoes||'']),
+          cancelReason ? el('div', { class:'tiny', style:'margin-top:4px;color:var(--danger);font-weight:850' }, [`Cancelamento: ${cancelReason}`]) : null
+        ].filter(Boolean)));
         tr.appendChild(el('td', {}, [d.predio||'-']));
         tr.appendChild(el('td', {}, [d.focal||'-']));
         tr.appendChild(el('td', {}, respNames.map((name, idx) => el('div', {}, [idx === respNames.length - 1 ? name : `${name},`]))));
@@ -9657,12 +9792,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     const occPct = cap > 0 ? (alloc / cap) * 100 : 0;
     const demandsCount = (state.demands||[]).filter(d => {
       if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId))) return false;
-      const st = effectiveStatus(d);
-      if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) return false;
       const monthStart = `${y}-${String(m0+1).padStart(2,'0')}-01`;
       const lastDay = String(new Date(y, m0+1, 0).getDate()).padStart(2,'0');
       const monthEnd = `${y}-${String(m0+1).padStart(2,'0')}-${lastDay}`;
-      return String(d.data_inicio||'') <= monthEnd && String(d.data_fim||'') >= monthStart;
+      return demandOverlapsAllocationRange(d, monthStart, monthEnd);
     }).length;
     return {
       y, m0,
