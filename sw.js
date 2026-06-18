@@ -1,54 +1,26 @@
-const ORIZON_CACHE = 'orizon-static-v12-interactions';
-const ORIZON_ASSETS = [
-  './index.html',
-  './manifest.webmanifest',
-  './icons/icon-192.png',
-  './icons/icon-512.png'
-];
+const ORIZON_CACHE = 'orizon-static-v13-emergency-open';
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(ORIZON_CACHE)
-      .then((cache) => cache.addAll(ORIZON_ASSETS))
-  );
+  // Assume controle imediatamente para substituir service workers/cache antigos
+  // que podem deixar o aplicativo preso em uma tela de carregamento.
   self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys
-        .filter((key) => key !== ORIZON_CACHE)
-        .map((key) => caches.delete(key))))
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
-  // Navegações precisam ser sempre network-first para evitar que uma versão PWA
-  // antiga mantenha uma tela travada mesmo depois da publicação de correção.
-  if (event.request.mode === 'navigate') {
-    event.respondWith(
-      fetch(event.request, { cache: 'no-store' })
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(ORIZON_CACHE).then((cache) => cache.put('./index.html', copy));
-          return response;
-        })
-        .catch(async () => (await caches.match('./index.html')) || Response.error())
-    );
-    return;
-  }
-
+  // Modo emergência: sempre buscar a versão atual na rede. Isso impede que um
+  // HTML antigo em cache mantenha o app em loading/travado após uma publicação.
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(ORIZON_CACHE).then((cache) => cache.put(event.request, copy));
-        return response;
-      })
+    fetch(event.request, { cache: 'no-store' })
       .catch(async () => {
         const cached = await caches.match(event.request);
         if (cached) return cached;

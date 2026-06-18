@@ -13865,14 +13865,17 @@ qs('#userName').addEventListener('keydown', (e) => {
     try {
       const registration = await navigator.serviceWorker.register('./sw.js', { scope: './' });
 
-      // Procura atualização quando o app abre.
-      try { await registration.update(); } catch {}
+      // Procura atualização quando o app abre, mas não bloqueia a renderização.
+      registration.update().catch(() => {});
 
-      // Quando uma nova versão assumir controle, recarrega uma vez.
-      let refreshing = false;
+      // Recarrega no máximo uma vez por versão de SW. Sem essa trava, alguns
+      // navegadores/PWAs podem entrar em loop de loading ao trocar de controller.
+      const reloadKey = 'orizon_sw_reload_v13_emergency_open';
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (refreshing) return;
-        refreshing = true;
+        try {
+          if (sessionStorage.getItem(reloadKey) === '1') return;
+          sessionStorage.setItem(reloadKey, '1');
+        } catch {}
         window.location.reload();
       });
     } catch (err) {
