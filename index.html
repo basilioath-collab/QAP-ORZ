@@ -289,6 +289,7 @@
     .s-concluida{background:var(--success-soft);border-color:var(--success);color:var(--success)}
     .s-mapeada{background:var(--surface);border-color:var(--border);color:var(--muted)}
     .s-congelada{background:rgba(6,182,212,.14);border-color:var(--progress-cyan);color:#0E7490}
+    .s-cancelada{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger)}
     .s-suspensa{background:var(--alert-soft);border-color:var(--alert);color:var(--alert)}
 
 
@@ -858,7 +859,7 @@ main{padding:14px;overflow-x:hidden}
       <div class="modalHd">
         <div>
           <div class="modalTitle" id="demandEditModalTitle">Editar demanda</div>
-          <div class="modalSub" id="demandEditModalSub">Justificativa opcional</div>
+          <div class="modalSub" id="demandEditModalSub">Editar demanda</div>
         </div>
         <button class="btn ghost" id="demandEditModalClose" type="button">Fechar ×</button>
       </div>
@@ -2560,7 +2561,7 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Status (padrão)
   // ----------------------
-  const STATUS = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada'];
+  const STATUS = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada','Cancelada'];
   const STATUS_COUNTS_IN_ALLOCATION = new Set(['Em andamento','Atrasada']);
 
   const normalizeStatus = (s) => {
@@ -2574,6 +2575,7 @@ main{padding:14px;overflow-x:hidden}
     if (v.toLowerCase() === 'atrasada') return 'Atrasada';
     if (v.toLowerCase() === 'mapeada') return 'Mapeada';
     if (v.toLowerCase() === 'congelada') return 'Congelada';
+    if (v.toLowerCase() === 'cancelada' || v.toLowerCase() === 'cancelado') return 'Cancelada';
     return v;
   };
 
@@ -2900,13 +2902,15 @@ main{padding:14px;overflow-x:hidden}
 
   const effectiveStatus = (demand) => {
     const base = normalizeStatus(demand?.status);
-    // Concluída e Congelada nunca viram atrasadas automaticamente
-    if (base === 'Concluída' || base === 'Congelada') return base;
+    // Status finais/bloqueados nunca viram atrasados automaticamente
+    if (base === 'Concluída' || base === 'Congelada' || base === 'Cancelada') return base;
     const prazo = (demand?.data_fim||'').trim();
     // Atrasada começa no DIA SEGUINTE ao prazo (HOJE > data_fim)
     if (prazo && todayISO() > prazo) return 'Atrasada';
     return base;
   };
+  const DEMAND_LOCKED_STATUSES = new Set(['Concluída','Cancelada']);
+  const isDemandLocked = (demand={}) => DEMAND_LOCKED_STATUSES.has(effectiveStatus(demand));
 
   const overdueTooltip = (demand) => {
     const dl = daysLate(demand);
@@ -3094,7 +3098,8 @@ main{padding:14px;overflow-x:hidden}
     'Atrasada': '#E52525',
     'Concluída': '#1BAA55',
     'Mapeada': '#9BAEC1',
-    'Congelada': '#D28A00'
+    'Congelada': '#D28A00',
+    'Cancelada': '#E52525'
   };
 
   const hasAnyDemandFilters = () => {
@@ -5530,7 +5535,7 @@ main{padding:14px;overflow-x:hidden}
     const activeResources = state.resources.filter(r => r.ativo !== false).length;
     const logicalDemands = groupDemandsForDisplay(demandsList || []);
     const totalDemands = logicalDemands.length;
-    const openDemands = logicalDemands.filter(d => effectiveStatus(d) !== 'Concluída').length;
+    const openDemands = logicalDemands.filter(d => !['Concluída','Cancelada'].includes(effectiveStatus(d))).length;
     return { totalResources, activeResources, totalDemands, openDemands };
   };
 
@@ -5749,9 +5754,10 @@ main{padding:14px;overflow-x:hidden}
   const openDemandEditModal = (demand) => {
     const dlg = qs('#demandEditModal');
     const resMap = resourceById();
+    const locked = isDemandLocked(demand);
 
-    qs('#demandEditModalTitle').textContent = `Editar demanda - ${demand.titulo}`;
-    qs('#demandEditModalSub').textContent = 'Justificativa opcional (fica registrada no histórico se preenchida).';
+    qs('#demandEditModalTitle').textContent = `${locked ? 'Visualizar demanda' : 'Editar demanda'} - ${demand.titulo}`;
+    qs('#demandEditModalSub').textContent = locked ? 'Demanda finalizada: dados bloqueados para alteração.' : 'Atualize os dados e salve. Observações ficam visíveis no card da demanda.';
 
     const body = qs('#demandEditModalBody');
     body.innerHTML = '';
@@ -5901,15 +5907,11 @@ main{padding:14px;overflow-x:hidden}
         el('option', { value:'Concluída' }, ['Concluída']),
       el('option', { value:'Mapeada' }, ['Mapeada (sem responsável)']),
       el('option', { value:'Congelada' }, ['Congelada']),
+      el('option', { value:'Cancelada' }, ['Cancelada']),
     ]);
     status.value = normalizeStatus(demand.status);
 
     const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [demand.observacoes || '']);
-
-    const just = el('textarea', { placeholder:'Justificativa (opcional)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
-    const justHint = el('div', { class:'tiny muted' }, [
-      'Se você preencher, a justificativa será registrada no histórico (events) do app para rastreabilidade.'
-    ]);
 
     // v0.2.2 ? Apontamentos reais com timeline visual por demanda.
     let apontamentos = normalizeDemandApontamentos(demand);
@@ -6186,8 +6188,12 @@ main{padding:14px;overflow-x:hidden}
     // Botão de salvar será criado mais abaixo
     let saveBtn = null;
 
-	    const save = () => {
-      const justification = (just.value || '').trim();
+		    const save = () => {
+      if (isDemandLocked((state.demands || []).find(d => String(d.id) === String(demand.id)) || demand)) {
+        toast('Demanda finalizada não pode ser alterada.');
+        return;
+      }
+	      const justification = '';
 
       const nextStatus = normalizeStatus(status.value);
       if (nextStatus === 'Atrasada') { toast('Status Atrasada ? automático. Selecione outro status.'); return; }
@@ -6197,9 +6203,7 @@ main{padding:14px;overflow-x:hidden}
       const iniVal = (ini.value || '').trim();
       const fimVal = (fim.value || '').trim();
       const obsVal = (obs.value || '').trim();
-      const justValidation = validateTextLimit(justification, 'Justificativa', INPUT_LIMITS.justification);
-      if (justValidation) { toast(justValidation); return; }
-      const demandValidation = validateDemandFields({
+	      const demandValidation = validateDemandFields({
         titulo: titleVal,
         predio: predioVal,
         focal: focalVal,
@@ -6237,7 +6241,7 @@ main{padding:14px;overflow-x:hidden}
         apontamentos: normalizeDemandApontamentos({ apontamentos }),
         last_edit_by: userName,
         last_edit_at: Date.now(),
-        last_edit_justification: justification,
+	        last_edit_justification: latestDemand.last_edit_justification || '',
       };
 
       // registra um evento extra com diff para auditoria (além do UPDATE_DEMAND padrão)
@@ -6262,11 +6266,11 @@ main{padding:14px;overflow-x:hidden}
       toast('Demanda atualizada.');
     };
 
-	    saveBtn = button('Salvar alterações', 'primary', save);
-	    const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:10px' }, [
-      button('Cancelar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
-	      saveBtn,
-    ]);
+		    saveBtn = button('Salvar alterações', 'primary', save);
+		    const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:10px' }, [
+	      button('Cancelar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
+		      locked ? null : saveBtn,
+	    ].filter(Boolean));
 
     body.appendChild(el('div', { class:'grid' }, [
       el('div', { class:'row' }, [
@@ -6300,11 +6304,90 @@ main{padding:14px;overflow-x:hidden}
         el('div', { class:'field' }, [el('label', {}, ['Início']), ini]),
         el('div', { class:'field' }, [el('label', {}, ['Fim']), fim]),
       ]),
-      el('div', { class:'field' }, [el('label', {}, ['Observações']), obs]),
-	      el('div', { class:'field' }, [el('label', {}, ['Justificativa (opcional)']), just, justHint]),
-      footer
-    ]));
+	      el('div', { class:'field' }, [el('label', {}, ['Observações']), obs]),
+	      footer
+	    ]));
 
+    if (locked) {
+      for (const node of qsa('input, select, textarea, button', body)) {
+        if (node.textContent === 'Cancelar') continue;
+        node.disabled = true;
+      }
+    }
+
+    openDialog(dlg);
+  };
+
+  const concludeDemand = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    if (!confirm(`Concluir demanda "${latest.titulo || 'sem título'}"?`)) return;
+    dispatch('UPDATE_DEMAND', {
+      ...latest,
+      status: 'Concluída',
+      completed_at: Date.now(),
+      completed_by: userName || 'Sessão local',
+      completed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: 'Demanda concluída pelas ações.',
+    });
+    toast('Demanda concluída.');
+    render();
+  };
+
+  const openDemandCancelModal = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    let dlg = qs('#demandCancelModal');
+    if (dlg) dlg.remove();
+    const reason = el('textarea', { placeholder:'Informe a justificativa obrigatória do cancelamento...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const err = el('div', { class:'tiny', style:'color:var(--danger);display:none' }, ['Justificativa obrigatória.']);
+    const confirmCancel = () => {
+      const text = String(reason.value || '').trim();
+      const validation = validateTextLimit(text, 'Justificativa do cancelamento', INPUT_LIMITS.justification, { required:true });
+      if (validation) {
+        err.textContent = validation;
+        err.style.display = '';
+        return;
+      }
+      dispatch('UPDATE_DEMAND', {
+        ...latest,
+        status: 'Cancelada',
+        cancelled_at: Date.now(),
+        cancelled_by: userName || 'Sessão local',
+        cancelled_by_id: userId || '',
+        cancel_reason: text,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: `Cancelamento: ${text}`,
+      });
+      closeDialog(dlg);
+      toast('Demanda cancelada.');
+      render();
+    };
+    dlg = el('dialog', { id:'demandCancelModal', class:'modal' }, [
+      el('div', { class:'modalCard', style:'max-width:620px' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Cancelar demanda']),
+            el('div', { class:'modalSub' }, [latest.titulo || 'Demanda'])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'warn', style:'margin-bottom:12px' }, ['Cancelamento bloqueia futuras alterações e exige justificativa para auditoria.']),
+          el('div', { class:'field' }, [el('label', {}, ['Justificativa obrigatória']), reason, err]),
+          el('div', { class:'modalActions' }, [
+            button('Voltar', '', () => closeDialog(dlg)),
+            button('Confirmar cancelamento', 'danger', confirmCancel)
+          ])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
     openDialog(dlg);
   };
 
@@ -6315,6 +6398,7 @@ main{padding:14px;overflow-x:hidden}
   const openDemandStagesModal = (demand) => {
     const dlg = qs('#demandStagesModal');
     if (!dlg || !demand) return;
+    if (isDemandLocked(demand)) return toast('Demanda finalizada não permite alterações de apontamento.');
 
     qs('#demandStagesModalTitle').textContent = `Apontamento - ${demand.titulo}`;
     qs('#demandStagesModalSub').textContent = 'Cadastre a atividade realizada nesta demanda.';
@@ -6883,7 +6967,7 @@ main{padding:14px;overflow-x:hidden}
     const currentNameKey = personMatchKey(userName);
     return (state.demands || [])
       .filter(d => d && String(d.id || '').trim())
-      .filter(d => effectiveStatus(d) !== 'Concluída')
+      .filter(d => !['Concluída','Cancelada'].includes(effectiveStatus(d)))
       .map(d => {
         const assignedIds = demandAssignedResourceIds(d).filter(rid => ownResourceIds.has(String(rid)));
         if (!assignedIds.length) return null;
@@ -7058,7 +7142,7 @@ main{padding:14px;overflow-x:hidden}
     // Aceita string (status) OU um objeto demanda (para tooltip/?cone)
     const isObj = statusOrDemand && typeof statusOrDemand === 'object';
     const s = isObj ? effectiveStatus(statusOrDemand) : normalizeStatus(statusOrDemand);
-    const key = (s === 'Em andamento') ? 'andamento' : (s === 'Atrasada') ? 'atrasada' : (s === 'Concluída') ? 'concluida' : (s === 'Mapeada') ? 'mapeada' : (s === 'Congelada') ? 'congelada' : 'planejada';
+    const key = (s === 'Em andamento') ? 'andamento' : (s === 'Atrasada') ? 'atrasada' : (s === 'Concluída') ? 'concluida' : (s === 'Mapeada') ? 'mapeada' : (s === 'Congelada') ? 'congelada' : (s === 'Cancelada') ? 'cancelada' : 'planejada';
     const title = isObj ? (overdueTooltip(statusOrDemand) || '') : '';
     const children = [
       el('span', { class:'sDot' }, []),
@@ -7547,7 +7631,7 @@ function buildConsolidatedYearSeries(year) {
     const tableBlock = el('div', {}, [table, sheetPager]);
 
     const statusCounts = (() => {
-      const counts = { 'Em andamento':0, 'Atrasada':0, 'Concluída':0, 'Mapeada':0, 'Congelada':0 };
+      const counts = { 'Em andamento':0, 'Atrasada':0, 'Concluída':0, 'Mapeada':0, 'Congelada':0, 'Cancelada':0 };
       for (const d of (dashboardFilteredDemands||[])) {
         const st = effectiveStatus(d);
         if (counts[st] === undefined) counts[st] = 0;
@@ -7595,7 +7679,7 @@ function buildConsolidatedYearSeries(year) {
     })();
 
     const donutNode = (() => {
-      const order = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada'];
+      const order = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada','Cancelada'];
       const colors = STATUS_COLORS;
       const realTotal = order.reduce((a,k)=>a+(statusCounts[k]||0),0);
 
@@ -7655,7 +7739,7 @@ function buildConsolidatedYearSeries(year) {
         const active = (dashboardFilteredDemands||[]).filter(d => {
           if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(r.id))) return false;
           const st = effectiveStatus(d);
-          if (st === 'Mapeada' || st === 'Concluída') return false;
+          if (st === 'Mapeada' || st === 'Concluída' || st === 'Cancelada') return false;
           // overlap com o mês
           const start = d.data_inicio;
           const end = d.data_fim;
@@ -9176,15 +9260,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
         tr.appendChild(el('td', {}, [d.prioridade]));
         tr.appendChild(el('td', {}, [statusPill(d)]));
 
+        const locked = isDemandLocked(primaryDemand);
         const edit = () => {
           openDemandEditModal(primaryDemand);
         };
 
         const reprogram = () => {
-	        openDemandReprogramModal(primaryDemand);
+          if (locked) return toast('Demanda finalizada não pode ser reprogramada.');
+		        openDemandReprogramModal(primaryDemand);
         };
 
         const del = () => {
+          if (locked) return toast('Demanda finalizada não pode ser excluída.');
           if (!confirm(`Excluir demanda "${d.titulo}"?`)) return;
           dispatch('DELETE_DEMANDS', {
             ids: groupItems.map(item => item.id).filter(Boolean),
@@ -9196,10 +9283,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
 
         tr.appendChild(el('td', {}, [
           el('div', { class:'actionBtns' }, [
-            iconButton('Editar', '✎', '', edit),
-            iconButton('Reprogramar', '↻', '', reprogram),
-            iconButton('Excluir', '🗑', 'danger', del),
-          ])
+            iconButton(locked ? 'Visualizar' : 'Editar', locked ? '👁' : '✎', '', edit),
+            locked ? null : iconButton('Reprogramar', '↻', '', reprogram),
+            locked ? null : iconButton('Concluir', '✓', '', () => concludeDemand(primaryDemand)),
+            locked ? null : iconButton('Cancelar demanda', '✕', 'danger', () => openDemandCancelModal(primaryDemand)),
+            locked ? null : iconButton('Excluir', '🗑', 'danger', del),
+          ].filter(Boolean))
         ]));
         tb.appendChild(tr);
       }
@@ -10397,7 +10486,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]));
     const userDemandRows = (state.demands || [])
       .filter(d => resourceIds.length && demandAssignedResourceIds(d).some(rid => resourceIds.includes(String(rid))))
-      .filter(d => !['Concluída','Congelada'].includes(effectiveStatus(d)))
+      .filter(d => !['Concluída','Congelada','Cancelada'].includes(effectiveStatus(d)))
       .slice()
       .sort((a,b) => String(a.data_fim || '').localeCompare(String(b.data_fim || '')) || String(a.titulo || '').localeCompare(String(b.titulo || '')));
     if (!launchDemandId || !userDemandRows.some(d => String(d.id) === String(launchDemandId))) launchDemandId = userDemandRows[0]?.id || '';
@@ -10431,6 +10520,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     const saveDemandLaunch = () => {
       const demand = (state.demands || []).find(d => String(d.id) === String(launchDemandId));
       if (!demand) return toast('Selecione uma demanda para apontar.');
+      if (isDemandLocked(demand)) return toast('Demanda finalizada não permite novos apontamentos.');
       const nextData = String(aptData.value || '').trim();
       const nextEtapa = normalizeProjectStep(aptEtapa.value);
       const nextHoras = parseApontamentoHours(aptHoras.value);
