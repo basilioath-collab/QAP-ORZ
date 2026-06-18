@@ -24,7 +24,6 @@ self.addEventListener('fetch', (event) => {
       .catch(async () => {
         const cached = await caches.match(event.request);
         if (cached) return cached;
-        if (event.request.mode === 'navigate') return caches.match('./index.html');
         return Response.error();
       })
   );
