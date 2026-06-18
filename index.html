@@ -1004,14 +1004,14 @@ main{padding:14px;overflow-x:hidden}
       <div class="modalHd modalUserHd">
         <div>
           <div class="modalTitle">Identificação do Usuário</div>
-          <div class="modalSub">Selecione a pasta de eventos para carregar usuários existentes ou criar um novo.</div>
+          <div class="modalSub">Crie um usuário local rapidamente ou selecione a pasta de eventos para reutilizar usuários existentes.</div>
         </div>
         <button class="btn ghost modalCloseBtn" id="userModalClose" type="button" aria-label="Fechar">×</button>
       </div>
 
       <div class="userWarningBox userWarningCompact" id="userWarningBox">
         <span class="pill">Obrigatório</span>
-        <div>Selecione a pasta ORIZONData para reutilizar usuários cadastrados e evitar duplicidade.</div>
+        <div>A pasta ORIZONData é recomendada para reutilizar usuários cadastrados, mas não bloqueia a criação de usuário local.</div>
       </div>
       <div class="userWarningBox userWarningCompact" id="userLocalWarning" style="display:none">
         <span class="pill">Atenção</span>
@@ -3905,12 +3905,14 @@ main{padding:14px;overflow-x:hidden}
     const selectedId = String(selectedUserId || '').trim();
     const validation = validateTextLimit(nm, 'Nome do usuário', INPUT_LIMITS.userName, { required:true });
     if (validation) { toast(validation); return false; }
-    if (!sharedFolderReady()) { toast('Selecione a pasta de eventos antes de salvar o usuário.'); return false; }
+    if (!sharedFolderReady() && !createNew) { toast('Selecione a pasta de eventos para escolher um usuário existente ou crie um usuário local.'); return false; }
     if (!createNew && !selectedId) { toast('Selecione um usuário existente ou crie um novo.'); return false; }
 
     let finalUser = createNew ? { displayName:nm, userId:(selectedId || previewUserIdentity(nm).userId) } : { displayName:nm, userId:selectedId };
     if (createNew) {
-      try { await scanEventFolderUsers(); } catch {}
+      if (sharedFolderReady()) {
+        try { await scanEventFolderUsers(); } catch {}
+      }
       const existing = preferredExistingUserForName(nm);
       if (existing?.userId) {
         finalUser = { displayName: existing.displayName || nm, userId: existing.userId };
@@ -3921,11 +3923,15 @@ main{padding:14px;overflow-x:hidden}
     userId = finalUser.userId;
     persistUserIdentity(finalUser);
 
-    try { await scanEventFolderUsers(); } catch {}
+    if (sharedFolderReady()) {
+      try { await scanEventFolderUsers(); } catch {}
+    }
     ensureUserAsResource({ repairedFromUserIdentity: !createNew });
-    await flushLocalEventOutbox();
-    try { await scanEventFolderUsers(); } catch {}
-    if (capviewEventMode.autoSyncEnabled !== false) setTimeout(() => eventAutoSyncTick('user-save'), 250);
+    if (sharedFolderReady()) {
+      await flushLocalEventOutbox();
+      try { await scanEventFolderUsers(); } catch {}
+      if (capviewEventMode.autoSyncEnabled !== false) setTimeout(() => eventAutoSyncTick('user-save'), 250);
+    }
     updateAvatar();
     return true;
   };
@@ -4319,7 +4325,7 @@ main{padding:14px;overflow-x:hidden}
     setTimeout(() => {
       try {
         if (wireUserModal.refreshFolderUsers) wireUserModal.refreshFolderUsers();
-        if (wireUserModal.setCreateMode) wireUserModal.setCreateMode(false);
+        if (wireUserModal.setCreateMode) wireUserModal.setCreateMode(!hasUser() && !sharedFolderReady());
       } catch {}
     }, 0);
   };
@@ -6371,13 +6377,79 @@ main{padding:14px;overflow-x:hidden}
       }
     }
 
-    if (locked) {
-      for (const node of qsa('input, select, textarea, button', body)) {
-        if (node.textContent === 'Cancelar') continue;
-        node.disabled = true;
-      }
-    }
+    openDialog(dlg);
+  };
 
+  const concludeDemand = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    if (!confirm(`Concluir demanda "${latest.titulo || 'sem título'}"?`)) return;
+    dispatch('UPDATE_DEMAND', {
+      ...latest,
+      status: 'Concluída',
+      completed_at: Date.now(),
+      completed_by: userName || 'Sessão local',
+      completed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: 'Demanda concluída pelas ações.',
+    });
+    toast('Demanda concluída.');
+    render();
+  };
+
+  const openDemandCancelModal = (demand) => {
+    const latest = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    if (isDemandLocked(latest)) return toast('Demanda finalizada não pode ser alterada.');
+    let dlg = qs('#demandCancelModal');
+    if (dlg) dlg.remove();
+    const reason = el('textarea', { placeholder:'Informe a justificativa obrigatória do cancelamento...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const err = el('div', { class:'tiny', style:'color:var(--danger);display:none' }, ['Justificativa obrigatória.']);
+    const confirmCancel = () => {
+      const text = String(reason.value || '').trim();
+      const validation = validateTextLimit(text, 'Justificativa do cancelamento', INPUT_LIMITS.justification, { required:true });
+      if (validation) {
+        err.textContent = validation;
+        err.style.display = '';
+        return;
+      }
+      dispatch('UPDATE_DEMAND', {
+        ...latest,
+        status: 'Cancelada',
+        cancelled_at: Date.now(),
+        cancelled_by: userName || 'Sessão local',
+        cancelled_by_id: userId || '',
+        cancel_reason: text,
+        last_edit_by: userName,
+        last_edit_at: Date.now(),
+        last_edit_justification: `Cancelamento: ${text}`,
+      });
+      closeDialog(dlg);
+      toast('Demanda cancelada.');
+      render();
+    };
+    dlg = el('dialog', { id:'demandCancelModal', class:'modal' }, [
+      el('div', { class:'modalCard', style:'max-width:620px' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Cancelar demanda']),
+            el('div', { class:'modalSub' }, [latest.titulo || 'Demanda'])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'warn', style:'margin-bottom:12px' }, ['Cancelamento bloqueia futuras alterações e exige justificativa para auditoria.']),
+          el('div', { class:'field' }, [el('label', {}, ['Justificativa obrigatória']), reason, err]),
+          el('div', { class:'modalActions' }, [
+            button('Voltar', '', () => closeDialog(dlg)),
+            button('Confirmar cancelamento', 'danger', confirmCancel)
+          ])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
     openDialog(dlg);
   };
 
@@ -13585,13 +13657,13 @@ return el('div', { class:'grid' }, [
       if (selected && createMode?.checked) createMode.checked = false;
       const creating = !!createMode?.checked;
       const nm = String(nameInput?.value || '').trim();
-      if (createMode) createMode.disabled = !folderReady || !!selected;
-      if (nameInput) nameInput.disabled = !folderReady || !creating;
+      if (createMode) createMode.disabled = !!selected;
+      if (nameInput) nameInput.disabled = !creating;
       if (existingSelect) existingSelect.disabled = !folderReady || creating || !(scannedEventUsers || []).length;
       const matchingExisting = (creating && nm) ? preferredExistingUserForName(nm) : null;
       const existingLoginReady = !!(selected && !creating);
       const newUserReady = !!(!selected && creating && nm);
-      if (saveBtn) saveBtn.disabled = !(folderReady && (existingLoginReady || newUserReady));
+      if (saveBtn) saveBtn.disabled = !(existingLoginReady || newUserReady);
       if (idInput) {
         if (existingLoginReady) idInput.value = selected.userId;
         else if (newUserReady) {
@@ -13623,8 +13695,8 @@ return el('div', { class:'grid' }, [
     };
 
     const refreshFolderUsers = async () => {
-      if (folderStatus) folderStatus.textContent = sharedFolderReady() ? `Pasta conectada: ${capviewEventMode.folderName || 'ORIZONData'}` : 'Nenhuma pasta selecionada.';
-      if (createMode) createMode.disabled = !sharedFolderReady();
+      if (folderStatus) folderStatus.textContent = sharedFolderReady() ? `Pasta conectada: ${capviewEventMode.folderName || 'ORIZONData'}` : 'Nenhuma pasta selecionada. Você ainda pode criar um usuário local.';
+      if (createMode) createMode.disabled = false;
       if (!sharedFolderReady()) {
         populateUsers([]);
         if (nameInput) nameInput.disabled = true;
@@ -13656,7 +13728,7 @@ return el('div', { class:'grid' }, [
       if (turnOnCreate && existingSelect) existingSelect.value = '';
       if (createMode) createMode.checked = turnOnCreate;
       if (nameInput) {
-        nameInput.disabled = !sharedFolderReady() || !turnOnCreate;
+        nameInput.disabled = !turnOnCreate;
         nameInput.readOnly = false;
         nameInput.classList.remove('locked');
         if (turnOnCreate) {
@@ -13796,7 +13868,7 @@ qs('#userName').addEventListener('keydown', (e) => {
   // Initialize user UI (after helpers exist)
   ensureUserAsResource();
   updateAvatar();
-  if (!hasUser()) { setTimeout(() => openUserModal(true), 60); }
+  if (!hasUser()) { setTimeout(() => openUserModal(false), 60); }
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden && eventAutoSyncAvailable()) eventAutoSyncTick('visible');
