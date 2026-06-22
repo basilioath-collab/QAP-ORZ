@@ -324,6 +324,17 @@
     @media (max-width:1280px){.launchSummaryGrid{grid-template-columns:1fr}}
 
     .actionBtns{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+    .actionsMenu{position:relative;display:inline-flex}
+    .actionsMenu .menuPanel{position:absolute;right:0;top:calc(100% + 8px);min-width:220px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 42px rgba(5,5,5,.18);padding:6px;z-index:90;display:none}
+    .actionsMenu.open .menuPanel{display:grid;gap:4px}
+    .actionsMenu .menuPanel::before{content:'';position:absolute;right:12px;top:-6px;width:10px;height:10px;background:#fff;border-left:1px solid var(--border);border-top:1px solid var(--border);transform:rotate(45deg)}
+    .menuAction{width:100%;border:0;background:transparent;color:var(--text);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;font-weight:900;text-align:left;cursor:pointer}
+    .menuAction:hover{background:var(--success-wash);color:var(--header)}
+    .menuAction.danger{color:var(--danger)}
+    .menuAction.danger:hover{background:var(--danger-soft);color:var(--danger)}
+    .menuAction.primary{color:var(--primary)}
+    .menuAction.primary:hover{background:var(--primary-soft)}
+    .menuAction .ico{width:20px;text-align:center;line-height:1}
     .iconBtn{position:relative;width:34px;height:34px;padding:0;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
     .iconBtn:not(.primary):not(.danger):hover{background:var(--success-wash);border-color:var(--success);color:var(--header)}
     .iconBtn.danger{background:#fff;border-color:var(--danger-border);color:var(--danger)}
@@ -336,7 +347,7 @@
     .demandFilters .field input,.demandFilters .field select{width:100%;min-width:0}
     .demandsTable{min-width:980px;table-layout:auto}
     .demandsTable th,.demandsTable td{white-space:normal}
-    .demandsTable th:last-child,.demandsTable td:last-child{width:168px;min-width:168px}
+    .demandsTable th:last-child,.demandsTable td:last-child{width:84px;min-width:84px}
     .demandsTable .actionBtns{justify-content:flex-start}
     @media(max-width:760px){
       .demandsTable{min-width:900px}
@@ -1620,6 +1631,15 @@ main{padding:14px;overflow-x:hidden}
     }
     return roundDemandHours(fixedHours);
   };
+  const demandAllocationActiveOnDate = (allocation={}, demand={}, dateStr='') => {
+    const date = String(dateStr || '').trim();
+    if (!date) return true;
+    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '');
+    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '');
+    if (start && date < start) return false;
+    if (end && date > end) return false;
+    return true;
+  };
   const formatDate = (date) => {
     const d = (date instanceof Date) ? date : new Date(date);
     const z = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -1704,6 +1724,8 @@ main{padding:14px;overflow-x:hidden}
         resourceId: rid,
         horas_planejadas_dia: roundDemandHours(horas),
         percentual_diario: pctFinal,
+        data_inicio: normalizeDateLikeToISO(source?.data_inicio || source?.dataInicio || source?.start_date || '') || '',
+        data_fim: normalizeDateLikeToISO(source?.data_fim || source?.dataFim || source?.end_date || '') || '',
       });
       seen.add(rid);
     };
@@ -4467,7 +4489,7 @@ main{padding:14px;overflow-x:hidden}
     const t = String(type||'');
     return [
       'ADD_DEMAND','UPDATE_DEMAND','EDIT_DEMAND','DELETE_DEMAND','DELETE_DEMANDS',
-      'REPROGRAM_DEMAND',
+      'REPROGRAM_DEMAND','TRANSFER_DEMAND_ALLOCATION',
       'ADD_RESOURCE','UPDATE_RESOURCE','EDIT_RESOURCE','DELETE_RESOURCE',
       'ADD_BLOCKING','DELETE_BLOCKING',
       'ADD_HOLIDAY','DELETE_HOLIDAY',
@@ -4572,6 +4594,48 @@ main{padding:14px;overflow-x:hidden}
         eventPayload = { ...payload, reprogramming: rp };
         break;
       }
+      case 'TRANSFER_DEMAND_ALLOCATION': {
+        const prev = (state.demands||[]).find(d => d.id === payload.demandId);
+        if (!prev) { didMutate = false; break; }
+        const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
+        const previousEnd = transferDate;
+        const nextStart = addDaysISO(transferDate, 1) || transferDate;
+        const fromId = String(payload.fromResourceId || prev.responsavel_id || '').trim();
+        const toId = String(payload.toResourceId || '').trim();
+        const hours = firstHoursLike(payload.horas_planejadas_dia, payload.horas_dia) ?? firstHoursLike(prev.horas_planejadas_dia, prev.horas_dia) ?? 0;
+        const allocations = demandAllocations(prev)
+          .filter(a => String(a.resourceId || '') !== toId)
+          .map(a => String(a.resourceId || '') === fromId
+            ? { ...a, data_inicio: a.data_inicio || prev.data_inicio || '', data_fim: previousEnd }
+            : a);
+        allocations.push(makeDemandAllocation(toId, hours, state.resources || []));
+        allocations[allocations.length - 1].data_inicio = nextStart;
+        allocations[allocations.length - 1].data_fim = prev.data_fim || '';
+        const stamped = applyUpdateMeta({
+          ...prev,
+          responsavel_id: toId,
+          allocations,
+          transfer_history: [
+            ...(Array.isArray(prev.transfer_history) ? prev.transfer_history : []),
+            {
+              id: generateId('transfer'),
+              fromResourceId: fromId,
+              toResourceId: toId,
+              transferDate,
+              previousEnd,
+              nextStart,
+              horas_planejadas_dia: roundDemandHours(hours),
+              justification: String(payload.justification || '').trim(),
+              timestamp: Date.now(),
+              user: userName,
+              user_id: userId || ''
+            }
+          ]
+        }, prev);
+        state.demands = state.demands.map(d => d.id === stamped.id ? stamped : d);
+        eventPayload = { ...payload, demand: stamped };
+        break;
+      }
       case 'ADD_BLOCKING': {
         const stamped = applyCreateMeta(payload);
         state.blockings.push(stamped);
@@ -4658,6 +4722,9 @@ main{padding:14px;overflow-x:hidden}
             const novoFim = payload.reprogramming.novo_fim || payload.reprogramming.novo_prazo || d.data_fim || '';
             return { ...d, data_fim: novoFim, reprogramacoes: (d.reprogramacoes||0) + 1 };
           });
+          break;
+        case 'TRANSFER_DEMAND_ALLOCATION':
+          rebuilt.demands = rebuilt.demands.map(d => d.id === payload.demandId ? normalizeDemandBaseline(payload.demand || d) : d);
           break;
         case 'ADD_BLOCKING': rebuilt.blockings.push(payload); break;
         case 'DELETE_BLOCKING': rebuilt.blockings = rebuilt.blockings.filter(b => b.id !== payload); break;
@@ -5612,6 +5679,7 @@ main{padding:14px;overflow-x:hidden}
         if (!(dateStr >= dem.data_inicio && dateStr <= dem.data_fim)) continue;
         const allocHours = demandAllocations(dem)
           .filter(a => String(a.resourceId || '') === String(resourceId || ''))
+          .filter(a => demandAllocationActiveOnDate(a, dem, dateStr))
           .reduce((acc, a) => acc + demandAllocationHoursForDate(a, resourceId, dateObj, state.resources || []), 0);
         total += allocHours;
       }
@@ -5695,7 +5763,7 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   const demandsForResourceOnDate = (resourceId, dateStr) => {
     return (state.demands||[]).filter(d => {
-      const hasResource = demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId || ''));
+      const hasResource = demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId || '') && demandAllocationActiveOnDate(a, d, dateStr));
       if (!hasResource) return false;
       if (!demandCountsInAllocationOnDate(d, dateStr)) return false;
       return dateStr >= d.data_inicio && dateStr <= d.data_fim;
@@ -5821,6 +5889,7 @@ main{padding:14px;overflow-x:hidden}
           const counts = demandCountsInAllocationOnDate(d, dateStr);
           const allocHoursForResource = demandAllocations(d)
             .filter(a => String(a.resourceId || '') === String(resourceId || ''))
+            .filter(a => demandAllocationActiveOnDate(a, d, dateStr))
             .reduce((acc, a) => acc + demandAllocationHoursForDate(a, resourceId, dateObj, state.resources || []), 0);
           const tr = el('tr');
           if (st === 'Atrasada') tr.classList.add('overdueRow');
@@ -6776,6 +6845,62 @@ main{padding:14px;overflow-x:hidden}
     setTimeout(() => { try { horas.focus(); } catch {} }, 0);
   };
 
+  const openDemandTransferModal = (demand) => {
+    if (!demand) return;
+    const currentAllocs = demandAllocations(demand);
+    const currentRid = String(demand.responsavel_id || currentAllocs[0]?.resourceId || '').trim();
+    const currentAlloc = currentAllocs.find(a => String(a.resourceId || '') === currentRid) || currentAllocs[0] || {};
+    let dlg = qs('#demandTransferModal');
+    if (dlg) dlg.remove();
+    const transferDate = el('input', { type:'date', value:todayISO(), min:demand.data_inicio || `${MIN_APP_YEAR}-01-01`, max:demand.data_fim || `${MAX_APP_YEAR}-12-31` });
+    const fromSel = el('select', {}, currentAllocs.map(a => {
+      const rid = String(a.resourceId || '').trim();
+      return el('option', { value:rid, selected:rid === currentRid }, [resourceById()[rid]?.nome || rid || '-']);
+    }));
+    const toSel = el('select', {}, (state.resources || []).filter(r => r?.ativo !== false && String(r.id) !== currentRid).map(r => el('option', { value:r.id }, [r.nome || r.id])));
+    const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(currentAlloc.horas_planejadas_dia || currentAlloc.horas_dia || demand.horas_planejadas_dia || demand.horas_dia || 0), placeholder:'Ex: 06:00' });
+    const justification = el('textarea', { placeholder:'Explique o motivo da transferência de atuação...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:110px' });
+    const status = el('div', { class:'tiny muted' }, ['A demanda fica contabilizada no responsável atual até a data informada; o novo recurso começa no dia seguinte.']);
+    const confirmTransfer = () => {
+      const dateVal = normalizeDateLikeToISO(transferDate.value);
+      const fromId = String(fromSel.value || '').trim();
+      const toId = String(toSel.value || '').trim();
+      const h = firstHoursLike(hours.value);
+      const text = String(justification.value || '').trim();
+      if (!dateVal) { status.textContent = 'Informe uma data de transferência válida.'; status.style.color = 'var(--danger)'; return; }
+      if (demand.data_fim && dateVal >= demand.data_fim) { status.textContent = 'O último dia no recurso atual precisa ser anterior ao fim da demanda para abrir janela ao novo recurso.'; status.style.color = 'var(--danger)'; return; }
+      if (!fromId || !toId || fromId === toId) { status.textContent = 'Selecione recursos de origem e destino diferentes.'; status.style.color = 'var(--danger)'; return; }
+      if (h === null || h <= 0) { status.textContent = 'Informe horas/dia válidas para o novo responsável.'; status.style.color = 'var(--danger)'; return; }
+      if (!text) { status.textContent = 'Informe a justificativa da transferência.'; status.style.color = 'var(--danger)'; return; }
+      dispatch('TRANSFER_DEMAND_ALLOCATION', { demandId:demand.id, fromResourceId:fromId, toResourceId:toId, transferDate:dateVal, horas_planejadas_dia:h, justification:text });
+      closeDialog(dlg);
+      toast('Atuação transferida com histórico preservado.');
+    };
+    dlg = el('dialog', { id:'demandTransferModal', class:'modal' }, [
+      el('div', { class:'modalCard' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [el('div', { class:'modalTitle' }, [`Transferir atuação - ${demand.titulo || '-'}`]), el('div', { class:'modalSub' }, ['Preserva a alocação anterior até a data informada e inicia o novo recurso no dia seguinte.'])]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'grid', style:'grid-template-columns:repeat(2,minmax(0,1fr));gap:10px' }, [
+            el('div', { class:'field' }, [el('label', {}, ['Sai de']), fromSel]),
+            el('div', { class:'field' }, [el('label', {}, ['Vai para']), toSel]),
+            el('div', { class:'field' }, [el('label', {}, ['Último dia no recurso atual']), transferDate]),
+            el('div', { class:'field' }, [el('label', {}, ['Horas/dia no novo recurso']), hours]),
+          ]),
+          el('div', { class:'field', style:'margin-top:10px' }, [el('label', {}, ['Justificativa obrigatória']), justification]),
+          status,
+          el('div', { class:'row end', style:'margin-top:14px' }, [button('Transferir atuação', 'primary', confirmTransfer)])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
+  };
+
   const openDemandReprogramModal = (demand) => {
     const dlg = qs('#demandReprogramModal');
     if (!dlg || !demand) return;
@@ -7362,6 +7487,30 @@ main{padding:14px;overflow-x:hidden}
     'aria-label':label,
     onclick:onClick
   }, [icon]);
+  const actionMenuButton = (items=[]) => {
+    const root = el('div', { class:'actionsMenu' });
+    const btn = iconButton('Ações', '☰', '', (ev) => {
+      ev.stopPropagation();
+      qsa('.actionsMenu.open').forEach(menu => { if (menu !== root) menu.classList.remove('open'); });
+      root.classList.toggle('open');
+    });
+    btn.setAttribute('aria-haspopup', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    const panel = el('div', { class:'menuPanel', role:'menu' }, items.map(item => el('button', {
+      class:`menuAction ${item.cls || ''}`,
+      type:'button',
+      role:'menuitem',
+      onclick:(ev) => {
+        ev.stopPropagation();
+        root.classList.remove('open');
+        item.onClick?.(ev);
+      }
+    }, [el('span', { class:'ico' }, [item.icon || '•']), el('span', {}, [item.label || 'Ação'])])));
+    root.appendChild(btn);
+    root.appendChild(panel);
+    document.addEventListener('click', (ev) => { if (!root.contains(ev.target)) root.classList.remove('open'); }, { once:false });
+    return root;
+  };
 
   const sortTimestampValue = (item) => {
     if (!item || typeof item !== 'object') return 0;
@@ -8396,6 +8545,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     return demandAllocations(demand).reduce((acc, a) => {
       const rid = String(a.resourceId || '').trim();
       if (ids && !ids.includes(rid)) return acc;
+      if (!demandAllocationActiveOnDate(a, demand, dateStr)) return acc;
       const reason = rid ? nonWorkingReasonForDay(rid, isoToLocalMidnight(dateStr)) : null;
       if (reason) return acc;
       return acc + demandAllocationHoursForDate(a, rid, isoToLocalMidnight(dateStr), state.resources || []);
@@ -9594,17 +9744,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         };
 
         const finalStatus = ['Concluída','Cancelada'].includes(effectiveStatus(d));
-        const actionButtons = finalStatus
-          ? [iconButton('Visualizar', '👁', '', () => openDemandEditModal(primaryDemand, { viewOnly:true }))]
+        const actionItems = finalStatus
+          ? [{ label:'Visualizar', icon:'👁', onClick:() => openDemandEditModal(primaryDemand, { viewOnly:true }) }]
           : [
-            iconButton('Editar', '✎', '', edit),
-            iconButton('Reprogramar', '↻', '', reprogram),
-            iconButton('Concluir', '✓', 'primary', () => openDemandStatusActionModal(primaryDemand, 'Concluída')),
-            iconButton('Cancelar', '✕', 'danger', () => openDemandStatusActionModal(primaryDemand, 'Cancelada')),
-            iconButton('Excluir', '🗑', 'danger', del),
+            { label:'Editar', icon:'✎', onClick:edit },
+            { label:'Transferir atuação', icon:'⇄', cls:'primary', onClick:() => openDemandTransferModal(primaryDemand) },
+            { label:'Reprogramar', icon:'↻', onClick:reprogram },
+            { label:'Concluir', icon:'✓', cls:'primary', onClick:() => openDemandStatusActionModal(primaryDemand, 'Concluída') },
+            { label:'Cancelar', icon:'✕', cls:'danger', onClick:() => openDemandStatusActionModal(primaryDemand, 'Cancelada') },
+            { label:'Excluir', icon:'🗑', cls:'danger', onClick:del },
           ];
         tr.appendChild(el('td', {}, [
-          el('div', { class:'actionBtns' }, actionButtons)
+          el('div', { class:'actionBtns' }, [actionMenuButton(actionItems)])
         ]));
         tb.appendChild(tr);
       }
@@ -12885,7 +13036,8 @@ return el('div', { class:'grid' }, [
           const reason = CapacityEngine.nonWorkingReasonForDay(rid, day);
           const elegivel = !reason;
           const contaAlocacao = demandCountsInAllocationOnDate(d, dateStr);
-          const plannedHH = contaAlocacao && elegivel ? demandAllocationHoursForDate(alloc, rid, day, state.resources || []) : 0;
+          const activeAllocation = demandAllocationActiveOnDate(alloc, d, dateStr);
+          const plannedHH = contaAlocacao && elegivel && activeAllocation ? demandAllocationHoursForDate(alloc, rid, day, state.resources || []) : 0;
           rows.push({
             data: dateStr,
             ano_mes: dateStr.slice(0, 7),
