@@ -161,6 +161,8 @@
     .toolbarAligned .btn{height:40px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
     .monthlyDemandCard{width:100%;text-align:left;border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;cursor:pointer;transition:transform .12s ease,border-color .14s ease,box-shadow .14s ease}
     .monthlyDemandCard:hover{transform:translateY(-1px);border-color:var(--primary-light);box-shadow:0 10px 22px rgba(5,5,5,.08)}
+    .resourceCardGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    @media (max-width:900px){.resourceCardGrid{grid-template-columns:1fr}}
     .field input.locked{cursor:not-allowed;background:#f3f4f6;color:var(--muted);border-color:var(--border)}
     /* Compact fields: avoid min-width overflow when a field wrapper has max-width */
     .field.compact input,.field.compact select{min-width:0;width:120px}
@@ -8390,6 +8392,95 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
   };
 
 
+
+  const monthlyExecutionDailySeries = (dateStr=todayISO()) => {
+    const base = isoToLocalMidnight(dateStr) || new Date();
+    return getDaysInMonth(base.getFullYear(), base.getMonth()).map(dayObj => {
+      const date = formatDate(dayObj);
+      const rows = dailyResourceExecutionRows(date, { includeAllResources:false });
+      const planned = roundDemandHours(rows.reduce((acc, r) => acc + Number(r.planned || 0), 0));
+      const executed = roundDemandHours(rows.reduce((acc, r) => acc + Number(r.real || 0), 0));
+      return { date, day:dayObj.getDate(), planned, executed };
+    });
+  };
+
+  const buildMonthlyExecutionSvg = (dateStr=todayISO()) => {
+    const ns = 'http://www.w3.org/2000/svg';
+    const series = monthlyExecutionDailySeries(dateStr);
+    const width = 1120;
+    const height = 360;
+    const left = 58;
+    const right = 24;
+    const top = 42;
+    const bottom = 54;
+    const plotW = width - left - right;
+    const plotH = height - top - bottom;
+    const maxValue = Math.max(1, ...series.flatMap(p => [Number(p.planned || 0), Number(p.executed || 0)]));
+    const barGroupW = plotW / Math.max(1, series.length);
+    const barW = Math.max(5, Math.min(14, (barGroupW - 6) / 2));
+    const monthLabel = (isoToLocalMidnight(dateStr) || new Date()).toLocaleString('pt-BR', { month:'long', year:'numeric' });
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', String(width));
+    svg.setAttribute('height', String(height));
+    svg.setAttribute('style', 'max-width:100%;height:auto;display:block;');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `Gráfico mensal de execução diária - ${monthLabel}`);
+    const make = (tag, attrs={}, text='') => {
+      const node = document.createElementNS(ns, tag);
+      for (const [k,v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== '') node.textContent = String(text);
+      svg.appendChild(node);
+      return node;
+    };
+    make('defs');
+    const defs = svg.querySelector('defs');
+    const grad = (id, stops) => {
+      const g = document.createElementNS(ns, 'linearGradient');
+      g.setAttribute('id', id);
+      g.setAttribute('x1', '0%'); g.setAttribute('x2', '0%'); g.setAttribute('y1', '100%'); g.setAttribute('y2', '0%');
+      for (const [offset, color] of stops) {
+        const st = document.createElementNS(ns, 'stop');
+        st.setAttribute('offset', offset);
+        st.setAttribute('stop-color', color);
+        g.appendChild(st);
+      }
+      defs.appendChild(g);
+    };
+    grad('monthlyPlannedGrad', [['0%', '#E5E7EB'], ['100%', '#050505']]);
+    grad('monthlyExecutedGrad', [['0%', '#BBF7D0'], ['100%', '#15803D']]);
+    make('rect', { x:0, y:0, width, height, rx:0, fill:'#fff' });
+    make('text', { x:left, y:24, fill:'var(--text)', 'font-size':16, 'font-weight':950, 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, `Execução diária mensal - ${monthLabel}`);
+    make('text', { x:width-right, y:24, fill:'var(--muted)', 'font-size':11, 'font-weight':800, 'text-anchor':'end', 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, 'Planejado x Executado (h)');
+    for (let i = 0; i <= 4; i++) {
+      const value = (maxValue / 4) * i;
+      const y = top + plotH - (value / maxValue) * plotH;
+      make('line', { x1:left, y1:y, x2:width-right, y2:y, stroke:'var(--border)', 'stroke-width':1 });
+      make('text', { x:left-8, y:y+4, fill:'var(--muted)', 'font-size':10, 'font-weight':750, 'text-anchor':'end', 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, fmtHours(value));
+    }
+    series.forEach((p, i) => {
+      const x0 = left + i * barGroupW + Math.max(2, (barGroupW - (barW * 2 + 3)) / 2);
+      const plannedH = (Number(p.planned || 0) / maxValue) * plotH;
+      const executedH = (Number(p.executed || 0) / maxValue) * plotH;
+      const planned = make('rect', { x:x0, y:top + plotH - plannedH, width:barW, height:plannedH, rx:Math.min(5, barW/2), fill:'url(#monthlyPlannedGrad)' });
+      const plannedTip = document.createElementNS(ns, 'title');
+      plannedTip.textContent = `${formatDateBR(p.date)} | Planejado ${fmtHours(p.planned)}h`;
+      planned.appendChild(plannedTip);
+      const executed = make('rect', { x:x0 + barW + 3, y:top + plotH - executedH, width:barW, height:executedH, rx:Math.min(5, barW/2), fill:'url(#monthlyExecutedGrad)' });
+      const executedTip = document.createElementNS(ns, 'title');
+      executedTip.textContent = `${formatDateBR(p.date)} | Executado ${fmtHours(p.executed)}h`;
+      executed.appendChild(executedTip);
+      if (series.length <= 31 && (p.day === 1 || p.day % 2 === 0 || i === series.length - 1)) {
+        make('text', { x:x0 + barW + 1.5, y:height-30, fill:'var(--muted)', 'font-size':10, 'font-weight':800, 'text-anchor':'middle', 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, String(p.day));
+      }
+    });
+    make('rect', { x:left, y:height-15, width:14, height:10, rx:2, fill:'url(#monthlyPlannedGrad)' });
+    make('text', { x:left+20, y:height-6, fill:'var(--text)', 'font-size':12, 'font-weight':800, 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, 'Planejado');
+    make('rect', { x:left+120, y:height-15, width:14, height:10, rx:2, fill:'url(#monthlyExecutedGrad)' });
+    make('text', { x:left+140, y:height-6, fill:'var(--text)', 'font-size':12, 'font-weight':800, 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, 'Executado');
+    return svg;
+  };
+
   const monthlyDemandExecutionSummary = (dateStr=todayISO()) => {
     const base = isoToLocalMidnight(dateStr) || new Date();
     const year = base.getFullYear();
@@ -8493,7 +8584,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     ].filter(Boolean));
 
     const resourceCards = resourceRows.length
-      ? el('div', { style:'display:grid;gap:10px' }, resourceRows.map(row => {
+      ? el('div', { class:'resourceCardGrid' }, resourceRows.map(row => {
           const maxHours = Math.max(1, row.planned, row.real);
           const plannedW = Math.max(4, Math.round((row.planned / maxHours) * 100));
           const realW = Math.max(4, Math.round((row.real / maxHours) * 100));
@@ -8514,14 +8605,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
               el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
                 el('div', { class:'tiny muted' }, ['Planejado']),
                 el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
-                  el('div', { title:`Planejado: ${fmtHours(row.planned)}h`, style:`width:${plannedW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),#8db7ff)` })
+                  el('div', { title:`Planejado: ${fmtHours(row.planned)}h`, style:`width:${plannedW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,#E5E7EB,#050505)` })
                 ]),
                 el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.planned)}h`])
               ]),
               el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
                 el('div', { class:'tiny muted' }, ['Executado']),
                 el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
-                  el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:${realW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--success),#9be7b2)` })
+                  el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:${realW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,#BBF7D0,#15803D)` })
                 ]),
                 el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.real)}h`])
               ]),
@@ -8549,6 +8640,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
           metric('Extra', `${fmtHours(totalsWithInternal.extra)}h`, 'executado acima da meta', totalsWithInternal.extra > 0 ? 'warn' : ''),
         ]),
+        card('Gráfico mensal de execução', el('div', { class:'row', style:'gap:8px;justify-content:flex-end' }, [
+          el('span', { class:'pill' }, ['Planejado: cinza claro → preto']),
+          el('span', { class:'pill info' }, ['Executado: verde claro → verde escuro'])
+        ]), el('div', { style:'max-width:100%;overflow:auto' }, [buildMonthlyExecutionSvg(dailyExecutionDate || todayISO())])),
         card('Demandas mensais', null, el('button', { type:'button', class:'monthlyDemandCard', onclick:() => openMonthlyDemandExecutionModal(dailyExecutionDate || todayISO()) }, [
           el('div', { style:'font-weight:950' }, ['Avaliar demandas do mês selecionado']),
           el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Clique para comparar planejamento, execução real, aderência e apontamentos por demanda no mês.'])
