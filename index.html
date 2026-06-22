@@ -10683,6 +10683,62 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         })()
       ]) : el('div', { class:'hint tiny' }, ['Nenhuma demanda planejada ou apontada hoje para o usuário atual.'])
     ]));
+    const launchExecutionDate = dailyExecutionDate || today;
+    const launchExecutionRows = resourceIds.length
+      ? dailyResourceExecutionRows(launchExecutionDate).filter(row => resourceIds.includes(String(row.resource?.id || '')))
+      : [];
+    const launchExecutionTotals = {
+      planned: launchExecutionRows.reduce((acc, r) => acc + Number(r.planned || 0), 0),
+      real: launchExecutionRows.reduce((acc, r) => acc + Number(r.real || 0), 0),
+      internal: launchExecutionRows.reduce((acc, r) => acc + Number(r.internalReal || 0), 0),
+      apontamentos: launchExecutionRows.reduce((acc, r) => acc + r.items.filter(i => i.type === 'demand').length, 0),
+    };
+    launchExecutionTotals.adherence = launchExecutionTotals.planned > 0 ? (launchExecutionTotals.real / launchExecutionTotals.planned) * 100 : (launchExecutionTotals.real > 0 ? 100 : 0);
+    launchExecutionTotals.pending = Math.max(0, launchExecutionTotals.planned - launchExecutionTotals.real);
+    const launchExecutionPct = (value) => `${Math.max(0, Number(value || 0)).toFixed(0)}%`;
+    const launchExecutionPanel = card('Execuções Diárias', el('div', { class:'row toolbarAligned', style:'gap:8px;justify-content:flex-end' }, [
+      el('div', { class:'field', style:'max-width:160px' }, [el('label', {}, ['Data']), el('input', { type:'date', value:launchExecutionDate, onchange:(ev) => { dailyExecutionDate = ev.target.value || todayISO(); render(); } })]),
+      button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); })
+    ]), el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'tiny muted' }, ['Recorte individual do usuário logado: meta diária, executado e aderência dos recursos vinculados à sessão.']),
+      !hasUser() ? el('div', { class:'warn' }, ['Defina o usuário no topo da tela para ver sua execução diária individual.']) : null,
+      hasUser() && !resourceIds.length ? el('div', { class:'hint tiny' }, ['Nenhum recurso vinculado ao usuário atual.']) : null,
+      resourceIds.length ? el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px' }, [
+        myMetric('Meta', `${fmtHours(launchExecutionTotals.planned)}h`, 'dia selecionado'),
+        myMetric('Executado', `${fmtHours(launchExecutionTotals.real)}h`, `${launchExecutionTotals.apontamentos} apontamento(s)`),
+        myMetric('Aderência', launchExecutionPct(launchExecutionTotals.adherence), 'executado ÷ meta'),
+        myMetric('Pendente', `${fmtHours(launchExecutionTotals.pending)}h`, 'saldo do dia')
+      ]) : null,
+      launchExecutionRows.length ? el('div', { class:'grid', style:'gap:8px' }, launchExecutionRows.map(row => {
+        const maxHours = Math.max(1, Number(row.planned || 0), Number(row.real || 0));
+        const plannedW = Math.max(4, Math.round((Number(row.planned || 0) / maxHours) * 100));
+        const realW = Math.max(4, Math.round((Number(row.real || 0) / maxHours) * 100));
+        const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
+        const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
+        return el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:#fff' }, [
+          el('div', { style:'display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap' }, [
+            el('button', { type:'button', style:'font-weight:950;text-align:left;padding:0;border:0;background:transparent;color:var(--primary);cursor:pointer', onclick:() => openDailyResourceLaunchesModal(row, launchExecutionDate) }, [resourceName]),
+            el('span', { class:`pill ${adherence < 80 ? 'warn' : adherence > 130 ? 'bad' : 'info'}` }, [launchExecutionPct(adherence)])
+          ]),
+          el('div', { style:'display:grid;grid-template-columns:74px 1fr 48px;gap:8px;align-items:center;margin-top:8px' }, [
+            el('div', { class:'tiny muted' }, ['Meta']),
+            el('div', { style:'height:12px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
+              el('div', { title:`Meta: ${fmtHours(row.planned)}h`, style:`width:${plannedW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,#E5E7EB,#050505)` })
+            ]),
+            el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.planned)}h`])
+          ]),
+          el('div', { style:'display:grid;grid-template-columns:74px 1fr 48px;gap:8px;align-items:center;margin-top:6px' }, [
+            el('div', { class:'tiny muted' }, ['Exec.']),
+            el('div', { style:'height:12px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
+              el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:${realW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,#BBF7D0,#15803D)` })
+            ]),
+            el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.real)}h`])
+          ]),
+          el('div', { class:'tiny muted', style:'margin-top:7px' }, [`Demandas: ${fmtHours(row.demandReal)}h · Internas: ${fmtHours(row.internalReal)}h`])
+        ]);
+      })) : (resourceIds.length ? el('div', { class:'hint tiny' }, ['Nenhuma execução encontrada para seus recursos na data selecionada.']) : null)
+    ].filter(Boolean)));
+
     const userDemandRows = (state.demands || [])
       .filter(d => resourceIds.length && demandAssignedResourceIds(d).some(rid => resourceIds.includes(String(rid))))
       .filter(d => !['Concluída','Congelada'].includes(effectiveStatus(d)))
@@ -10829,7 +10885,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]));
 
     return el('div',{class:'grid'},[
-      el('div', { class:'split' }, [myDayPanel, modeSelector]),
+      el('div', { class:'split' }, [myDayPanel, launchExecutionPanel, modeSelector]),
       launchMode === 'internal' ? internalActivityPanel : demandLaunchPanel
     ]);
   };
