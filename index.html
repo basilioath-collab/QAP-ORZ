@@ -293,6 +293,7 @@
     .s-andamento{background:var(--primary-soft);border-color:var(--primary-light);color:var(--primary)}
     .s-atrasada{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger)}
     .s-concluida{background:var(--success-soft);border-color:var(--success);color:var(--success)}
+    .s-cancelada{background:#F1F5F9;border-color:#94A3B8;color:#475569}
     .s-mapeada{background:var(--surface);border-color:var(--border);color:var(--muted)}
     .s-congelada{background:rgba(6,182,212,.14);border-color:var(--progress-cyan);color:#0E7490}
     .s-suspensa{background:var(--alert-soft);border-color:var(--alert);color:var(--alert)}
@@ -663,6 +664,37 @@ main{padding:14px;overflow-x:hidden}
   }
 }
 
+
+/* --- Cadastro de Demandas: layout padronizado em blocos --- */
+#demandsFormCard .demandCreateIntro{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--primary-wash)}
+#demandsFormCard .demandCreateIntro strong{display:block;font-size:13px;font-weight:950;color:var(--text)}
+#demandsFormCard .demandCreateIntro span{display:block;margin-top:3px;font-size:12px;font-weight:750;color:var(--muted);line-height:1.35}
+#demandsFormCard .demandCreateForm{display:grid;gap:14px}
+#demandsFormCard .demandCreateSection{border:1px solid var(--border);border-radius:18px;background:#fff;padding:14px;box-shadow:0 8px 18px rgba(5,5,5,.035)}
+#demandsFormCard .demandCreateSectionTitle{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;font-weight:950;color:var(--text);letter-spacing:.02em;text-transform:uppercase}
+#demandsFormCard .demandCreateSectionTitle .step{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:11px;font-weight:950}
+#demandsFormCard .demandCreateGrid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;align-items:start}
+#demandsFormCard .demandCreateField{min-width:0 !important;width:100%;display:flex;flex-direction:column;gap:6px}
+#demandsFormCard .demandCreateField.span-12{grid-column:span 12}
+#demandsFormCard .demandCreateField.span-8{grid-column:span 8}
+#demandsFormCard .demandCreateField.span-6{grid-column:span 6}
+#demandsFormCard .demandCreateField.span-4{grid-column:span 4}
+#demandsFormCard .demandCreateField.span-3{grid-column:span 3}
+#demandsFormCard .demandCreateField input,
+#demandsFormCard .demandCreateField select{width:100%;min-width:0;height:42px}
+#demandsFormCard .demandCreateField textarea{width:100%;min-width:0}
+#demandsFormCard .demandCreateAllocationBox{border:1px solid rgba(138,212,32,.28);border-radius:16px;background:linear-gradient(180deg,rgba(138,212,32,.08),rgba(255,255,255,.92));padding:12px}
+#demandsFormCard .demandCreateAllocationBox .demandCreateGrid{gap:12px}
+#demandsFormCard .demandCreateActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:2px}
+#demandsFormCard .demandPercField .respAllocEditor{grid-template-columns:minmax(0,1fr) 110px}
+#demandsFormCard .demandPercField .respAllocEditor input{height:42px}
+@media (max-width:900px){
+  #demandsFormCard .demandCreateField.span-8,
+  #demandsFormCard .demandCreateField.span-6,
+  #demandsFormCard .demandCreateField.span-4,
+  #demandsFormCard .demandCreateField.span-3{grid-column:span 12}
+}
+
 /* --- Modal Editar Demanda: corrige largura e empilhamento dos campos de alocação --- */
 #demandEditModalBody .demandEditAllocRow{
   align-items:flex-start;
@@ -869,6 +901,20 @@ main{padding:14px;overflow-x:hidden}
         <button class="btn ghost" id="demandEditModalClose" type="button">Fechar ×</button>
       </div>
       <div class="modalBd" id="demandEditModalBody"></div>
+    </div>
+  </dialog>
+
+
+  <dialog id="demandStatusModal" class="modal">
+    <div class="modalCard">
+      <div class="modalHd">
+        <div>
+          <div class="modalTitle" id="demandStatusModalTitle">Alterar situação da demanda</div>
+          <div class="modalSub" id="demandStatusModalSub">Justificativa obrigatória.</div>
+        </div>
+        <button class="btn ghost" id="demandStatusModalClose" type="button">Fechar ×</button>
+      </div>
+      <div class="modalBd" id="demandStatusModalBody"></div>
     </div>
   </dialog>
 
@@ -2566,7 +2612,7 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Status (padrão)
   // ----------------------
-  const STATUS = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada'];
+  const STATUS = ['Em andamento','Atrasada','Concluída','Cancelada','Mapeada','Congelada'];
   const STATUS_COUNTS_IN_ALLOCATION = new Set(['Em andamento','Atrasada']);
 
   const normalizeStatus = (s) => {
@@ -2576,6 +2622,7 @@ main{padding:14px;overflow-x:hidden}
     if (v.toLowerCase() === 'planejada') return 'Mapeada';
     if (v.toLowerCase() === 'em andamento') return 'Em andamento';
     if (v.toLowerCase() === 'concluída' || v.toLowerCase() === 'concluida') return 'Concluída';
+    if (v.toLowerCase() === 'cancelada' || v.toLowerCase() === 'cancelado' || v.toLowerCase() === 'cancelada') return 'Cancelada';
     if (v.toLowerCase() === 'suspensa') return 'Congelada';
     if (v.toLowerCase() === 'atrasada') return 'Atrasada';
     if (v.toLowerCase() === 'mapeada') return 'Mapeada';
@@ -2906,8 +2953,8 @@ main{padding:14px;overflow-x:hidden}
 
   const effectiveStatus = (demand) => {
     const base = normalizeStatus(demand?.status);
-    // Concluída e Congelada nunca viram atrasadas automaticamente
-    if (base === 'Concluída' || base === 'Congelada') return base;
+    // Concluída, Cancelada e Congelada nunca viram atrasadas automaticamente
+    if (base === 'Concluída' || base === 'Cancelada' || base === 'Congelada') return base;
     const prazo = (demand?.data_fim||'').trim();
     // Atrasada começa no DIA SEGUINTE ao prazo (HOJE > data_fim)
     if (prazo && todayISO() > prazo) return 'Atrasada';
@@ -3097,6 +3144,7 @@ main{padding:14px;overflow-x:hidden}
     'Em andamento': '#4F46E5',
     'Atrasada': '#E52525',
     'Concluída': '#1BAA55',
+    'Cancelada': '#64748B',
     'Mapeada': '#9BAEC1',
     'Congelada': '#D28A00'
   };
@@ -5534,7 +5582,7 @@ main{padding:14px;overflow-x:hidden}
     const activeResources = state.resources.filter(r => r.ativo !== false).length;
     const logicalDemands = groupDemandsForDisplay(demandsList || []);
     const totalDemands = logicalDemands.length;
-    const openDemands = logicalDemands.filter(d => effectiveStatus(d) !== 'Concluída').length;
+    const openDemands = logicalDemands.filter(d => !['Concluída','Cancelada'].includes(effectiveStatus(d))).length;
     return { totalResources, activeResources, totalDemands, openDemands };
   };
 
@@ -5750,12 +5798,108 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Editar Demanda (modal com justificativa opcional)
   // ----------------------
-  const openDemandEditModal = (demand) => {
+  const requestDemandStatusJustificationWithText = (demand, nextStatus, justification, { silent=false, actionDate='' } = {}) => {
+    if (!demand) return false;
+    const normalizedNextStatus = normalizeStatus(nextStatus);
+    const currentStatus = effectiveStatus(demand);
+    if (currentStatus === normalizedNextStatus) {
+      if (!silent) toast(`Demanda já está ${normalizedNextStatus.toLowerCase()}.`);
+      return false;
+    }
+    const justValidation = validateTextLimit(justification, 'Justificativa', INPUT_LIMITS.justification, { required:true });
+    if (justValidation) { if (!silent) toast(justValidation); return false; }
+    const latestDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    const next = {
+      ...latestDemand,
+      status: normalizedNextStatus,
+      status_reason: justification,
+      status_reason_type: normalizedNextStatus,
+      status_changed_at: Date.now(),
+      status_action_date: actionDate || todayISO(),
+      status_changed_by: userName || 'Sessão local',
+      status_changed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: justification,
+    };
+    state.events = [...state.events, {
+      id: generateId('event'),
+      type:'CHANGE_DEMAND_STATUS',
+      payload:{ demand_id: latestDemand.id, before:{ status: currentStatus }, after:{ status: normalizedNextStatus, action_date: actionDate || todayISO() }, justification },
+      timestamp: Date.now(),
+      user: userName,
+      user_id: userId || ''
+    }];
+    dispatch('UPDATE_DEMAND', next);
+    if (!silent) {
+      render();
+      toast(`Demanda ${normalizedNextStatus.toLowerCase()}.`);
+    }
+    return true;
+  };
+
+  const requestDemandStatusJustification = (demand, nextStatus, actionLabel) => {
+    if (!demand) return;
+    const normalizedNextStatus = normalizeStatus(nextStatus);
+    if (effectiveStatus(demand) === normalizedNextStatus) {
+      toast(`Demanda já está ${normalizedNextStatus.toLowerCase()}.`);
+      return;
+    }
+    const justification = String(prompt(`Informe a justificativa para ${actionLabel.toLowerCase()} a demanda "${demand.titulo || demand.id || ''}":`) || '').trim();
+    requestDemandStatusJustificationWithText(demand, normalizedNextStatus, justification);
+  };
+
+  const openDemandStatusActionModal = (demand, nextStatus) => {
+    const dlg = qs('#demandStatusModal');
+    if (!dlg || !demand) return;
+    const normalizedNextStatus = normalizeStatus(nextStatus);
+    const actionName = normalizedNextStatus === 'Cancelada' ? 'cancelamento' : 'conclusão';
+    qs('#demandStatusModalTitle').textContent = normalizedNextStatus === 'Cancelada' ? 'Cancelar demanda' : 'Concluir demanda';
+    qs('#demandStatusModalSub').textContent = `Justificativa obrigatória para ${actionName} da demanda.`;
+    const body = qs('#demandStatusModalBody');
+    body.innerHTML = '';
+
+    const actionDate = el('input', { type:'date', value: todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const justification = el('textarea', { placeholder:`Descreva a justificativa obrigatória para ${actionName}...`, maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const save = () => {
+      const dateVal = String(actionDate.value || '').trim();
+      const dateValidation = validateDateYearLimit(dateVal, 'Data da ação');
+      if (dateValidation) return toast(dateValidation);
+      if (!isISODateString(dateVal)) return toast('Data da ação: informe uma data válida.');
+      const text = String(justification.value || '').trim();
+      const justValidation = validateTextLimit(text, 'Justificativa', INPUT_LIMITS.justification, { required:true });
+      if (justValidation) return toast(justValidation);
+      const changed = requestDemandStatusJustificationWithText(demand, normalizedNextStatus, text, { actionDate: dateVal });
+      if (changed) { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }
+    };
+
+    body.appendChild(el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'hint' }, [
+        el('b', {}, [demand.titulo || 'Demanda']),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Situação atual: ${effectiveStatus(demand)} → ${normalizedNextStatus}`])
+      ]),
+      el('div', { class:'row' }, [
+        el('div', { class:'field' }, [el('label', {}, ['Data da ação']), actionDate]),
+        el('div', { class:'field' }, [el('label', {}, ['Nova situação']), el('input', { value: normalizedNextStatus, disabled:'', readonly:'' })]),
+      ]),
+      el('div', { class:'field' }, [el('label', {}, [`Justificativa obrigatória para ${actionName}`]), justification]),
+      el('div', { class:'row end' }, [
+        button('Fechar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
+        button(normalizedNextStatus === 'Cancelada' ? 'Confirmar cancelamento' : 'Confirmar conclusão', 'primary', save),
+      ])
+    ]));
+    openDialog(dlg);
+  };
+
+  const openDemandEditModal = (demand, { viewOnly=false, targetStatus='' } = {}) => {
+    const isFinalView = viewOnly || ['Concluída','Cancelada'].includes(effectiveStatus(demand));
     const dlg = qs('#demandEditModal');
     const resMap = resourceById();
 
-    qs('#demandEditModalTitle').textContent = `Editar demanda - ${demand.titulo}`;
-    qs('#demandEditModalSub').textContent = 'Justificativa opcional (fica registrada no histórico se preenchida).';
+    qs('#demandEditModalTitle').textContent = `${isFinalView ? 'Visualizar demanda' : 'Editar demanda'} - ${demand.titulo}`;
+    qs('#demandEditModalSub').textContent = isFinalView
+      ? 'Demanda bloqueada para edição. Apenas a situação pode ser alterada com justificativa.'
+      : 'Justificativa opcional (fica registrada no histórico se preenchida).';
 
     const body = qs('#demandEditModalBody');
     body.innerHTML = '';
@@ -5899,18 +6043,19 @@ main{padding:14px;overflow-x:hidden}
     ]);
     prioridade.value = demand.prioridade || 'Média';
 
-    const status = el('select', {}, [
+    const status = el('select', { 'data-final-view-editable':'true' }, [
         el('option', { value:'Em andamento' }, ['Em andamento']),
         el('option', { value:'Atrasada', disabled:'' }, ['Atrasada (automático)']),
         el('option', { value:'Concluída' }, ['Concluída']),
+      el('option', { value:'Cancelada' }, ['Cancelada']),
       el('option', { value:'Mapeada' }, ['Mapeada (sem responsável)']),
       el('option', { value:'Congelada' }, ['Congelada']),
     ]);
-    status.value = normalizeStatus(demand.status);
+    status.value = targetStatus ? normalizeStatus(targetStatus) : normalizeStatus(demand.status);
 
     const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [demand.observacoes || '']);
 
-    const just = el('textarea', { placeholder:'Justificativa (opcional)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px' });
+    const just = el('textarea', { placeholder: isFinalView ? 'Justificativa obrigatória para alterar a situação...' : 'Justificativa (opcional)...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:92px', 'data-final-view-editable':'true' });
     const justHint = el('div', { class:'tiny muted' }, [
       'Se você preencher, a justificativa será registrada no histórico (events) do app para rastreabilidade.'
     ]);
@@ -6201,8 +6346,13 @@ main{padding:14px;overflow-x:hidden}
       const iniVal = (ini.value || '').trim();
       const fimVal = (fim.value || '').trim();
       const obsVal = (obs.value || '').trim();
-      const justValidation = validateTextLimit(justification, 'Justificativa', INPUT_LIMITS.justification);
+      const justValidation = validateTextLimit(justification, 'Justificativa', INPUT_LIMITS.justification, { required: isFinalView && normalizeStatus(status.value) !== normalizeStatus(demand.status) });
       if (justValidation) { toast(justValidation); return; }
+      if (isFinalView) {
+        const changed = requestDemandStatusJustificationWithText(demand, nextStatus, justification);
+        if (changed) { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }
+        return;
+      }
       const demandValidation = validateDemandFields({
         titulo: titleVal,
         predio: predioVal,
@@ -6266,9 +6416,10 @@ main{padding:14px;overflow-x:hidden}
       toast('Demanda atualizada.');
     };
 
-	    saveBtn = button('Salvar alterações', 'primary', save);
+	    saveBtn = button(isFinalView ? 'Salvar situação' : 'Salvar alterações', 'primary', save);
+	    saveBtn.setAttribute('data-final-view-action', 'true');
 	    const footer = el('div', { class:'row', style:'justify-content:flex-end;gap:10px;margin-top:10px' }, [
-      button('Cancelar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
+      button(isFinalView ? 'Fechar' : 'Cancelar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
 	      saveBtn,
     ]);
 
@@ -6308,6 +6459,16 @@ main{padding:14px;overflow-x:hidden}
 	      el('div', { class:'field' }, [el('label', {}, ['Justificativa (opcional)']), just, justHint]),
       footer
     ]));
+
+    if (isFinalView) {
+      footer.querySelectorAll('button').forEach(btn => btn.setAttribute('data-final-view-action', 'true'));
+      body.querySelectorAll('input, textarea, select, button').forEach(ctrl => {
+        if (ctrl.matches('[data-final-view-editable=\"true\"], [data-final-view-action=\"true\"]')) return;
+        ctrl.disabled = true;
+        ctrl.setAttribute('aria-disabled', 'true');
+      });
+      responsavel.classList.add('disabled');
+    }
 
     openDialog(dlg);
   };
@@ -6887,7 +7048,7 @@ main{padding:14px;overflow-x:hidden}
     const currentNameKey = personMatchKey(userName);
     return (state.demands || [])
       .filter(d => d && String(d.id || '').trim())
-      .filter(d => effectiveStatus(d) !== 'Concluída')
+      .filter(d => !['Concluída','Cancelada'].includes(effectiveStatus(d)))
       .map(d => {
         const assignedIds = demandAssignedResourceIds(d).filter(rid => ownResourceIds.has(String(rid)));
         if (!assignedIds.length) return null;
@@ -7062,7 +7223,7 @@ main{padding:14px;overflow-x:hidden}
     // Aceita string (status) OU um objeto demanda (para tooltip/?cone)
     const isObj = statusOrDemand && typeof statusOrDemand === 'object';
     const s = isObj ? effectiveStatus(statusOrDemand) : normalizeStatus(statusOrDemand);
-    const key = (s === 'Em andamento') ? 'andamento' : (s === 'Atrasada') ? 'atrasada' : (s === 'Concluída') ? 'concluida' : (s === 'Mapeada') ? 'mapeada' : (s === 'Congelada') ? 'congelada' : 'planejada';
+    const key = (s === 'Em andamento') ? 'andamento' : (s === 'Atrasada') ? 'atrasada' : (s === 'Concluída') ? 'concluida' : (s === 'Cancelada') ? 'cancelada' : (s === 'Mapeada') ? 'mapeada' : (s === 'Congelada') ? 'congelada' : 'planejada';
     const title = isObj ? (overdueTooltip(statusOrDemand) || '') : '';
     const children = [
       el('span', { class:'sDot' }, []),
@@ -7551,7 +7712,7 @@ function buildConsolidatedYearSeries(year) {
     const tableBlock = el('div', {}, [table, sheetPager]);
 
     const statusCounts = (() => {
-      const counts = { 'Em andamento':0, 'Atrasada':0, 'Concluída':0, 'Mapeada':0, 'Congelada':0 };
+      const counts = { 'Em andamento':0, 'Atrasada':0, 'Concluída':0, 'Cancelada':0, 'Mapeada':0, 'Congelada':0 };
       for (const d of (dashboardFilteredDemands||[])) {
         const st = effectiveStatus(d);
         if (counts[st] === undefined) counts[st] = 0;
@@ -7599,7 +7760,7 @@ function buildConsolidatedYearSeries(year) {
     })();
 
     const donutNode = (() => {
-      const order = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada'];
+      const order = ['Em andamento','Atrasada','Concluída','Cancelada','Mapeada','Congelada'];
       const colors = STATUS_COLORS;
       const realTotal = order.reduce((a,k)=>a+(statusCounts[k]||0),0);
 
@@ -7659,7 +7820,7 @@ function buildConsolidatedYearSeries(year) {
         const active = (dashboardFilteredDemands||[]).filter(d => {
           if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(r.id))) return false;
           const st = effectiveStatus(d);
-          if (st === 'Mapeada' || st === 'Concluída') return false;
+          if (st === 'Mapeada' || st === 'Concluída' || st === 'Cancelada') return false;
           // overlap com o mês
           const start = d.data_inicio;
           const end = d.data_fim;
@@ -9139,27 +9300,66 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         toast('Demanda adicionada.');
       };
 
-      const right = el('div', { class:'row' }, [button('Adicionar', 'primary', submit)]);
-      const body = el('div', { class:'split' }, [
-        el('div', {}, [
-          el('div', { class:'row' }, [
-            el('div', { class:'field', style:'flex:2 1 360px' }, [el('label', {}, ['Título']), titulo]),
-            el('div', { class:'field', style:'flex:1 1 180px' }, [el('label', {}, ['Prioridade']), prioridade]),
+      const resetDemandForm = () => {
+        clearDemandCreateDraft();
+        titulo.value='';
+        predio.value='';
+        focal.value='';
+        selectedRespIds.clear();
+        respHoursById.clear();
+        respSearch.value='';
+        ini.value='';
+        fim.value='';
+        obs.value='';
+        prioridade.value='Média';
+        status.value='Mapeada';
+        syncMapeada();
+        toast('Formulário de demanda limpo.');
+      };
+
+      const right = null;
+      const sectionTitle = (num, text) => el('div', { class:'demandCreateSectionTitle' }, [el('span', { class:'step' }, [String(num)]), text]);
+      const body = el('div', { class:'demandCreateForm' }, [
+        el('div', { class:'demandCreateIntro' }, [
+          el('div', {}, [
+            el('strong', {}, ['Novo cadastro de demanda']),
+            el('span', {}, ['Preencha identificação, planejamento e alocação seguindo um fluxo padronizado.'])
           ]),
-          el('div', { class:'row' }, [
-            el('div', { class:'field' }, [el('label', {}, ['Prédio']), predio]),
-            el('div', { class:'field' }, [el('label', {}, ['Focal']), focal]),
-          ]),
-          el('div', { class:'row demandAllocationRow' }, [
-            el('div', { class:'field demandRespField' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandPercField' }, [el('label', {}, ['Dedicação diária']), respAllocEditor, respAllocList]),
-            el('div', { class:'field demandStatusField' }, [el('label', {}, ['Status']), status]),
-          ]),
-          el('div', { class:'row' }, [
-            el('div', { class:'field' }, [el('label', {}, ['Início']), ini]),
-            el('div', { class:'field' }, [el('label', {}, ['Fim']), fim]),
-          ]),
-          el('div', { class:'field' }, [el('label', {}, ['Observações']), obs])
+          el('span', { class:'pill info' }, ['Rascunho salvo automaticamente'])
+        ]),
+        el('div', { class:'demandCreateSection' }, [
+          sectionTitle(1, 'Identificação'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Título']), titulo]),
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prioridade']), prioridade]),
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prédio']), predio]),
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal]),
+          ])
+        ]),
+        el('div', { class:'demandCreateSection' }, [
+          sectionTitle(2, 'Planejamento'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField span-4' }, [el('label', {}, ['Início']), ini]),
+            el('div', { class:'field demandCreateField span-4' }, [el('label', {}, ['Fim']), fim]),
+            el('div', { class:'field demandCreateField demandStatusField span-4' }, [el('label', {}, ['Status']), status]),
+          ])
+        ]),
+        el('div', { class:'demandCreateSection demandCreateAllocationBox' }, [
+          sectionTitle(3, 'Responsáveis e dedicação'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
+            el('div', { class:'field demandCreateField demandPercField span-4' }, [el('label', {}, ['Dedicação diária']), respAllocEditor, respAllocList]),
+          ])
+        ]),
+        el('div', { class:'demandCreateSection' }, [
+          sectionTitle(4, 'Observações'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField span-12' }, [el('label', {}, ['Observações']), obs])
+          ])
+        ]),
+        el('div', { class:'demandCreateActions' }, [
+          button('Limpar formulário', '', resetDemandForm),
+          button('Adicionar demanda', 'primary', submit)
         ])
       ]);
       const c = card('Cadastrar Demanda', right, body);
@@ -9275,12 +9475,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           toast('Demanda excluída.');
         };
 
-        tr.appendChild(el('td', {}, [
-          el('div', { class:'actionBtns' }, [
+        const finalStatus = ['Concluída','Cancelada'].includes(effectiveStatus(d));
+        const actionButtons = finalStatus
+          ? [iconButton('Visualizar', '👁', '', () => openDemandEditModal(primaryDemand, { viewOnly:true }))]
+          : [
             iconButton('Editar', '✎', '', edit),
             iconButton('Reprogramar', '↻', '', reprogram),
+            iconButton('Concluir', '✓', 'primary', () => openDemandStatusActionModal(primaryDemand, 'Concluída')),
+            iconButton('Cancelar', '✕', 'danger', () => openDemandStatusActionModal(primaryDemand, 'Cancelada')),
             iconButton('Excluir', '🗑', 'danger', del),
-          ])
+          ];
+        tr.appendChild(el('td', {}, [
+          el('div', { class:'actionBtns' }, actionButtons)
         ]));
         tb.appendChild(tr);
       }
@@ -11596,6 +11802,14 @@ return el('div', { class:'grid' }, [
   edlg.addEventListener('click', (e) => { if (e.target === edlg) { try{ edlg.close(); }catch{ edlg.removeAttribute('open'); } } });
   edlg.addEventListener('close', syncModalBlur);
   edlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ edlg.close(); }catch{ edlg.removeAttribute('open'); } syncModalBlur(); });
+
+  const statusDlg = qs('#demandStatusModal');
+  if (statusDlg) {
+    qs('#demandStatusModalClose').addEventListener('click', () => { try{ statusDlg.close(); }catch{ statusDlg.removeAttribute('open'); } syncModalBlur(); });
+    statusDlg.addEventListener('click', (e) => { if (e.target === statusDlg) { try{ statusDlg.close(); }catch{ statusDlg.removeAttribute('open'); } syncModalBlur(); } });
+    statusDlg.addEventListener('close', syncModalBlur);
+    statusDlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ statusDlg.close(); }catch{ statusDlg.removeAttribute('open'); } syncModalBlur(); });
+  }
 
 	  const rpd = qs('#demandReprogramModal');
 	  if (rpd) {
