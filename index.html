@@ -10797,7 +10797,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       selectedDemand ? el('div', { class:'grid', style:'gap:8px' }, [
         el('div', { class:'tiny muted' }, [`Histórico recente: ${selectedApontamentos.length} apontamento(s) / ${fmtHours((selectedMetrics?.realHours || 0))}h.`]),
         selectedApontamentos.length
-          ? el('div', { style:'display:flex;flex-wrap:wrap;gap:8px;align-items:stretch' }, [...selectedApontamentos].reverse().map(a => el('div', { style:`flex:1 1 calc(20% - 8px);min-width:min(100%,230px);border:1px solid ${String(a.id) === String(editingLaunchApontamentoId) ? 'var(--primary-light)' : 'var(--border)'};border-radius:14px;padding:10px 12px;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.04)` }, [
+          ? el('div', { style:'display:flex;flex-wrap:wrap;gap:8px;align-items:stretch' }, [...selectedApontamentos].reverse().map(a => el('div', { style:`flex:0 0 clamp(280px, calc(20% - 8px), 360px);max-width:100%;box-sizing:border-box;border:1px solid ${String(a.id) === String(editingLaunchApontamentoId) ? 'var(--primary-light)' : 'var(--border)'};border-radius:14px;padding:10px 12px;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.04)` }, [
               el('div', { style:'display:flex;justify-content:space-between;gap:8px;align-items:flex-start' }, [
                 el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa} - ${fmtHours(a.horas || 0)}h`]),
                 el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
