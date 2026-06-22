@@ -157,6 +157,12 @@
     .field{display:flex;flex-direction:column;gap:6px}
     .field label{font-size:12px;color:var(--muted);font-weight:800}
     .field input,.field select,.field textarea{border:1px solid var(--border);border-radius:12px;padding:10px 10px;font:inherit;background:#fff;min-width:180px}
+    .toolbarAligned{align-items:flex-end}
+    .toolbarAligned .btn{height:40px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap}
+    .monthlyDemandCard{width:100%;text-align:left;border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;cursor:pointer;transition:transform .12s ease,border-color .14s ease,box-shadow .14s ease}
+    .monthlyDemandCard:hover{transform:translateY(-1px);border-color:var(--primary-light);box-shadow:0 10px 22px rgba(5,5,5,.08)}
+    .resourceCardGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    @media (max-width:900px){.resourceCardGrid{grid-template-columns:1fr}}
     .field input.locked{cursor:not-allowed;background:#f3f4f6;color:var(--muted);border-color:var(--border)}
     /* Compact fields: avoid min-width overflow when a field wrapper has max-width */
     .field.compact input,.field.compact select{min-width:0;width:120px}
@@ -7191,7 +7197,7 @@ function buildConsolidatedMonthTotals(year, m0) {
 
       if (!isHoliday(dateStr) && !blk && !(typeof isThirdPartyOff === 'function' && isThirdPartyOff(resObj, dateStr))) {
         const info = CapacityEngine.freeHoursInfo(r.id, d);
-        dayAlloc = Math.max(0, Number(info.allocated || 0));
+        dayAlloc = Math.max(0, Number(info.allocatedFromDemandsHH || info.allocated || 0));
         dayFree = Number(info.free || 0);
       }
 
@@ -7808,7 +7814,7 @@ function buildConsolidatedYearSeries(year) {
 
       (() => {
         const series = buildConsolidatedYearSeries(year);
-const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', series });
+const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (demandas alocadas)', series });
         const totalsMonth = buildConsolidatedMonthTotals(year, (new Date()).getMonth());
         const validMonths = series.filter(m => Number(m.cap || 0) > 0);
         const avgUsage = validMonths.length
@@ -8250,39 +8256,99 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     return { start: dates[0], end: dates[dates.length - 1] };
   };
 
-  const allDailyExecutionExportRows = () => {
-    const { start, end } = executionExportDateBounds();
+  const dailyExecutionExportRowsForDate = (dateStr=todayISO()) => {
+    return dailyResourceExecutionRows(dateStr, { includeAllResources:true }).map(row => {
+      const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
+      return {
+        data: dateStr,
+        data_br: formatDateBR(dateStr),
+        recurso: row.resource?.nome || row.resource?.name || row.resource?.id || '',
+        tipo_recurso: row.resource?.tipo || '',
+        planejado_meta_horas: row.planned,
+        executado_total_horas: row.real,
+        executado_demandas_horas: row.demandReal,
+        executado_internas_horas: row.internalReal,
+        aderencia_pct: Math.round(adherence * 10) / 10,
+        saldo_horas: roundDemandHours(row.real - row.planned),
+        lancamentos_resumo: row.items.filter(i => i.type !== 'planned').map(i => `${i.type === 'internal' ? 'Interna' : 'Demanda'}: ${i.label} (${fmtHours(i.hours)}h)`).join(' | ')
+      };
+    });
+  };
+
+  const dailyExecutionExportRowsForRange = (startStr=todayISO(), endStr=startStr) => {
+    let start = normalizeDateLikeToISO(startStr) || todayISO();
+    let end = normalizeDateLikeToISO(endStr) || start;
+    if (end < start) [start, end] = [end, start];
     const rows = [];
     let cursor = start;
     let guard = 0;
     while (cursor && cursor <= end && guard < 8000) {
-      for (const row of dailyResourceExecutionRows(cursor, { includeAllResources:true })) {
-        const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
-        rows.push({
-          data: cursor,
-          data_br: formatDateBR(cursor),
-          recurso: row.resource?.nome || row.resource?.name || row.resource?.id || '',
-          tipo_recurso: row.resource?.tipo || '',
-          planejado_meta_horas: row.planned,
-          executado_total_horas: row.real,
-          executado_demandas_horas: row.demandReal,
-          executado_internas_horas: row.internalReal,
-          aderencia_pct: Math.round(adherence * 10) / 10,
-          saldo_horas: roundDemandHours(row.real - row.planned),
-          lancamentos_resumo: row.items.filter(i => i.type !== 'planned').map(i => `${i.type === 'internal' ? 'Interna' : 'Demanda'}: ${i.label} (${fmtHours(i.hours)}h)`).join(' | ')
-        });
-      }
+      rows.push(...dailyExecutionExportRowsForDate(cursor));
       cursor = addDaysISO(cursor, 1);
       guard++;
     }
-    return rows;
+    return { rows, start, end };
   };
 
-  const exportDailyExecutionAllDaysCSV = () => {
-    const rows = allDailyExecutionExportRows();
+  const exportDailyExecutionRangeCSV = (startStr=todayISO(), endStr=startStr) => {
+    const { rows, start, end } = dailyExecutionExportRowsForRange(startStr, endStr);
     const headers = ['data','data_br','recurso','tipo_recurso','planejado_meta_horas','executado_total_horas','executado_demandas_horas','executado_internas_horas','aderencia_pct','saldo_horas','lancamentos_resumo'];
-    downloadText(`execucao_diaria_todos_recursos_${formatDate(new Date())}.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
-    toast('CSV de Execução diária exportado com todos os dias e recursos.');
+    const rangeLabel = start === end ? start : `${start}_a_${end}`;
+    downloadText(`execucao_diaria_${rangeLabel}_todos_recursos.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
+    toast(start === end
+      ? `CSV de Execução diária exportado para ${formatDateBR(start)}.`
+      : `CSV de Execução diária exportado de ${formatDateBR(start)} até ${formatDateBR(end)}.`);
+  };
+
+  const openDailyExecutionExportModal = () => {
+    let dlg = qs('#dailyExecutionExportModal');
+    if (dlg) dlg.remove();
+    const bounds = executionExportDateBounds();
+    const defaultDate = dailyExecutionDate || todayISO();
+    const startDateInput = el('input', { type:'date', value:defaultDate, min:bounds.start, max:bounds.end });
+    const endDateInput = el('input', { type:'date', value:defaultDate, min:bounds.start, max:bounds.end });
+    const status = el('div', { class:'tiny muted', style:'margin-top:8px' }, ['Informe a data inicial e final para exportar o período desejado.']);
+    const syncBounds = () => {
+      if (startDateInput.value) endDateInput.min = startDateInput.value;
+      if (endDateInput.value) startDateInput.max = endDateInput.value;
+    };
+    startDateInput.onchange = syncBounds;
+    endDateInput.onchange = syncBounds;
+    syncBounds();
+    const confirm = () => {
+      const start = normalizeDateLikeToISO(startDateInput.value || defaultDate);
+      const end = normalizeDateLikeToISO(endDateInput.value || start || defaultDate);
+      if (!start || !end) {
+        status.textContent = 'Selecione uma data inicial e uma data final válidas.';
+        status.style.color = 'var(--danger)';
+        return;
+      }
+      exportDailyExecutionRangeCSV(start, end);
+      closeDialog(dlg);
+    };
+    dlg = el('dialog', { id:'dailyExecutionExportModal', class:'modal' }, [
+      el('div', { class:'modalCard' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [
+            el('div', { class:'modalTitle' }, ['Exportar execução diária']),
+            el('div', { class:'modalSub' }, ['Escolha a data inicial e final que deseja exportar para todos os recursos.'])
+          ]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [
+          el('div', { class:'row toolbarAligned' }, [
+            el('div', { class:'field', style:'max-width:220px' }, [el('label', {}, ['Data inicial']), startDateInput]),
+            el('div', { class:'field', style:'max-width:220px' }, [el('label', {}, ['Data final']), endDateInput])
+          ]),
+          status,
+          el('div', { class:'row end', style:'margin-top:14px' }, [button('Exportar período selecionado', 'primary', confirm)])
+        ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
   };
 
   const openDailyResourceLaunchesModal = (row, dateStr) => {
@@ -8317,6 +8383,155 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           el('div', { class:'tiny muted', style:'margin-bottom:10px' }, ['Resumo do dia selecionado. A exportação da aba gera todos os dias de todos os recursos.']),
           el('div', { class:'scrollX' }, [tbl])
         ])
+      ])
+    ]);
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
+    dlg.addEventListener('cancel', (e) => { e.preventDefault(); closeDialog(dlg); });
+    document.body.appendChild(dlg);
+    openDialog(dlg);
+  };
+
+
+
+  const monthlyExecutionDailySeries = (dateStr=todayISO()) => {
+    const base = isoToLocalMidnight(dateStr) || new Date();
+    return getDaysInMonth(base.getFullYear(), base.getMonth()).map(dayObj => {
+      const date = formatDate(dayObj);
+      const rows = dailyResourceExecutionRows(date, { includeAllResources:false });
+      const planned = roundDemandHours(rows.reduce((acc, r) => acc + Number(r.planned || 0), 0));
+      const executed = roundDemandHours(rows.reduce((acc, r) => acc + Number(r.real || 0), 0));
+      return { date, day:dayObj.getDate(), planned, executed };
+    });
+  };
+
+  const buildMonthlyExecutionSvg = (dateStr=todayISO()) => {
+    const ns = 'http://www.w3.org/2000/svg';
+    const series = monthlyExecutionDailySeries(dateStr);
+    const width = 1120;
+    const height = 360;
+    const left = 58;
+    const right = 24;
+    const top = 42;
+    const bottom = 54;
+    const plotW = width - left - right;
+    const plotH = height - top - bottom;
+    const maxValue = Math.max(1, ...series.flatMap(p => [Number(p.planned || 0), Number(p.executed || 0)]));
+    const barGroupW = plotW / Math.max(1, series.length);
+    const barW = Math.max(5, Math.min(14, (barGroupW - 6) / 2));
+    const monthLabel = (isoToLocalMidnight(dateStr) || new Date()).toLocaleString('pt-BR', { month:'long', year:'numeric' });
+    const svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', String(width));
+    svg.setAttribute('height', String(height));
+    svg.setAttribute('style', 'max-width:100%;height:auto;display:block;');
+    svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', `Gráfico mensal de execução diária - ${monthLabel}`);
+    const make = (tag, attrs={}, text='') => {
+      const node = document.createElementNS(ns, tag);
+      for (const [k,v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+      if (text !== '') node.textContent = String(text);
+      svg.appendChild(node);
+      return node;
+    };
+    make('defs');
+    const defs = svg.querySelector('defs');
+    const grad = (id, stops) => {
+      const g = document.createElementNS(ns, 'linearGradient');
+      g.setAttribute('id', id);
+      g.setAttribute('x1', '0%'); g.setAttribute('x2', '0%'); g.setAttribute('y1', '100%'); g.setAttribute('y2', '0%');
+      for (const [offset, color] of stops) {
+        const st = document.createElementNS(ns, 'stop');
+        st.setAttribute('offset', offset);
+        st.setAttribute('stop-color', color);
+        g.appendChild(st);
+      }
+      defs.appendChild(g);
+    };
+    grad('monthlyPlannedGrad', [['0%', '#E5E7EB'], ['100%', '#050505']]);
+    grad('monthlyExecutedGrad', [['0%', '#BBF7D0'], ['100%', '#15803D']]);
+    make('rect', { x:0, y:0, width, height, rx:0, fill:'#fff' });
+    make('text', { x:left, y:24, fill:'var(--text)', 'font-size':16, 'font-weight':950, 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, `Execução diária mensal - ${monthLabel}`);
+    make('text', { x:width-right, y:24, fill:'var(--muted)', 'font-size':11, 'font-weight':800, 'text-anchor':'end', 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, 'Planejado x Executado (h)');
+    for (let i = 0; i <= 4; i++) {
+      const value = (maxValue / 4) * i;
+      const y = top + plotH - (value / maxValue) * plotH;
+      make('line', { x1:left, y1:y, x2:width-right, y2:y, stroke:'var(--border)', 'stroke-width':1 });
+      make('text', { x:left-8, y:y+4, fill:'var(--muted)', 'font-size':10, 'font-weight':750, 'text-anchor':'end', 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, fmtHours(value));
+    }
+    series.forEach((p, i) => {
+      const x0 = left + i * barGroupW + Math.max(2, (barGroupW - (barW * 2 + 3)) / 2);
+      const plannedH = (Number(p.planned || 0) / maxValue) * plotH;
+      const executedH = (Number(p.executed || 0) / maxValue) * plotH;
+      const planned = make('rect', { x:x0, y:top + plotH - plannedH, width:barW, height:plannedH, rx:Math.min(5, barW/2), fill:'url(#monthlyPlannedGrad)' });
+      const plannedTip = document.createElementNS(ns, 'title');
+      plannedTip.textContent = `${formatDateBR(p.date)} | Planejado ${fmtHours(p.planned)}h`;
+      planned.appendChild(plannedTip);
+      const executed = make('rect', { x:x0 + barW + 3, y:top + plotH - executedH, width:barW, height:executedH, rx:Math.min(5, barW/2), fill:'url(#monthlyExecutedGrad)' });
+      const executedTip = document.createElementNS(ns, 'title');
+      executedTip.textContent = `${formatDateBR(p.date)} | Executado ${fmtHours(p.executed)}h`;
+      executed.appendChild(executedTip);
+      if (series.length <= 31 && (p.day === 1 || p.day % 2 === 0 || i === series.length - 1)) {
+        make('text', { x:x0 + barW + 1.5, y:height-30, fill:'var(--muted)', 'font-size':10, 'font-weight':800, 'text-anchor':'middle', 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, String(p.day));
+      }
+    });
+    make('rect', { x:left, y:height-15, width:14, height:10, rx:2, fill:'url(#monthlyPlannedGrad)' });
+    make('text', { x:left+20, y:height-6, fill:'var(--text)', 'font-size':12, 'font-weight':800, 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, 'Planejado');
+    make('rect', { x:left+120, y:height-15, width:14, height:10, rx:2, fill:'url(#monthlyExecutedGrad)' });
+    make('text', { x:left+140, y:height-6, fill:'var(--text)', 'font-size':12, 'font-weight':800, 'font-family':'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial' }, 'Executado');
+    return svg;
+  };
+
+  const monthlyDemandExecutionSummary = (dateStr=todayISO()) => {
+    const base = isoToLocalMidnight(dateStr) || new Date();
+    const year = base.getFullYear();
+    const month = base.getMonth();
+    const days = getDaysInMonth(year, month).map(formatDate);
+    const summary = new Map();
+    for (const day of days) {
+      for (const row of dailyExecutionRows({ dateStr:day })) {
+        const id = String(row.demand?.id || row.demand?.titulo || '').trim();
+        if (!id) continue;
+        if (!summary.has(id)) summary.set(id, { demand:row.demand, planned:0, real:0, apontamentos:0 });
+        const item = summary.get(id);
+        item.planned += Number(row.planned || 0);
+        item.real += Number(row.real || 0);
+        item.apontamentos += Array.isArray(row.apontamentos) ? row.apontamentos.length : 0;
+      }
+    }
+    return [...summary.values()].map(item => ({
+      ...item,
+      planned: roundDemandHours(item.planned),
+      real: roundDemandHours(item.real),
+      adherence: item.planned > 0 ? (item.real / item.planned) * 100 : (item.real > 0 ? 100 : 0),
+    })).sort((a,b) => Number(b.real || 0) - Number(a.real || 0) || String(a.demand?.titulo || '').localeCompare(String(b.demand?.titulo || '')));
+  };
+
+  const openMonthlyDemandExecutionModal = (dateStr=todayISO()) => {
+    let dlg = qs('#monthlyDemandExecutionModal');
+    if (dlg) dlg.remove();
+    const rows = monthlyDemandExecutionSummary(dateStr);
+    const tbl = el('table', { class:'demandsTable' });
+    tbl.appendChild(el('thead', {}, [el('tr', {}, ['Demanda','Status','Planejado','Executado','Aderência','Apontamentos'].map(h => el('th', {}, [h])))]));
+    const tbody = el('tbody');
+    for (const row of rows) {
+      tbody.appendChild(el('tr', {}, [
+        el('td', {}, [row.demand?.titulo || row.demand?.id || '-']),
+        el('td', {}, [effectiveStatus(row.demand)]),
+        el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]),
+        el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]),
+        el('td', { class:'mono' }, [`${Math.round(row.adherence || 0)}%`]),
+        el('td', { class:'mono' }, [String(row.apontamentos || 0)]),
+      ]));
+    }
+    if (!rows.length) tbody.appendChild(el('tr', {}, [el('td', { colspan:'6', style:'padding:18px;text-align:center;color:var(--muted)' }, ['Nenhuma demanda planejada ou executada no mês selecionado.'])]));
+    tbl.appendChild(tbody);
+    dlg = el('dialog', { id:'monthlyDemandExecutionModal', class:'modal' }, [
+      el('div', { class:'modalCard' }, [
+        el('div', { class:'modalHd' }, [
+          el('div', {}, [el('div', { class:'modalTitle' }, ['Demandas mensais']), el('div', { class:'modalSub' }, [isoToLocalMidnight(dateStr).toLocaleString('pt-BR', { month:'long', year:'numeric' })])]),
+          button('Fechar ×', 'ghost', () => closeDialog(dlg))
+        ]),
+        el('div', { class:'modalBd' }, [el('div', { class:'scrollX' }, [tbl])])
       ])
     ]);
     dlg.addEventListener('click', (e) => { if (e.target === dlg) closeDialog(dlg); });
@@ -8369,7 +8584,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
     ].filter(Boolean));
 
     const resourceCards = resourceRows.length
-      ? el('div', { style:'display:grid;gap:10px' }, resourceRows.map(row => {
+      ? el('div', { class:'resourceCardGrid' }, resourceRows.map(row => {
           const maxHours = Math.max(1, row.planned, row.real);
           const plannedW = Math.max(4, Math.round((row.planned / maxHours) * 100));
           const realW = Math.max(4, Math.round((row.real / maxHours) * 100));
@@ -8390,14 +8605,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
               el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
                 el('div', { class:'tiny muted' }, ['Planejado']),
                 el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
-                  el('div', { title:`Planejado: ${fmtHours(row.planned)}h`, style:`width:${plannedW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--primary),#8db7ff)` })
+                  el('div', { title:`Planejado: ${fmtHours(row.planned)}h`, style:`width:${plannedW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,#E5E7EB,#050505)` })
                 ]),
                 el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.planned)}h`])
               ]),
               el('div', { style:'display:grid;grid-template-columns:74px 1fr 56px;gap:8px;align-items:center' }, [
                 el('div', { class:'tiny muted' }, ['Executado']),
                 el('div', { style:'height:16px;border-radius:999px;background:var(--surface);overflow:hidden;border:1px solid var(--border)' }, [
-                  el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:${realW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--success),#9be7b2)` })
+                  el('div', { title:`Executado: ${fmtHours(row.real)}h`, style:`width:${realW}%;height:100%;border-radius:999px;background:linear-gradient(90deg,#BBF7D0,#15803D)` })
                 ]),
                 el('div', { class:'mono tiny', style:'text-align:right' }, [`${fmtHours(row.real)}h`])
               ]),
@@ -8411,10 +8626,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
       : el('div', { class:'hint tiny' }, ['Nenhum recurso com planejamento, apontamento ou atividade interna na data selecionada.']);
 
     return el('div', { class:'grid' }, [
-      card('Execução diária', el('div', { class:'row' }, [
+      card('Execução diária', el('div', { class:'row toolbarAligned' }, [
         el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
         button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); }),
-        button('Exportar todos os dias', 'primary', exportDailyExecutionAllDaysCSV),
+        button('Exportar todos os dias', 'primary', openDailyExecutionExportModal),
         button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
       ]), el('div', { class:'grid', style:'gap:12px' }, [
         el('div', { class:'tiny muted' }, ['Indicador gerencial do dia selecionado. A meta de execução é fixa: 9h para interno e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.']),
@@ -8425,6 +8640,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano', s
           metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
           metric('Extra', `${fmtHours(totalsWithInternal.extra)}h`, 'executado acima da meta', totalsWithInternal.extra > 0 ? 'warn' : ''),
         ]),
+        card('Gráfico mensal de execução', el('div', { class:'row', style:'gap:8px;justify-content:flex-end' }, [
+          el('span', { class:'pill' }, ['Planejado: cinza claro → preto']),
+          el('span', { class:'pill info' }, ['Executado: verde claro → verde escuro'])
+        ]), el('div', { style:'max-width:100%;overflow:auto' }, [buildMonthlyExecutionSvg(dailyExecutionDate || todayISO())])),
+        card('Demandas mensais', null, el('button', { type:'button', class:'monthlyDemandCard', onclick:() => openMonthlyDemandExecutionModal(dailyExecutionDate || todayISO()) }, [
+          el('div', { style:'font-weight:950' }, ['Avaliar demandas do mês selecionado']),
+          el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Clique para comparar planejamento, execução real, aderência e apontamentos por demanda no mês.'])
+        ])),
         card('Execução por recurso', null, el('div', { class:'grid', style:'gap:10px' }, [
           el('div', { class:'tiny muted' }, ['Gráfico horizontal por recurso. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.']),
           resourceCards
