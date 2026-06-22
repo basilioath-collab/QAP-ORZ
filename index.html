@@ -8273,21 +8273,55 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     });
   };
 
-  const exportDailyExecutionDateCSV = (dateStr=todayISO()) => {
-    const safeDate = normalizeDateLikeToISO(dateStr) || todayISO();
-    const rows = dailyExecutionExportRowsForDate(safeDate);
+  const dailyExecutionExportRowsForRange = (startStr=todayISO(), endStr=startStr) => {
+    let start = normalizeDateLikeToISO(startStr) || todayISO();
+    let end = normalizeDateLikeToISO(endStr) || start;
+    if (end < start) [start, end] = [end, start];
+    const rows = [];
+    let cursor = start;
+    let guard = 0;
+    while (cursor && cursor <= end && guard < 8000) {
+      rows.push(...dailyExecutionExportRowsForDate(cursor));
+      cursor = addDaysISO(cursor, 1);
+      guard++;
+    }
+    return { rows, start, end };
+  };
+
+  const exportDailyExecutionRangeCSV = (startStr=todayISO(), endStr=startStr) => {
+    const { rows, start, end } = dailyExecutionExportRowsForRange(startStr, endStr);
     const headers = ['data','data_br','recurso','tipo_recurso','planejado_meta_horas','executado_total_horas','executado_demandas_horas','executado_internas_horas','aderencia_pct','saldo_horas','lancamentos_resumo'];
-    downloadText(`execucao_diaria_${safeDate}_todos_recursos.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
-    toast(`CSV de Execução diária exportado para ${formatDateBR(safeDate)}.`);
+    const rangeLabel = start === end ? start : `${start}_a_${end}`;
+    downloadText(`execucao_diaria_${rangeLabel}_todos_recursos.csv`, toCSV(rows, headers), 'application/vnd.ms-excel;charset=utf-8');
+    toast(start === end
+      ? `CSV de Execução diária exportado para ${formatDateBR(start)}.`
+      : `CSV de Execução diária exportado de ${formatDateBR(start)} até ${formatDateBR(end)}.`);
   };
 
   const openDailyExecutionExportModal = () => {
     let dlg = qs('#dailyExecutionExportModal');
     if (dlg) dlg.remove();
     const bounds = executionExportDateBounds();
-    const exportDateInput = el('input', { type:'date', value:dailyExecutionDate || todayISO(), min:bounds.start, max:bounds.end });
+    const defaultDate = dailyExecutionDate || todayISO();
+    const startDateInput = el('input', { type:'date', value:defaultDate, min:bounds.start, max:bounds.end });
+    const endDateInput = el('input', { type:'date', value:defaultDate, min:bounds.start, max:bounds.end });
+    const status = el('div', { class:'tiny muted', style:'margin-top:8px' }, ['Informe a data inicial e final para exportar o período desejado.']);
+    const syncBounds = () => {
+      if (startDateInput.value) endDateInput.min = startDateInput.value;
+      if (endDateInput.value) startDateInput.max = endDateInput.value;
+    };
+    startDateInput.onchange = syncBounds;
+    endDateInput.onchange = syncBounds;
+    syncBounds();
     const confirm = () => {
-      exportDailyExecutionDateCSV(exportDateInput.value || todayISO());
+      const start = normalizeDateLikeToISO(startDateInput.value || defaultDate);
+      const end = normalizeDateLikeToISO(endDateInput.value || start || defaultDate);
+      if (!start || !end) {
+        status.textContent = 'Selecione uma data inicial e uma data final válidas.';
+        status.style.color = 'var(--danger)';
+        return;
+      }
+      exportDailyExecutionRangeCSV(start, end);
       closeDialog(dlg);
     };
     dlg = el('dialog', { id:'dailyExecutionExportModal', class:'modal' }, [
@@ -8295,13 +8329,17 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         el('div', { class:'modalHd' }, [
           el('div', {}, [
             el('div', { class:'modalTitle' }, ['Exportar execução diária']),
-            el('div', { class:'modalSub' }, ['Escolha a data que deseja exportar para todos os recursos.'])
+            el('div', { class:'modalSub' }, ['Escolha a data inicial e final que deseja exportar para todos os recursos.'])
           ]),
           button('Fechar ×', 'ghost', () => closeDialog(dlg))
         ]),
         el('div', { class:'modalBd' }, [
-          el('div', { class:'field', style:'max-width:220px' }, [el('label', {}, ['Data para exportação']), exportDateInput]),
-          el('div', { class:'row end', style:'margin-top:14px' }, [button('Exportar data selecionada', 'primary', confirm)])
+          el('div', { class:'row toolbarAligned' }, [
+            el('div', { class:'field', style:'max-width:220px' }, [el('label', {}, ['Data inicial']), startDateInput]),
+            el('div', { class:'field', style:'max-width:220px' }, [el('label', {}, ['Data final']), endDateInput])
+          ]),
+          status,
+          el('div', { class:'row end', style:'margin-top:14px' }, [button('Exportar período selecionado', 'primary', confirm)])
         ])
       ])
     ]);
