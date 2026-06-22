@@ -621,7 +621,8 @@ main{padding:14px;overflow-x:hidden}
   display:grid;
   grid-template-columns:minmax(0,1fr) auto;
   gap:12px;
-  align-items:end;
+  align-items:center;
+  min-height:64px;
   padding:10px;
   border:1px solid rgba(148,163,184,.28);
   border-radius:12px;
@@ -638,7 +639,14 @@ main{padding:14px;overflow-x:hidden}
 .respAllocPct{
   display:flex;
   flex-direction:column;
+  align-items:flex-end;
   gap:4px;
+}
+.respAllocPct label{
+  margin:0;
+  white-space:nowrap;
+  text-align:right;
+  line-height:1.15;
 }
 .respAllocPct input{
   width:88px !important;
@@ -646,7 +654,9 @@ main{padding:14px;overflow-x:hidden}
   text-align:right;
 }
 @media (max-width:700px){
-  .respAllocRow{grid-template-columns:1fr}
+  .respAllocRow{grid-template-columns:1fr;align-items:stretch}
+  .respAllocPct{align-items:stretch}
+  .respAllocPct label{text-align:left}
   .respAllocPct input{width:100% !important;min-width:0 !important}
 }
 @media (max-width: 900px){
