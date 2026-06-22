@@ -3118,6 +3118,7 @@ main{padding:14px;overflow-x:hidden}
   let editingInternalActivityId = '';
   let launchMode = 'demand';
   let launchDemandId = '';
+  let editingLaunchApontamentoId = '';
   let dailyExecutionUnlocked = false;
   let dailyExecutionDate = todayISO();
   const DAILY_EXECUTION_PASSWORD = 'CAPVIEW';
@@ -10689,7 +10690,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       .sort((a,b) => String(a.data_fim || '').localeCompare(String(b.data_fim || '')) || String(a.titulo || '').localeCompare(String(b.titulo || '')));
     if (!launchDemandId || !userDemandRows.some(d => String(d.id) === String(launchDemandId))) launchDemandId = userDemandRows[0]?.id || '';
     const demandSelect = el('select', {
-      onchange: (ev) => { launchDemandId = ev.target.value; render(); }
+      onchange: (ev) => { launchDemandId = ev.target.value; editingLaunchApontamentoId = ''; render(); }
     }, [
       el('option', { value:'' }, [userDemandRows.length ? 'Selecione uma demanda...' : 'Nenhuma demanda aberta vinculada a você'])
     ]);
@@ -10710,11 +10711,15 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     if (otherGroup.children.length) demandSelect.appendChild(otherGroup);
     demandSelect.value = launchDemandId;
     const selectedDemand = userDemandRows.find(d => String(d.id) === String(launchDemandId)) || null;
-    const aptData = el('input', { type:'date', value:todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const selectedApontamentos = selectedDemand ? normalizeDemandApontamentos(selectedDemand) : [];
+    if (editingLaunchApontamentoId && !selectedApontamentos.some(a => String(a.id) === String(editingLaunchApontamentoId))) editingLaunchApontamentoId = '';
+    const editingLaunchApontamento = selectedApontamentos.find(a => String(a.id) === String(editingLaunchApontamentoId)) || null;
+    const aptData = el('input', { type:'date', value:editingLaunchApontamento?.data || todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const aptEtapa = el('select');
     for (const step of PROJECT_STEP_OPTIONS) aptEtapa.appendChild(el('option', { value:step }, [step]));
-    const aptHoras = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:30 ou 2.5' });
-    const aptObs = el('textarea', { placeholder:'Descreva rapidamente a atividade realizada...', maxlength:String(INPUT_LIMITS.shortNote), style:'min-height:92px' });
+    aptEtapa.value = normalizeProjectStep(editingLaunchApontamento?.etapa || '') || PROJECT_STEP_OPTIONS[0];
+    const aptHoras = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:30 ou 2.5', value: editingLaunchApontamento ? String(editingLaunchApontamento.horas || '') : '' });
+    const aptObs = el('textarea', { placeholder:'Descreva rapidamente a atividade realizada...', maxlength:String(INPUT_LIMITS.shortNote), style:'min-height:92px' }, [editingLaunchApontamento?.observacao || '']);
     const saveDemandLaunch = () => {
       const demand = (state.demands || []).find(d => String(d.id) === String(launchDemandId));
       if (!demand) return toast('Selecione uma demanda para apontar.');
@@ -10726,30 +10731,46 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       const obsValidation = validateTextLimit(aptObs.value, 'Observação do apontamento', INPUT_LIMITS.shortNote);
       if (obsValidation) { toast(obsValidation); return; }
       const apontamentos = normalizeDemandApontamentos(demand);
-      apontamentos.push(normalizeApontamento({
-        id: generateId('apt'),
-        data: nextData,
-        etapa: nextEtapa,
-        horas: nextHoras,
-        observacao: String(aptObs.value || '').trim(),
-        usuario: userName || 'Sessão local',
-        user_id: userId || '',
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        updated_by: userName || 'Sessão local',
-        updated_by_id: userId || '',
-      }));
+      if (editingLaunchApontamentoId) {
+        const idx = apontamentos.findIndex(a => String(a.id) === String(editingLaunchApontamentoId));
+        if (idx < 0) { toast('Apontamento em edição não encontrado.'); editingLaunchApontamentoId = ''; render(); return; }
+        apontamentos[idx] = normalizeApontamento({
+          ...apontamentos[idx],
+          data: nextData,
+          etapa: nextEtapa,
+          horas: nextHoras,
+          observacao: String(aptObs.value || '').trim(),
+          updated_at: Date.now(),
+          updated_by: userName || 'Sessão local',
+          updated_by_id: userId || '',
+        });
+      } else {
+        apontamentos.push(normalizeApontamento({
+          id: generateId('apt'),
+          data: nextData,
+          etapa: nextEtapa,
+          horas: nextHoras,
+          observacao: String(aptObs.value || '').trim(),
+          usuario: userName || 'Sessão local',
+          user_id: userId || '',
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          updated_by: userName || 'Sessão local',
+          updated_by_id: userId || '',
+        }));
+      }
       dispatch('UPDATE_DEMAND', {
         ...demand,
         apontamentos,
         last_edit_by: userName,
         last_edit_at: Date.now(),
-        last_edit_justification: 'Apontamento registrado pela aba Lançamentos.',
+        last_edit_justification: editingLaunchApontamentoId ? 'Apontamento alterado pela aba Lançamentos.' : 'Apontamento registrado pela aba Lançamentos.',
       });
-      toast('Apontamento cadastrado.');
+      const wasEditing = !!editingLaunchApontamentoId;
+      editingLaunchApontamentoId = '';
+      toast(wasEditing ? 'Apontamento atualizado.' : 'Apontamento cadastrado.');
       render();
     };
-    const selectedApontamentos = selectedDemand ? normalizeDemandApontamentos(selectedDemand) : [];
     const selectedMetrics = selectedDemand ? demandExecutionMetrics(selectedDemand, selectedApontamentos) : null;
     const demandLaunchPanel = card('Apontamento de demanda', null, el('div', { class:'grid', style:'gap:12px' }, [
       el('div', { class:'tiny muted' }, ['Selecione uma demanda vinculada ao seu usuário e registre horas realizadas sem sair da aba Lançamentos.']),
@@ -10769,12 +10790,29 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         el('div', { class:'field compact' }, [el('label', {}, ['Horas gastas']), aptHoras]),
       ]) : null,
       selectedDemand ? el('div', { class:'field' }, [el('label', {}, ['Observação']), aptObs]) : null,
-      selectedDemand ? el('div', { class:'row end' }, [button('Salvar apontamento', 'primary', saveDemandLaunch)]) : null,
+      selectedDemand ? el('div', { class:'row end' }, [
+        editingLaunchApontamento ? button('Cancelar edição', '', () => { editingLaunchApontamentoId = ''; render(); }) : null,
+        button(editingLaunchApontamento ? 'Salvar alterações' : 'Salvar apontamento', 'primary', saveDemandLaunch)
+      ].filter(Boolean)) : null,
       selectedDemand ? el('div', { class:'grid', style:'gap:8px' }, [
         el('div', { class:'tiny muted' }, [`Histórico recente: ${selectedApontamentos.length} apontamento(s) / ${fmtHours((selectedMetrics?.realHours || 0))}h.`]),
         selectedApontamentos.length
-          ? el('div', { style:'display:flex;flex-direction:column;gap:8px' }, [...selectedApontamentos].reverse().slice(0,5).map(a => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:#fff' }, [
-              el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa} - ${fmtHours(a.horas || 0)}h`]),
+          ? el('div', { style:'display:flex;flex-wrap:wrap;gap:8px;align-items:stretch' }, [...selectedApontamentos].reverse().map(a => el('div', { style:`flex:0 0 clamp(280px, calc(20% - 8px), 360px);max-width:100%;box-sizing:border-box;border:1px solid ${String(a.id) === String(editingLaunchApontamentoId) ? 'var(--primary-light)' : 'var(--border)'};border-radius:14px;padding:10px 12px;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.04)` }, [
+              el('div', { style:'display:flex;justify-content:space-between;gap:8px;align-items:flex-start' }, [
+                el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa} - ${fmtHours(a.horas || 0)}h`]),
+                el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
+                  iconButton('Editar apontamento', '✎', '', () => { editingLaunchApontamentoId = String(a.id); render(); }),
+                  iconButton('Excluir apontamento', '🗑', 'danger', () => {
+                    const demand = (state.demands || []).find(d => String(d.id) === String(launchDemandId));
+                    if (!demand) return toast('Demanda não encontrada.');
+                    const apontamentos = normalizeDemandApontamentos(demand).filter(x => String(x.id) !== String(a.id));
+                    dispatch('UPDATE_DEMAND', { ...demand, apontamentos, last_edit_by:userName, last_edit_at:Date.now(), last_edit_justification:'Apontamento excluído pela aba Lançamentos.' });
+                    if (String(editingLaunchApontamentoId) === String(a.id)) editingLaunchApontamentoId = '';
+                    toast('Apontamento excluído.');
+                    render();
+                  })
+                ])
+              ]),
               el('div', { class:'tiny muted', style:'margin-top:4px' }, [a.observacao || 'Sem observação.']),
               el('div', { class:'tiny muted', style:'margin-top:4px' }, [a.usuario || 'Sessão local'])
             ])))
@@ -10791,8 +10829,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]));
 
     return el('div',{class:'grid'},[
-      myDayPanel,
-      modeSelector,
+      el('div', { class:'split' }, [myDayPanel, modeSelector]),
       launchMode === 'internal' ? internalActivityPanel : demandLaunchPanel
     ]);
   };
