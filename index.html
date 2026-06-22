@@ -716,8 +716,10 @@ main{padding:14px;overflow-x:hidden}
 #demandEditModalBody .demandCreateField textarea{width:100%;min-width:0}
 #demandEditModalBody .demandCreateAllocationBox{border:1px solid rgba(138,212,32,.28);border-radius:16px;background:linear-gradient(180deg,rgba(138,212,32,.08),rgba(255,255,255,.92));padding:12px}
 #demandEditModalBody .demandCreateActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:2px}
-#demandEditModalBody .demandPercField .respAllocEditor{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;align-items:end}
-#demandEditModalBody .demandPercField .respAllocEditor input{height:42px}
+#demandEditModalBody .demandPercField .respAllocEditor{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;align-items:center;margin-top:0}
+#demandEditModalBody .demandPercField .respAllocEditor input{height:42px;text-align:right}
+#demandEditModalBody .demandPercField .respAllocEditor.is-empty{display:none}
+#demandEditModalBody .demandPercField .respAllocList{display:none}
 @media (max-width:900px){
   #demandEditModalBody .demandCreateField.span-8,
   #demandEditModalBody .demandCreateField.span-6,
@@ -771,10 +773,11 @@ main{padding:14px;overflow-x:hidden}
   width:100%;
 }
 #demandEditModalBody .demandRespField .multiSelectBox{
-  height:auto;
+  height:42px;
   min-height:42px;
-  flex-wrap:wrap;
-  overflow:visible;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  overflow-y:hidden;
 }
 #demandEditModalBody .demandRespField .multiSelectInput{
   min-width:140px !important;
@@ -3227,6 +3230,7 @@ main{padding:14px;overflow-x:hidden}
     blockingsPage: 1,
     holidaysPage: 1,
     internalActivitiesPage: 1,
+    myDayPage: 1,
     // Modais
     donutModalPage: 1,
     dayModalPage: 1,
@@ -6042,7 +6046,7 @@ main{padding:14px;overflow-x:hidden}
     const respAllocList = el('div', { class:'respAllocList' });
     const respAllocPick = el('select');
     const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30' });
-    const respAllocEditor = el('div', { class:'respAllocEditor' }, [respAllocPick, respAllocHoursEditor]);
+    const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocHoursEditor]);
     respAllocPick.addEventListener('change', () => {
       const rid = String(respAllocPick.value || '');
       respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []));
@@ -6057,17 +6061,19 @@ main{padding:14px;overflow-x:hidden}
       respChips.innerHTML = '';
       respAllocList.innerHTML = '';
       const ids = [...selectedRespIds];
-      respAllocEditor.style.display = 'none';
-      respAllocList.style.display = '';
+      respAllocEditor.classList.toggle('is-empty', !ids.length);
+      respAllocList.style.display = 'none';
       if (!ids.length) {
         respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para informar as horas diárias.']));
       }
       respAllocPick.innerHTML = '';
       for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
-      if (ids.length >= 2) {
+      if (ids.length) {
         const current = ids.includes(respAllocPick.value) ? respAllocPick.value : ids[0];
         respAllocPick.value = current;
         respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(current) ?? resourceHoursById(current, state.resources || []));
+      } else {
+        respAllocHoursEditor.value = '';
       }
       for (const rid of selectedRespIds) {
         const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
@@ -10769,24 +10775,41 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         myMetric('Pendente', `${fmtHours(myDayTotals.pending)}h`, 'falta apontar'),
         myMetric('Internas', `${fmtHours(myInternalToday)}h`, 'informativo'),
       ]),
-      myDayRows.length ? el('div', { class:'scrollX' }, [
-        (() => {
-          const t = el('table');
-          t.appendChild(el('thead', {}, [el('tr', {}, ['Demanda','Planejado','Apontado','Saldo'].map(h => el('th', {}, [h])))]));
-          const b = el('tbody');
-          for (const row of myDayRows.slice(0, 6)) {
-            const saldo = Number(row.planned || 0) - Number(row.real || 0);
-            b.appendChild(el('tr', {}, [
-              el('td', {}, [row.demand.titulo || row.demand.id || 'Demanda']),
-              el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]),
-              el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]),
-              el('td', { class:'mono' }, [saldo >= 0 ? `${fmtHours(saldo)}h` : `+${fmtHours(Math.abs(saldo))}h`]),
-            ]));
-          }
-          t.appendChild(b);
-          return t;
-        })()
-      ]) : el('div', { class:'hint tiny' }, ['Nenhuma demanda planejada ou apontada hoje para o usuário atual.'])
+      myDayRows.length ? (() => {
+        const pageSize = 3;
+        const total = myDayRows.length;
+        const totalPages = Math.max(1, Math.ceil(total / pageSize));
+        uiPagination.myDayPage = Math.min(Math.max(1, uiPagination.myDayPage || 1), totalPages);
+        const startIdx = (uiPagination.myDayPage - 1) * pageSize;
+        const pageItems = myDayRows.slice(startIdx, startIdx + pageSize);
+        const t = el('table');
+        t.appendChild(el('thead', {}, [el('tr', {}, ['Demanda','Planejado','Apontado','Saldo'].map(h => el('th', {}, [h])))]));
+        const b = el('tbody');
+        for (const row of pageItems) {
+          const saldo = Number(row.planned || 0) - Number(row.real || 0);
+          b.appendChild(el('tr', {}, [
+            el('td', {}, [row.demand.titulo || row.demand.id || 'Demanda']),
+            el('td', { class:'mono' }, [`${fmtHours(row.planned)}h`]),
+            el('td', { class:'mono' }, [`${fmtHours(row.real)}h`]),
+            el('td', { class:'mono' }, [saldo >= 0 ? `${fmtHours(saldo)}h` : `+${fmtHours(Math.abs(saldo))}h`]),
+          ]));
+        }
+        t.appendChild(b);
+        return el('div', { class:'grid', style:'gap:10px' }, [
+          el('div', { class:'scrollX' }, [t]),
+          totalPages > 1 ? buildPager({
+            page: uiPagination.myDayPage,
+            totalPages,
+            total,
+            startIdx,
+            shown: pageItems.length,
+            onPrev: () => { uiPagination.myDayPage--; render(); },
+            onNext: () => { uiPagination.myDayPage++; render(); },
+            onFirst: () => { uiPagination.myDayPage = 1; render(); },
+            onLast: () => { uiPagination.myDayPage = totalPages; render(); },
+          }) : null
+        ].filter(Boolean));
+      })() : el('div', { class:'hint tiny' }, ['Nenhuma demanda planejada ou apontada hoje para o usuário atual.'])
     ]));
     const launchExecutionDate = dailyExecutionDate || today;
     const launchExecutionRows = resourceIds.length
