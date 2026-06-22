@@ -318,6 +318,11 @@
     .split{display:flex;gap:12px;flex-wrap:wrap}
     .split > *{flex:1 1 320px}
 
+    .launchSummaryGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch}
+    .launchSummaryGrid > *{min-width:0;width:100%}
+    .emptyPagerRow td{color:transparent;user-select:none}
+    @media (max-width:1280px){.launchSummaryGrid{grid-template-columns:1fr}}
+
     .actionBtns{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
     .iconBtn{position:relative;width:34px;height:34px;padding:0;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:16px;line-height:1}
     .iconBtn:not(.primary):not(.danger):hover{background:var(--success-wash);border-color:var(--success);color:var(--header)}
@@ -10794,6 +10799,14 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
             el('td', { class:'mono' }, [saldo >= 0 ? `${fmtHours(saldo)}h` : `+${fmtHours(Math.abs(saldo))}h`]),
           ]));
         }
+        for (let i = pageItems.length; i < pageSize; i++) {
+          b.appendChild(el('tr', { class:'emptyPagerRow', 'aria-hidden':'true' }, [
+            el('td', {}, [' ']),
+            el('td', { class:'mono' }, [' ']),
+            el('td', { class:'mono' }, [' ']),
+            el('td', { class:'mono' }, [' ']),
+          ]));
+        }
         t.appendChild(b);
         return el('div', { class:'grid', style:'gap:10px' }, [
           el('div', { class:'scrollX' }, [t]),
@@ -11013,7 +11026,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     ]));
 
     return el('div',{class:'grid'},[
-      el('div', { class:'split' }, [myDayPanel, launchExecutionPanel, modeSelector]),
+      el('div', { class:'launchSummaryGrid' }, [myDayPanel, launchExecutionPanel, modeSelector]),
       launchMode === 'internal' ? internalActivityPanel : demandLaunchPanel
     ]);
   };
