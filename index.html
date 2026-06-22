@@ -1736,6 +1736,22 @@ main{padding:14px;overflow-x:hidden}
     return out;
   };
 
+  const primaryDemandResourceId = (demand={}, allocations=[]) => {
+    const allocs = Array.isArray(allocations) ? allocations : [];
+    const explicitRid = String(demand?.responsavel_id || demand?.resourceId || '').trim();
+    if (explicitRid && allocs.some(a => String(a?.resourceId || '').trim() === explicitRid)) return explicitRid;
+
+    const today = todayISO();
+    const active = allocs
+      .filter(a => demandAllocationActiveOnDate(a, demand, today))
+      .sort((a,b) => String(b?.data_inicio || '').localeCompare(String(a?.data_inicio || '')));
+    if (active[0]?.resourceId) return String(active[0].resourceId).trim();
+
+    const latest = [...allocs]
+      .sort((a,b) => String(b?.data_inicio || '').localeCompare(String(a?.data_inicio || '')))[0];
+    return String(latest?.resourceId || explicitRid || '').trim();
+  };
+
   const relatedDemandReprogrammings = (demand, reprogrammings=[]) => {
     const id = String(demand?.id || '').trim();
     if (!id) return [];
@@ -1795,10 +1811,10 @@ main{padding:14px;overflow-x:hidden}
       const existing = grouped.get(key);
       const allocs = normalizeDemandAllocations(d, resources);
       if (!existing) {
-        const firstRid = allocs[0]?.resourceId || String(d.responsavel_id || d.resourceId || '').trim();
+        const primaryRid = primaryDemandResourceId(d, allocs) || allocs[0]?.resourceId || String(d.responsavel_id || d.resourceId || '').trim();
         grouped.set(key, {
           ...d,
-          responsavel_id: firstRid,
+          responsavel_id: primaryRid,
           percentual_diario: Number(allocs[0]?.percentual_diario ?? d.percentual_diario ?? 0),
           horas_planejadas_dia: Number(allocs[0]?.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0),
           allocations: allocs,
@@ -1812,7 +1828,7 @@ main{padding:14px;overflow-x:hidden}
         existing.allocations.push({ ...a });
         seen.add(rid);
       }
-      if (!existing.responsavel_id && existing.allocations[0]?.resourceId) existing.responsavel_id = existing.allocations[0].resourceId;
+      existing.responsavel_id = primaryDemandResourceId(existing, existing.allocations) || existing.responsavel_id || existing.allocations[0]?.resourceId || '';
     }
     return [...grouped.values()];
   };
@@ -5263,6 +5279,55 @@ main{padding:14px;overflow-x:hidden}
           if (String(d.id) !== String(payload?.demandId)) return d;
           const rp = payload.reprogramming || {};
           return { ...d, data_fim: rp.novo_fim || rp.novo_prazo || d.data_fim || '', reprogramacoes: (d.reprogramacoes||0) + 1 };
+        });
+        break;
+      }
+      case 'TRANSFER_DEMAND_ALLOCATION': {
+        if (payload?.demand && payload.demand.id) {
+          target.demands = upsert(target.demands, normalizeDemandBaseline(payload.demand));
+          break;
+        }
+
+        const demandId = String(payload?.demandId || '').trim();
+        target.demands = (target.demands || []).map(d => {
+          if (String(d.id || '') !== demandId) return d;
+          const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
+          const previousEnd = transferDate;
+          const nextStart = addDaysISO(transferDate, 1) || transferDate;
+          const fromId = String(payload.fromResourceId || d.responsavel_id || '').trim();
+          const toId = String(payload.toResourceId || '').trim();
+          if (!toId || fromId === toId) return d;
+          const hours = firstHoursLike(payload.horas_planejadas_dia, payload.horas_dia, d.horas_planejadas_dia, d.horas_dia) ?? 0;
+          const allocations = normalizeDemandAllocations(d, target.resources || [])
+            .filter(a => String(a.resourceId || '') !== toId)
+            .map(a => String(a.resourceId || '') === fromId
+              ? { ...a, data_inicio: a.data_inicio || d.data_inicio || '', data_fim: previousEnd }
+              : a);
+          const nextAlloc = makeDemandAllocation(toId, hours, target.resources || []);
+          nextAlloc.data_inicio = nextStart;
+          nextAlloc.data_fim = d.data_fim || '';
+          allocations.push(nextAlloc);
+          return normalizeDemandBaseline({
+            ...d,
+            responsavel_id: toId,
+            allocations,
+            transfer_history: [
+              ...(Array.isArray(d.transfer_history) ? d.transfer_history : []),
+              {
+                id: generateId('transfer'),
+                fromResourceId: fromId,
+                toResourceId: toId,
+                transferDate,
+                previousEnd,
+                nextStart,
+                horas_planejadas_dia: roundDemandHours(hours),
+                justification: String(payload.justification || '').trim(),
+                timestamp: Number(event.timestamp || Date.now()),
+                user: event.user || '',
+                user_id: event.user_id || ''
+              }
+            ]
+          });
         });
         break;
       }
