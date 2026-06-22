@@ -664,6 +664,37 @@ main{padding:14px;overflow-x:hidden}
   }
 }
 
+
+/* --- Cadastro de Demandas: layout padronizado em blocos --- */
+#demandsFormCard .demandCreateIntro{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--primary-wash)}
+#demandsFormCard .demandCreateIntro strong{display:block;font-size:13px;font-weight:950;color:var(--text)}
+#demandsFormCard .demandCreateIntro span{display:block;margin-top:3px;font-size:12px;font-weight:750;color:var(--muted);line-height:1.35}
+#demandsFormCard .demandCreateForm{display:grid;gap:14px}
+#demandsFormCard .demandCreateSection{border:1px solid var(--border);border-radius:18px;background:#fff;padding:14px;box-shadow:0 8px 18px rgba(5,5,5,.035)}
+#demandsFormCard .demandCreateSectionTitle{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;font-weight:950;color:var(--text);letter-spacing:.02em;text-transform:uppercase}
+#demandsFormCard .demandCreateSectionTitle .step{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:11px;font-weight:950}
+#demandsFormCard .demandCreateGrid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px;align-items:start}
+#demandsFormCard .demandCreateField{min-width:0 !important;width:100%;display:flex;flex-direction:column;gap:6px}
+#demandsFormCard .demandCreateField.span-12{grid-column:span 12}
+#demandsFormCard .demandCreateField.span-8{grid-column:span 8}
+#demandsFormCard .demandCreateField.span-6{grid-column:span 6}
+#demandsFormCard .demandCreateField.span-4{grid-column:span 4}
+#demandsFormCard .demandCreateField.span-3{grid-column:span 3}
+#demandsFormCard .demandCreateField input,
+#demandsFormCard .demandCreateField select{width:100%;min-width:0;height:42px}
+#demandsFormCard .demandCreateField textarea{width:100%;min-width:0}
+#demandsFormCard .demandCreateAllocationBox{border:1px solid rgba(138,212,32,.28);border-radius:16px;background:linear-gradient(180deg,rgba(138,212,32,.08),rgba(255,255,255,.92));padding:12px}
+#demandsFormCard .demandCreateAllocationBox .demandCreateGrid{gap:12px}
+#demandsFormCard .demandCreateActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:2px}
+#demandsFormCard .demandPercField .respAllocEditor{grid-template-columns:minmax(0,1fr) 110px}
+#demandsFormCard .demandPercField .respAllocEditor input{height:42px}
+@media (max-width:900px){
+  #demandsFormCard .demandCreateField.span-8,
+  #demandsFormCard .demandCreateField.span-6,
+  #demandsFormCard .demandCreateField.span-4,
+  #demandsFormCard .demandCreateField.span-3{grid-column:span 12}
+}
+
 /* --- Modal Editar Demanda: corrige largura e empilhamento dos campos de alocação --- */
 #demandEditModalBody .demandEditAllocRow{
   align-items:flex-start;
@@ -9269,27 +9300,66 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         toast('Demanda adicionada.');
       };
 
-      const right = el('div', { class:'row' }, [button('Adicionar', 'primary', submit)]);
-      const body = el('div', { class:'split' }, [
-        el('div', {}, [
-          el('div', { class:'row' }, [
-            el('div', { class:'field', style:'flex:2 1 360px' }, [el('label', {}, ['Título']), titulo]),
-            el('div', { class:'field', style:'flex:1 1 180px' }, [el('label', {}, ['Prioridade']), prioridade]),
+      const resetDemandForm = () => {
+        clearDemandCreateDraft();
+        titulo.value='';
+        predio.value='';
+        focal.value='';
+        selectedRespIds.clear();
+        respHoursById.clear();
+        respSearch.value='';
+        ini.value='';
+        fim.value='';
+        obs.value='';
+        prioridade.value='Média';
+        status.value='Mapeada';
+        syncMapeada();
+        toast('Formulário de demanda limpo.');
+      };
+
+      const right = null;
+      const sectionTitle = (num, text) => el('div', { class:'demandCreateSectionTitle' }, [el('span', { class:'step' }, [String(num)]), text]);
+      const body = el('div', { class:'demandCreateForm' }, [
+        el('div', { class:'demandCreateIntro' }, [
+          el('div', {}, [
+            el('strong', {}, ['Novo cadastro de demanda']),
+            el('span', {}, ['Preencha identificação, planejamento e alocação seguindo um fluxo padronizado.'])
           ]),
-          el('div', { class:'row' }, [
-            el('div', { class:'field' }, [el('label', {}, ['Prédio']), predio]),
-            el('div', { class:'field' }, [el('label', {}, ['Focal']), focal]),
-          ]),
-          el('div', { class:'row demandAllocationRow' }, [
-            el('div', { class:'field demandRespField' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandPercField' }, [el('label', {}, ['Dedicação diária']), respAllocEditor, respAllocList]),
-            el('div', { class:'field demandStatusField' }, [el('label', {}, ['Status']), status]),
-          ]),
-          el('div', { class:'row' }, [
-            el('div', { class:'field' }, [el('label', {}, ['Início']), ini]),
-            el('div', { class:'field' }, [el('label', {}, ['Fim']), fim]),
-          ]),
-          el('div', { class:'field' }, [el('label', {}, ['Observações']), obs])
+          el('span', { class:'pill info' }, ['Rascunho salvo automaticamente'])
+        ]),
+        el('div', { class:'demandCreateSection' }, [
+          sectionTitle(1, 'Identificação'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField span-8' }, [el('label', {}, ['Título']), titulo]),
+            el('div', { class:'field demandCreateField span-4' }, [el('label', {}, ['Prioridade']), prioridade]),
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prédio']), predio]),
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal]),
+          ])
+        ]),
+        el('div', { class:'demandCreateSection' }, [
+          sectionTitle(2, 'Planejamento'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField span-4' }, [el('label', {}, ['Início']), ini]),
+            el('div', { class:'field demandCreateField span-4' }, [el('label', {}, ['Fim']), fim]),
+            el('div', { class:'field demandCreateField demandStatusField span-4' }, [el('label', {}, ['Status']), status]),
+          ])
+        ]),
+        el('div', { class:'demandCreateSection demandCreateAllocationBox' }, [
+          sectionTitle(3, 'Responsáveis e dedicação'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
+            el('div', { class:'field demandCreateField demandPercField span-4' }, [el('label', {}, ['Dedicação diária']), respAllocEditor, respAllocList]),
+          ])
+        ]),
+        el('div', { class:'demandCreateSection' }, [
+          sectionTitle(4, 'Observações'),
+          el('div', { class:'demandCreateGrid' }, [
+            el('div', { class:'field demandCreateField span-12' }, [el('label', {}, ['Observações']), obs])
+          ])
+        ]),
+        el('div', { class:'demandCreateActions' }, [
+          button('Limpar formulário', '', resetDemandForm),
+          button('Adicionar demanda', 'primary', submit)
         ])
       ]);
       const c = card('Cadastrar Demanda', right, body);
