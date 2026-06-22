@@ -5282,6 +5282,55 @@ main{padding:14px;overflow-x:hidden}
         });
         break;
       }
+      case 'TRANSFER_DEMAND_ALLOCATION': {
+        if (payload?.demand && payload.demand.id) {
+          target.demands = upsert(target.demands, normalizeDemandBaseline(payload.demand));
+          break;
+        }
+
+        const demandId = String(payload?.demandId || '').trim();
+        target.demands = (target.demands || []).map(d => {
+          if (String(d.id || '') !== demandId) return d;
+          const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
+          const previousEnd = transferDate;
+          const nextStart = addDaysISO(transferDate, 1) || transferDate;
+          const fromId = String(payload.fromResourceId || d.responsavel_id || '').trim();
+          const toId = String(payload.toResourceId || '').trim();
+          if (!toId || fromId === toId) return d;
+          const hours = firstHoursLike(payload.horas_planejadas_dia, payload.horas_dia, d.horas_planejadas_dia, d.horas_dia) ?? 0;
+          const allocations = normalizeDemandAllocations(d, target.resources || [])
+            .filter(a => String(a.resourceId || '') !== toId)
+            .map(a => String(a.resourceId || '') === fromId
+              ? { ...a, data_inicio: a.data_inicio || d.data_inicio || '', data_fim: previousEnd }
+              : a);
+          const nextAlloc = makeDemandAllocation(toId, hours, target.resources || []);
+          nextAlloc.data_inicio = nextStart;
+          nextAlloc.data_fim = d.data_fim || '';
+          allocations.push(nextAlloc);
+          return normalizeDemandBaseline({
+            ...d,
+            responsavel_id: toId,
+            allocations,
+            transfer_history: [
+              ...(Array.isArray(d.transfer_history) ? d.transfer_history : []),
+              {
+                id: generateId('transfer'),
+                fromResourceId: fromId,
+                toResourceId: toId,
+                transferDate,
+                previousEnd,
+                nextStart,
+                horas_planejadas_dia: roundDemandHours(hours),
+                justification: String(payload.justification || '').trim(),
+                timestamp: Number(event.timestamp || Date.now()),
+                user: event.user || '',
+                user_id: event.user_id || ''
+              }
+            ]
+          });
+        });
+        break;
+      }
       case 'ADD_BLOCKING': target.blockings = upsert(target.blockings, payload); break;
       case 'DELETE_BLOCKING': target.blockings = (target.blockings||[]).filter(b => String(b.id) !== String(payload)); break;
       case 'ADD_HOLIDAY': target.holidays = upsert(target.holidays, payload); break;
