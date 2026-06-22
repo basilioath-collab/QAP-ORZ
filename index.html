@@ -325,9 +325,9 @@
 
     .actionBtns{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
     .actionsMenu{position:relative;display:inline-flex}
-    .actionsMenu .menuPanel{position:absolute;right:0;top:calc(100% + 8px);min-width:220px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 42px rgba(5,5,5,.18);padding:6px;z-index:90;display:none}
-    .actionsMenu.open .menuPanel{display:grid;gap:4px}
-    .actionsMenu .menuPanel::before{content:'';position:absolute;right:12px;top:-6px;width:10px;height:10px;background:#fff;border-left:1px solid var(--border);border-top:1px solid var(--border);transform:rotate(45deg)}
+    .floatingActionMenu{position:fixed;min-width:220px;max-width:min(300px,calc(100vw - 20px));max-height:min(360px,calc(100vh - 24px));overflow:auto;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 42px rgba(5,5,5,.18);padding:6px;z-index:2147483600;display:grid;gap:4px}
+    .floatingActionMenu::before{content:'';position:absolute;right:14px;top:-6px;width:10px;height:10px;background:#fff;border-left:1px solid var(--border);border-top:1px solid var(--border);transform:rotate(45deg)}
+    .floatingActionMenu.opensUp::before{top:auto;bottom:-6px;border-left:0;border-top:0;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
     .menuAction{width:100%;border:0;background:transparent;color:var(--text);display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;font-weight:900;text-align:left;cursor:pointer}
     .menuAction:hover{background:var(--success-wash);color:var(--header)}
     .menuAction.danger{color:var(--danger)}
@@ -7489,26 +7489,61 @@ main{padding:14px;overflow-x:hidden}
   }, [icon]);
   const actionMenuButton = (items=[]) => {
     const root = el('div', { class:'actionsMenu' });
+    let panel = null;
+    const close = () => {
+      root.classList.remove('open');
+      btn.setAttribute('aria-expanded', 'false');
+      if (panel) {
+        panel.remove();
+        panel = null;
+      }
+    };
+    const positionPanel = () => {
+      if (!panel) return;
+      const rect = btn.getBoundingClientRect();
+      const margin = 10;
+      const width = Math.min(300, Math.max(220, window.innerWidth - (margin * 2)));
+      panel.style.width = `${width}px`;
+      const panelHeight = Math.min(panel.scrollHeight || 0, window.innerHeight - (margin * 2));
+      const opensUp = rect.bottom + 8 + panelHeight > window.innerHeight && rect.top > panelHeight;
+      const top = opensUp ? Math.max(margin, rect.top - panelHeight - 8) : Math.min(window.innerHeight - panelHeight - margin, rect.bottom + 8);
+      const left = Math.min(window.innerWidth - width - margin, Math.max(margin, rect.right - width));
+      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`;
+      panel.classList.toggle('opensUp', opensUp);
+    };
+    const open = () => {
+      qsa('.floatingActionMenu').forEach(menu => menu.remove());
+      qsa('.actionsMenu.open').forEach(menu => { if (menu !== root) menu.classList.remove('open'); });
+      panel = el('div', { class:'floatingActionMenu', role:'menu' }, items.map(item => el('button', {
+        class:`menuAction ${item.cls || ''}`,
+        type:'button',
+        role:'menuitem',
+        onclick:(ev) => {
+          ev.stopPropagation();
+          close();
+          item.onClick?.(ev);
+        }
+      }, [el('span', { class:'ico' }, [item.icon || '•']), el('span', {}, [item.label || 'Ação'])])));
+      document.body.appendChild(panel);
+      root.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      positionPanel();
+      setTimeout(() => {
+        const outside = (ev) => { if (!root.contains(ev.target) && !panel?.contains(ev.target)) close(); };
+        document.addEventListener('click', outside, { once:true });
+      }, 0);
+    };
     const btn = iconButton('Ações', '☰', '', (ev) => {
       ev.stopPropagation();
-      qsa('.actionsMenu.open').forEach(menu => { if (menu !== root) menu.classList.remove('open'); });
-      root.classList.toggle('open');
+      if (panel) close();
+      else open();
     });
     btn.setAttribute('aria-haspopup', 'true');
     btn.setAttribute('aria-expanded', 'false');
-    const panel = el('div', { class:'menuPanel', role:'menu' }, items.map(item => el('button', {
-      class:`menuAction ${item.cls || ''}`,
-      type:'button',
-      role:'menuitem',
-      onclick:(ev) => {
-        ev.stopPropagation();
-        root.classList.remove('open');
-        item.onClick?.(ev);
-      }
-    }, [el('span', { class:'ico' }, [item.icon || '•']), el('span', {}, [item.label || 'Ação'])])));
     root.appendChild(btn);
-    root.appendChild(panel);
-    document.addEventListener('click', (ev) => { if (!root.contains(ev.target)) root.classList.remove('open'); }, { once:false });
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
     return root;
   };
 
