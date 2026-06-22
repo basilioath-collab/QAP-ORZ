@@ -2992,7 +2992,7 @@ main{padding:14px;overflow-x:hidden}
       demand?.data_conclusão ||
       ''
     );
-    return explicitDate || timestampToLocalISO(demand?.status_changed_at);
+    return explicitDate || timestampToLocalISO(demand?.status_changed_at || demand?.last_edit_at || demand?.updatedAt || demand?.updated_at);
   };
 
   const demandCountsInAllocationOnDate = (demand, dateStr) => {
@@ -6418,8 +6418,19 @@ main{padding:14px;overflow-x:hidden}
       if (!allocValidation.ok) { toast(allocValidation.msg); return; }
       const primaryResponsavelId = allocations[0]?.resourceId || '';
       const latestDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+      const previousStatus = normalizeStatus(latestDemand.status);
+      const statusChanged = previousStatus !== nextStatus;
+      const statusAudit = statusChanged ? {
+        status_reason: justification || latestDemand.status_reason || '',
+        status_reason_type: nextStatus,
+        status_changed_at: Date.now(),
+        status_action_date: todayISO(),
+        status_changed_by: userName || 'Sessão local',
+        status_changed_by_id: userId || '',
+      } : {};
       const next = {
         ...latestDemand,
+        ...statusAudit,
         titulo: titleVal,
         predio: predioVal,
         focal: focalVal,
