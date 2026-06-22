@@ -1736,6 +1736,22 @@ main{padding:14px;overflow-x:hidden}
     return out;
   };
 
+  const primaryDemandResourceId = (demand={}, allocations=[]) => {
+    const allocs = Array.isArray(allocations) ? allocations : [];
+    const explicitRid = String(demand?.responsavel_id || demand?.resourceId || '').trim();
+    if (explicitRid && allocs.some(a => String(a?.resourceId || '').trim() === explicitRid)) return explicitRid;
+
+    const today = todayISO();
+    const active = allocs
+      .filter(a => demandAllocationActiveOnDate(a, demand, today))
+      .sort((a,b) => String(b?.data_inicio || '').localeCompare(String(a?.data_inicio || '')));
+    if (active[0]?.resourceId) return String(active[0].resourceId).trim();
+
+    const latest = [...allocs]
+      .sort((a,b) => String(b?.data_inicio || '').localeCompare(String(a?.data_inicio || '')))[0];
+    return String(latest?.resourceId || explicitRid || '').trim();
+  };
+
   const relatedDemandReprogrammings = (demand, reprogrammings=[]) => {
     const id = String(demand?.id || '').trim();
     if (!id) return [];
@@ -1795,10 +1811,10 @@ main{padding:14px;overflow-x:hidden}
       const existing = grouped.get(key);
       const allocs = normalizeDemandAllocations(d, resources);
       if (!existing) {
-        const firstRid = allocs[0]?.resourceId || String(d.responsavel_id || d.resourceId || '').trim();
+        const primaryRid = primaryDemandResourceId(d, allocs) || allocs[0]?.resourceId || String(d.responsavel_id || d.resourceId || '').trim();
         grouped.set(key, {
           ...d,
-          responsavel_id: firstRid,
+          responsavel_id: primaryRid,
           percentual_diario: Number(allocs[0]?.percentual_diario ?? d.percentual_diario ?? 0),
           horas_planejadas_dia: Number(allocs[0]?.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0),
           allocations: allocs,
@@ -1812,7 +1828,7 @@ main{padding:14px;overflow-x:hidden}
         existing.allocations.push({ ...a });
         seen.add(rid);
       }
-      if (!existing.responsavel_id && existing.allocations[0]?.resourceId) existing.responsavel_id = existing.allocations[0].resourceId;
+      existing.responsavel_id = primaryDemandResourceId(existing, existing.allocations) || existing.responsavel_id || existing.allocations[0]?.resourceId || '';
     }
     return [...grouped.values()];
   };
