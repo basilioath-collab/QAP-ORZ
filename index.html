@@ -1167,7 +1167,7 @@ main{padding:14px;overflow-x:hidden}
   const DB_META_KEY = 'capview_db_meta';
   const DB_BASELINE_KEY = 'capview_db_baseline';
   const APP_SCHEMA_VERSION = '0.2.3-demand-metrics';
-  const HOURS_PER_DAY = 9; // Interno: 9h/dia
+  const HOURS_PER_DAY = 9; // Interno: 9h/dia (sexta-feira conta 8h nos cálculos diários)
   const HOURS_PER_DAY_THIRD = 8; // Terceiro: 8h/dia
   const PAGE_SIZE = 10; // itens por página (Demandas e Recursos)
   const CALENDAR_PAGE_SIZE = 10; // itens por página (Bloqueios e Feriados)
@@ -1493,10 +1493,20 @@ main{padding:14px;overflow-x:hidden}
     return out;
   };
   const isWeekend = (d) => { const day = d.getDay(); return day === 0 || day === 6; };
+  const isFriday = (d) => d instanceof Date && !Number.isNaN(d.getTime()) && d.getDay() === 5;
   const getResourceHoursPerDay = (resource) => {
     if (!resource) return HOURS_PER_DAY;
     if (String(resource.tipo || '').trim() === 'Terceiro') return HOURS_PER_DAY_THIRD;
     return HOURS_PER_DAY;
+  };
+  const getResourceHoursForDate = (resource, dateObj) => {
+    const base = getResourceHoursPerDay(resource);
+    if (!resource || String(resource.tipo || '').trim() === 'Terceiro') return base;
+    return isFriday(dateObj) ? HOURS_PER_DAY_THIRD : base;
+  };
+  const resourceHoursLabel = (resource) => {
+    if (String(resource?.tipo || '').trim() === 'Terceiro') return `${HOURS_PER_DAY_THIRD}h/dia`;
+    return `${HOURS_PER_DAY}h/dia (sexta ${HOURS_PER_DAY_THIRD}h)`;
   };
 
   const roundDemandHours = (value) => {
@@ -2959,6 +2969,41 @@ main{padding:14px;overflow-x:hidden}
     // Atrasada começa no DIA SEGUINTE ao prazo (HOJE > data_fim)
     if (prazo && todayISO() > prazo) return 'Atrasada';
     return base;
+  };
+
+  const timestampToLocalISO = (value) => {
+    const n = Number(value || 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    const dt = new Date(n);
+    if (Number.isNaN(dt.getTime())) return '';
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const demandCompletionActionDate = (demand) => {
+    if (normalizeStatus(demand?.status) !== 'Concluída') return '';
+    const explicitDate = normalizeDateLikeToISO(
+      demand?.status_action_date ||
+      demand?.completed_at ||
+      demand?.completion_date ||
+      demand?.data_conclusao ||
+      demand?.data_conclusão ||
+      ''
+    );
+    return explicitDate || timestampToLocalISO(demand?.status_changed_at);
+  };
+
+  const demandCountsInAllocationOnDate = (demand, dateStr) => {
+    const st = effectiveStatus(demand);
+    if (STATUS_COUNTS_IN_ALLOCATION.has(st)) return true;
+    if (st !== 'Concluída') return false;
+
+    // Uma demanda concluída libera a janela no próprio dia da conclusão.
+    // Os dias anteriores continuam alocados para preservar o histórico da janela.
+    const completionDate = demandCompletionActionDate(demand);
+    return !!completionDate && String(dateStr || '') < completionDate;
   };
 
   const overdueTooltip = (demand) => {
@@ -5485,7 +5530,7 @@ main{padding:14px;overflow-x:hidden}
       const reason = this.nonWorkingReasonForDay(resourceId, dateObj);
       if (reason) return 0;
       const res = (state.resources || []).find(r => r.id === resourceId);
-      return getResourceHoursPerDay(res);
+      return getResourceHoursForDate(res, dateObj);
     },
 
     dailyCapacityWithOvertime(resourceId, dateObj) {
@@ -5506,8 +5551,7 @@ main{padding:14px;overflow-x:hidden}
 
       let total = 0;
       for (const dem of (state.demands || [])) {
-        const st = effectiveStatus(dem);
-        if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) continue;
+        if (!demandCountsInAllocationOnDate(dem, dateStr)) continue;
         if (!(dateStr >= dem.data_inicio && dateStr <= dem.data_fim)) continue;
         const allocHours = demandAllocations(dem)
           .filter(a => String(a.resourceId || '') === String(resourceId || ''))
@@ -5521,7 +5565,7 @@ main{padding:14px;overflow-x:hidden}
       const reason = this.nonWorkingReasonForDay(resourceId, dateObj);
       if (reason) return reason.code;
       const res = (state.resources || []).find(r => r.id === resourceId);
-      const base = getResourceHoursPerDay(res);
+      const base = getResourceHoursForDate(res, dateObj);
       if (!base) return 0;
       return Math.round((this.dailyDemandHoursAllocated(resourceId, dateObj) / base) * 1000) / 10;
     },
@@ -5542,7 +5586,7 @@ main{padding:14px;overflow-x:hidden}
         return { dateStr, capacity: 0, allocated: 0, free: 0, tag: 'OFF', cls: 'bg-off', eligible: false, overtime: otInfo };
       }
 
-      const base = blockedNoHe ? 0 : getResourceHoursPerDay(res);
+      const base = blockedNoHe ? 0 : getResourceHoursForDate(res, dateObj);
       const capacity = Math.max(0, Number(base || 0)) + otHours;
       const allocatedFromDemandsHH = this.dailyDemandHoursAllocated(resourceId, dateObj);
       const perc = demandHoursToPercent(allocatedFromDemandsHH, resourceId, state.resources || []);
@@ -5596,6 +5640,7 @@ main{padding:14px;overflow-x:hidden}
     return (state.demands||[]).filter(d => {
       const hasResource = demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId || ''));
       if (!hasResource) return false;
+      if (!demandCountsInAllocationOnDate(d, dateStr)) return false;
       return dateStr >= d.data_inicio && dateStr <= d.data_fim;
     });
   };
@@ -5716,7 +5761,7 @@ main{padding:14px;overflow-x:hidden}
       } else {
         for (const d of pageItems) {
           const st = effectiveStatus(d);
-          const counts = STATUS_COUNTS_IN_ALLOCATION.has(st);
+          const counts = demandCountsInAllocationOnDate(d, dateStr);
           const allocHoursForResource = demandAllocations(d)
             .filter(a => String(a.resourceId || '') === String(resourceId || ''))
             .reduce((acc, a) => acc + Number(a.horas_planejadas_dia || a.horas_dia || 0), 0);
@@ -6852,8 +6897,8 @@ main{padding:14px;overflow-x:hidden}
     ]);
     tipo.value = (resource.tipo === 'Terceiro') ? 'Terceiro' : 'Interno';
 
-    // Regra fixa do app (9h/dia): mostramos s? como informativo
-    const horasInfo = el('input', { value: String(getResourceHoursPerDay(resource)), disabled:'', title:'Interno: 9h/dia | Terceiro: 8h/dia' });
+    // Regra fixa do app: mostramos só como informativo
+    const horasInfo = el('input', { value: resourceHoursLabel(resource), disabled:'', title:'Interno: 9h/dia (sexta 8h) | Terceiro: 8h/dia' });
 
     const ativo = el('select', {}, [
       el('option', { value:'true' }, ['Ativo']),
@@ -7341,7 +7386,7 @@ function buildConsolidatedMonthTotals(year, m0) {
       // - Weekend: 0h (+ HE only)
       // - Holiday / Blocking / OFF: 0h (+ HE only)
       const resObj = (state.resources || []).find(x => x.id === r.id);
-      let base = weekend ? 0 : getResourceHoursPerDay(resObj);
+      let base = weekend ? 0 : getResourceHoursForDate(resObj, d);
 
       if (isHoliday(dateStr)) base = 0;
       const blk = blockingFor(r.id, dateStr);
@@ -7657,7 +7702,7 @@ function buildConsolidatedYearSeries(year) {
             const tr = el('tr', { id: `winres-${r.id}` });
             tr.appendChild(el('td', { class:'stickyCol' }, [
               el('div', { style:'font-weight:950' }, [r.nome]),
-              el('div', { class:'tiny' }, [`${r.tipo} - ${getResourceHoursPerDay(r)}h/dia`])
+              el('div', { class:'tiny' }, [`${r.tipo} - ${resourceHoursLabel(r)}`])
             ]));
             for (const d of days) {
               const dateStr = formatDate(d);
@@ -8274,8 +8319,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
   const plannedDemandHoursForDate = (demand={}, dateStr='', resourceIds=null) => {
     const ids = Array.isArray(resourceIds) ? resourceIds.map(String) : null;
     if (!dateStr || String(demand.data_inicio || '') > dateStr || String(demand.data_fim || '') < dateStr) return 0;
-    const st = effectiveStatus(demand);
-    if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) return 0;
+    if (!demandCountsInAllocationOnDate(demand, dateStr)) return 0;
     return demandAllocations(demand).reduce((acc, a) => {
       const rid = String(a.resourceId || '').trim();
       if (ids && !ids.includes(rid)) return acc;
@@ -8339,7 +8383,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     return assigned[0] || '';
   };
 
-  const expectedExecutionHoursForResource = (resource={}) => String(resource?.tipo || '').trim() === 'Terceiro' ? HOURS_PER_DAY_THIRD : HOURS_PER_DAY;
+  const expectedExecutionHoursForResource = (resource={}, dateStr=todayISO()) => getResourceHoursForDate(resource, isoToLocalMidnight(dateStr));
 
   const dailyResourceExecutionRows = (dateStr=todayISO(), { includeAllResources=false } = {}) => {
     const byResource = new Map();
@@ -8349,7 +8393,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       if (!byResource.has(rid)) {
         byResource.set(rid, {
           resource,
-          planned: expectedExecutionHoursForResource(resource),
+          planned: expectedExecutionHoursForResource(resource, dateStr),
           demandReal: 0,
           internalReal: 0,
           items: [],
@@ -8794,9 +8838,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         button('Exportar todos os dias', 'primary', openDailyExecutionExportModal),
         button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
       ]), el('div', { class:'grid', style:'gap:12px' }, [
-        el('div', { class:'tiny muted' }, ['Indicador gerencial do dia selecionado. A meta de execução é fixa: 9h para interno e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.']),
+        el('div', { class:'tiny muted' }, ['Indicador gerencial do dia selecionado. A meta é 9h para interno, 8h para interno às sextas e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.']),
         el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px' }, [
-          metric('Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, '9h interno / 8h terceiro'),
+          metric('Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, 'interno 9h; sexta 8h; terceiro 8h'),
           metric('Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
           metric('Aderência', pct(totalsWithInternal.adherence), 'executado ÷ planejado', totalsWithInternal.adherence < 60 ? 'warn' : ''),
           metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
@@ -8826,7 +8870,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         el('option', { value:'Interno' }, ['Interno']),
         el('option', { value:'Terceiro' }, ['Terceiro']),
       ]);
-      const hours = el('input', { type:'number', min:'0', step:'0.5', value:String(HOURS_PER_DAY), disabled:'true', title:'Interno: 9h/dia | Terceiro: 8h/dia' });
+      const hours = el('input', { type:'number', min:'0', step:'0.5', value:String(HOURS_PER_DAY), disabled:'true', title:'Interno: 9h/dia (sexta 8h) | Terceiro: 8h/dia' });
       const active = el('select', {}, [
         el('option', { value:'true' }, ['Ativo']),
         el('option', { value:'false' }, ['Inativo']),
@@ -8914,7 +8958,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         const tr = el('tr');
         tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [r.nome]) ]));
         tr.appendChild(el('td', {}, [r.tipo]));
-        tr.appendChild(el('td', {}, [String(getResourceHoursPerDay(r))]));
+        tr.appendChild(el('td', {}, [resourceHoursLabel(r)]));
         tr.appendChild(el('td', {}, [r.ativo === false ? 'Não' : 'Sim']));
         const vig = (r.tipo === 'Terceiro') ? `${r.vigencia_inicio?formatDateBR(r.vigencia_inicio):'-'} - ${r.vigencia_fim?formatDateBR(r.vigencia_fim):'-'}` : '-';
         tr.appendChild(el('td', { class:'mono tiny' }, [vig]));
@@ -9857,11 +9901,14 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     const demandsCount = (state.demands||[]).filter(d => {
       if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId))) return false;
       const st = effectiveStatus(d);
-      if (!STATUS_COUNTS_IN_ALLOCATION.has(st)) return false;
       const monthStart = `${y}-${String(m0+1).padStart(2,'0')}-01`;
       const lastDay = String(new Date(y, m0+1, 0).getDate()).padStart(2,'0');
       const monthEnd = `${y}-${String(m0+1).padStart(2,'0')}-${lastDay}`;
-      return String(d.data_inicio||'') <= monthEnd && String(d.data_fim||'') >= monthStart;
+      if (String(d.data_inicio||'') > monthEnd || String(d.data_fim||'') < monthStart) return false;
+      if (STATUS_COUNTS_IN_ALLOCATION.has(st)) return true;
+      if (st !== 'Concluída') return false;
+      const completionDate = demandCompletionActionDate(d);
+      return !!completionDate && (String(d.data_inicio||'') > monthStart ? String(d.data_inicio||'') : monthStart) < completionDate;
     }).length;
     return {
       y, m0,
@@ -10226,7 +10273,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         const tr = el('tr');
         tr.appendChild(el('td', { class:'stickyCol' }, [
           el('div', { style:'font-weight:950' }, [rr.r.nome]),
-          el('div', { class:'tiny' }, [`${rr.r.tipo} - ${getResourceHoursPerDay(rr.r)}h/dia`])
+          el('div', { class:'tiny' }, [`${rr.r.tipo} - ${resourceHoursLabel(rr.r)}`])
         ]));
 
         for (const m of rr.ms) {
@@ -12616,7 +12663,7 @@ return el('div', { class:'grid' }, [
           resource_id: r.id || '',
           recurso: r.nome || '',
           tipo_recurso: r.tipo || '',
-          horas_dia_recurso: getResourceHoursPerDay(r),
+          horas_dia_recurso: getResourceHoursForDate(r, d),
           capacidade_total_hh: Number(cap.toFixed(2)),
           alocado_demandas_hh: Number(allocDem.toFixed(2)),
           alocado_internas_hh: Number(allocInt.toFixed(2)),
@@ -12735,7 +12782,6 @@ return el('div', { class:'grid' }, [
       const rangeStart = start < ctx.periodStart ? ctx.periodStart : start;
       const rangeEnd = end > ctx.periodEnd ? ctx.periodEnd : end;
       const statusAtual = effectiveStatus ? effectiveStatus(d) : (d.status || '');
-      const contaAlocacao = STATUS_COUNTS_IN_ALLOCATION.has(statusAtual);
       for (const alloc of demandAllocations(d)) {
         const rid = alloc.resourceId || '';
         const res = resMap[rid];
@@ -12745,6 +12791,7 @@ return el('div', { class:'grid' }, [
           const dateStr = formatDate(day);
           const reason = CapacityEngine.nonWorkingReasonForDay(rid, day);
           const elegivel = !reason;
+          const contaAlocacao = demandCountsInAllocationOnDate(d, dateStr);
           const plannedHH = contaAlocacao && elegivel ? Math.max(0, hoursPerDay) : 0;
           rows.push({
             data: dateStr,
@@ -12910,7 +12957,7 @@ return el('div', { class:'grid' }, [
       const tipo = String(b.tipo || '').trim();
       for (const day of orizonPackDaysBetween(start, end)) {
         const dateStr = formatDate(day);
-        const removeHH = (!isWeekend(day) && !isHoliday(dateStr)) ? getResourceHoursPerDay(res) : 0;
+        const removeHH = (!isWeekend(day) && !isHoliday(dateStr)) ? getResourceHoursForDate(res, day) : 0;
         rows.push({
           blocking_id: b.id || '',
           data: dateStr,
@@ -13504,7 +13551,7 @@ return el('div', { class:'grid' }, [
           }
 
           // Capacidade base (janelas): dia útil usa as horas do recurso; dia não útil = 0h; HE soma sobre a data/recurso.
-          let base = blockedNoHe ? 0 : getResourceHoursPerDay(res);
+          let base = blockedNoHe ? 0 : getResourceHoursForDate(res, dObj);
 
           const capacity = Math.max(0, Number(base || 0)) + otHours;
 
