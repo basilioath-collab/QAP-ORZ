@@ -873,6 +873,20 @@ main{padding:14px;overflow-x:hidden}
     </div>
   </dialog>
 
+
+  <dialog id="demandStatusModal" class="modal">
+    <div class="modalCard">
+      <div class="modalHd">
+        <div>
+          <div class="modalTitle" id="demandStatusModalTitle">Alterar situação da demanda</div>
+          <div class="modalSub" id="demandStatusModalSub">Justificativa obrigatória.</div>
+        </div>
+        <button class="btn ghost" id="demandStatusModalClose" type="button">Fechar ×</button>
+      </div>
+      <div class="modalBd" id="demandStatusModalBody"></div>
+    </div>
+  </dialog>
+
   <dialog id="demandReprogramModal" class="modal">
     <div class="modalCard">
       <div class="modalHd">
@@ -5753,7 +5767,7 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Editar Demanda (modal com justificativa opcional)
   // ----------------------
-  const requestDemandStatusJustificationWithText = (demand, nextStatus, justification, { silent=false } = {}) => {
+  const requestDemandStatusJustificationWithText = (demand, nextStatus, justification, { silent=false, actionDate='' } = {}) => {
     if (!demand) return false;
     const normalizedNextStatus = normalizeStatus(nextStatus);
     const currentStatus = effectiveStatus(demand);
@@ -5770,6 +5784,7 @@ main{padding:14px;overflow-x:hidden}
       status_reason: justification,
       status_reason_type: normalizedNextStatus,
       status_changed_at: Date.now(),
+      status_action_date: actionDate || todayISO(),
       status_changed_by: userName || 'Sessão local',
       status_changed_by_id: userId || '',
       last_edit_by: userName,
@@ -5779,7 +5794,7 @@ main{padding:14px;overflow-x:hidden}
     state.events = [...state.events, {
       id: generateId('event'),
       type:'CHANGE_DEMAND_STATUS',
-      payload:{ demand_id: latestDemand.id, before:{ status: currentStatus }, after:{ status: normalizedNextStatus }, justification },
+      payload:{ demand_id: latestDemand.id, before:{ status: currentStatus }, after:{ status: normalizedNextStatus, action_date: actionDate || todayISO() }, justification },
       timestamp: Date.now(),
       user: userName,
       user_id: userId || ''
@@ -5801,6 +5816,48 @@ main{padding:14px;overflow-x:hidden}
     }
     const justification = String(prompt(`Informe a justificativa para ${actionLabel.toLowerCase()} a demanda "${demand.titulo || demand.id || ''}":`) || '').trim();
     requestDemandStatusJustificationWithText(demand, normalizedNextStatus, justification);
+  };
+
+  const openDemandStatusActionModal = (demand, nextStatus) => {
+    const dlg = qs('#demandStatusModal');
+    if (!dlg || !demand) return;
+    const normalizedNextStatus = normalizeStatus(nextStatus);
+    const actionName = normalizedNextStatus === 'Cancelada' ? 'cancelamento' : 'conclusão';
+    qs('#demandStatusModalTitle').textContent = normalizedNextStatus === 'Cancelada' ? 'Cancelar demanda' : 'Concluir demanda';
+    qs('#demandStatusModalSub').textContent = `Justificativa obrigatória para ${actionName} da demanda.`;
+    const body = qs('#demandStatusModalBody');
+    body.innerHTML = '';
+
+    const actionDate = el('input', { type:'date', value: todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+    const justification = el('textarea', { placeholder:`Descreva a justificativa obrigatória para ${actionName}...`, maxlength:String(INPUT_LIMITS.justification), style:'min-height:120px' });
+    const save = () => {
+      const dateVal = String(actionDate.value || '').trim();
+      const dateValidation = validateDateYearLimit(dateVal, 'Data da ação');
+      if (dateValidation) return toast(dateValidation);
+      if (!isISODateString(dateVal)) return toast('Data da ação: informe uma data válida.');
+      const text = String(justification.value || '').trim();
+      const justValidation = validateTextLimit(text, 'Justificativa', INPUT_LIMITS.justification, { required:true });
+      if (justValidation) return toast(justValidation);
+      const changed = requestDemandStatusJustificationWithText(demand, normalizedNextStatus, text, { actionDate: dateVal });
+      if (changed) { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }
+    };
+
+    body.appendChild(el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'hint' }, [
+        el('b', {}, [demand.titulo || 'Demanda']),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Situação atual: ${effectiveStatus(demand)} → ${normalizedNextStatus}`])
+      ]),
+      el('div', { class:'row' }, [
+        el('div', { class:'field' }, [el('label', {}, ['Data da ação']), actionDate]),
+        el('div', { class:'field' }, [el('label', {}, ['Nova situação']), el('input', { value: normalizedNextStatus, disabled:'', readonly:'' })]),
+      ]),
+      el('div', { class:'field' }, [el('label', {}, [`Justificativa obrigatória para ${actionName}`]), justification]),
+      el('div', { class:'row end' }, [
+        button('Fechar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } }),
+        button(normalizedNextStatus === 'Cancelada' ? 'Confirmar cancelamento' : 'Confirmar conclusão', 'primary', save),
+      ])
+    ]));
+    openDialog(dlg);
   };
 
   const openDemandEditModal = (demand, { viewOnly=false, targetStatus='' } = {}) => {
@@ -9354,8 +9411,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           : [
             iconButton('Editar', '✎', '', edit),
             iconButton('Reprogramar', '↻', '', reprogram),
-            iconButton('Concluir', '✓', 'primary', () => openDemandEditModal(primaryDemand, { viewOnly:true, targetStatus:'Concluída' })),
-            iconButton('Cancelar', '✕', 'danger', () => openDemandEditModal(primaryDemand, { viewOnly:true, targetStatus:'Cancelada' })),
+            iconButton('Concluir', '✓', 'primary', () => openDemandStatusActionModal(primaryDemand, 'Concluída')),
+            iconButton('Cancelar', '✕', 'danger', () => openDemandStatusActionModal(primaryDemand, 'Cancelada')),
             iconButton('Excluir', '🗑', 'danger', del),
           ];
         tr.appendChild(el('td', {}, [
@@ -11675,6 +11732,14 @@ return el('div', { class:'grid' }, [
   edlg.addEventListener('click', (e) => { if (e.target === edlg) { try{ edlg.close(); }catch{ edlg.removeAttribute('open'); } } });
   edlg.addEventListener('close', syncModalBlur);
   edlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ edlg.close(); }catch{ edlg.removeAttribute('open'); } syncModalBlur(); });
+
+  const statusDlg = qs('#demandStatusModal');
+  if (statusDlg) {
+    qs('#demandStatusModalClose').addEventListener('click', () => { try{ statusDlg.close(); }catch{ statusDlg.removeAttribute('open'); } syncModalBlur(); });
+    statusDlg.addEventListener('click', (e) => { if (e.target === statusDlg) { try{ statusDlg.close(); }catch{ statusDlg.removeAttribute('open'); } syncModalBlur(); } });
+    statusDlg.addEventListener('close', syncModalBlur);
+    statusDlg.addEventListener('cancel', (e) => { e.preventDefault(); try{ statusDlg.close(); }catch{ statusDlg.removeAttribute('open'); } syncModalBlur(); });
+  }
 
 	  const rpd = qs('#demandReprogramModal');
 	  if (rpd) {
