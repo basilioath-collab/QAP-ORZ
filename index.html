@@ -293,6 +293,7 @@
     .s-andamento{background:var(--primary-soft);border-color:var(--primary-light);color:var(--primary)}
     .s-atrasada{background:var(--danger-soft);border-color:var(--danger-border);color:var(--danger)}
     .s-concluida{background:var(--success-soft);border-color:var(--success);color:var(--success)}
+    .s-cancelada{background:#F1F5F9;border-color:#94A3B8;color:#475569}
     .s-mapeada{background:var(--surface);border-color:var(--border);color:var(--muted)}
     .s-congelada{background:rgba(6,182,212,.14);border-color:var(--progress-cyan);color:#0E7490}
     .s-suspensa{background:var(--alert-soft);border-color:var(--alert);color:var(--alert)}
@@ -2566,7 +2567,7 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Status (padrão)
   // ----------------------
-  const STATUS = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada'];
+  const STATUS = ['Em andamento','Atrasada','Concluída','Cancelada','Mapeada','Congelada'];
   const STATUS_COUNTS_IN_ALLOCATION = new Set(['Em andamento','Atrasada']);
 
   const normalizeStatus = (s) => {
@@ -2576,6 +2577,7 @@ main{padding:14px;overflow-x:hidden}
     if (v.toLowerCase() === 'planejada') return 'Mapeada';
     if (v.toLowerCase() === 'em andamento') return 'Em andamento';
     if (v.toLowerCase() === 'concluída' || v.toLowerCase() === 'concluida') return 'Concluída';
+    if (v.toLowerCase() === 'cancelada' || v.toLowerCase() === 'cancelado' || v.toLowerCase() === 'cancelada') return 'Cancelada';
     if (v.toLowerCase() === 'suspensa') return 'Congelada';
     if (v.toLowerCase() === 'atrasada') return 'Atrasada';
     if (v.toLowerCase() === 'mapeada') return 'Mapeada';
@@ -2906,8 +2908,8 @@ main{padding:14px;overflow-x:hidden}
 
   const effectiveStatus = (demand) => {
     const base = normalizeStatus(demand?.status);
-    // Concluída e Congelada nunca viram atrasadas automaticamente
-    if (base === 'Concluída' || base === 'Congelada') return base;
+    // Concluída, Cancelada e Congelada nunca viram atrasadas automaticamente
+    if (base === 'Concluída' || base === 'Cancelada' || base === 'Congelada') return base;
     const prazo = (demand?.data_fim||'').trim();
     // Atrasada começa no DIA SEGUINTE ao prazo (HOJE > data_fim)
     if (prazo && todayISO() > prazo) return 'Atrasada';
@@ -3097,6 +3099,7 @@ main{padding:14px;overflow-x:hidden}
     'Em andamento': '#4F46E5',
     'Atrasada': '#E52525',
     'Concluída': '#1BAA55',
+    'Cancelada': '#64748B',
     'Mapeada': '#9BAEC1',
     'Congelada': '#D28A00'
   };
@@ -5534,7 +5537,7 @@ main{padding:14px;overflow-x:hidden}
     const activeResources = state.resources.filter(r => r.ativo !== false).length;
     const logicalDemands = groupDemandsForDisplay(demandsList || []);
     const totalDemands = logicalDemands.length;
-    const openDemands = logicalDemands.filter(d => effectiveStatus(d) !== 'Concluída').length;
+    const openDemands = logicalDemands.filter(d => !['Concluída','Cancelada'].includes(effectiveStatus(d))).length;
     return { totalResources, activeResources, totalDemands, openDemands };
   };
 
@@ -5750,6 +5753,56 @@ main{padding:14px;overflow-x:hidden}
   // ----------------------
   // Editar Demanda (modal com justificativa opcional)
   // ----------------------
+  const requestDemandStatusJustificationWithText = (demand, nextStatus, justification, { silent=false } = {}) => {
+    if (!demand) return false;
+    const normalizedNextStatus = normalizeStatus(nextStatus);
+    const currentStatus = effectiveStatus(demand);
+    if (currentStatus === normalizedNextStatus) {
+      if (!silent) toast(`Demanda já está ${normalizedNextStatus.toLowerCase()}.`);
+      return false;
+    }
+    const justValidation = validateTextLimit(justification, 'Justificativa', INPUT_LIMITS.justification, { required:true });
+    if (justValidation) { if (!silent) toast(justValidation); return false; }
+    const latestDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+    const next = {
+      ...latestDemand,
+      status: normalizedNextStatus,
+      status_reason: justification,
+      status_reason_type: normalizedNextStatus,
+      status_changed_at: Date.now(),
+      status_changed_by: userName || 'Sessão local',
+      status_changed_by_id: userId || '',
+      last_edit_by: userName,
+      last_edit_at: Date.now(),
+      last_edit_justification: justification,
+    };
+    state.events = [...state.events, {
+      id: generateId('event'),
+      type:'CHANGE_DEMAND_STATUS',
+      payload:{ demand_id: latestDemand.id, before:{ status: currentStatus }, after:{ status: normalizedNextStatus }, justification },
+      timestamp: Date.now(),
+      user: userName,
+      user_id: userId || ''
+    }];
+    dispatch('UPDATE_DEMAND', next);
+    if (!silent) {
+      render();
+      toast(`Demanda ${normalizedNextStatus.toLowerCase()}.`);
+    }
+    return true;
+  };
+
+  const requestDemandStatusJustification = (demand, nextStatus, actionLabel) => {
+    if (!demand) return;
+    const normalizedNextStatus = normalizeStatus(nextStatus);
+    if (effectiveStatus(demand) === normalizedNextStatus) {
+      toast(`Demanda já está ${normalizedNextStatus.toLowerCase()}.`);
+      return;
+    }
+    const justification = String(prompt(`Informe a justificativa para ${actionLabel.toLowerCase()} a demanda "${demand.titulo || demand.id || ''}":`) || '').trim();
+    requestDemandStatusJustificationWithText(demand, normalizedNextStatus, justification);
+  };
+
   const openDemandEditModal = (demand) => {
     const dlg = qs('#demandEditModal');
     const resMap = resourceById();
@@ -6887,7 +6940,7 @@ main{padding:14px;overflow-x:hidden}
     const currentNameKey = personMatchKey(userName);
     return (state.demands || [])
       .filter(d => d && String(d.id || '').trim())
-      .filter(d => effectiveStatus(d) !== 'Concluída')
+      .filter(d => !['Concluída','Cancelada'].includes(effectiveStatus(d)))
       .map(d => {
         const assignedIds = demandAssignedResourceIds(d).filter(rid => ownResourceIds.has(String(rid)));
         if (!assignedIds.length) return null;
@@ -7062,7 +7115,7 @@ main{padding:14px;overflow-x:hidden}
     // Aceita string (status) OU um objeto demanda (para tooltip/?cone)
     const isObj = statusOrDemand && typeof statusOrDemand === 'object';
     const s = isObj ? effectiveStatus(statusOrDemand) : normalizeStatus(statusOrDemand);
-    const key = (s === 'Em andamento') ? 'andamento' : (s === 'Atrasada') ? 'atrasada' : (s === 'Concluída') ? 'concluida' : (s === 'Mapeada') ? 'mapeada' : (s === 'Congelada') ? 'congelada' : 'planejada';
+    const key = (s === 'Em andamento') ? 'andamento' : (s === 'Atrasada') ? 'atrasada' : (s === 'Concluída') ? 'concluida' : (s === 'Cancelada') ? 'cancelada' : (s === 'Mapeada') ? 'mapeada' : (s === 'Congelada') ? 'congelada' : 'planejada';
     const title = isObj ? (overdueTooltip(statusOrDemand) || '') : '';
     const children = [
       el('span', { class:'sDot' }, []),
@@ -7551,7 +7604,7 @@ function buildConsolidatedYearSeries(year) {
     const tableBlock = el('div', {}, [table, sheetPager]);
 
     const statusCounts = (() => {
-      const counts = { 'Em andamento':0, 'Atrasada':0, 'Concluída':0, 'Mapeada':0, 'Congelada':0 };
+      const counts = { 'Em andamento':0, 'Atrasada':0, 'Concluída':0, 'Cancelada':0, 'Mapeada':0, 'Congelada':0 };
       for (const d of (dashboardFilteredDemands||[])) {
         const st = effectiveStatus(d);
         if (counts[st] === undefined) counts[st] = 0;
@@ -7599,7 +7652,7 @@ function buildConsolidatedYearSeries(year) {
     })();
 
     const donutNode = (() => {
-      const order = ['Em andamento','Atrasada','Concluída','Mapeada','Congelada'];
+      const order = ['Em andamento','Atrasada','Concluída','Cancelada','Mapeada','Congelada'];
       const colors = STATUS_COLORS;
       const realTotal = order.reduce((a,k)=>a+(statusCounts[k]||0),0);
 
@@ -7659,7 +7712,7 @@ function buildConsolidatedYearSeries(year) {
         const active = (dashboardFilteredDemands||[]).filter(d => {
           if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(r.id))) return false;
           const st = effectiveStatus(d);
-          if (st === 'Mapeada' || st === 'Concluída') return false;
+          if (st === 'Mapeada' || st === 'Concluída' || st === 'Cancelada') return false;
           // overlap com o mês
           const start = d.data_inicio;
           const end = d.data_fim;
@@ -9275,10 +9328,28 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           toast('Demanda excluída.');
         };
 
+        const changeGroupStatus = (nextStatus, actionLabel) => {
+          const targets = groupItems.length ? groupItems : [primaryDemand];
+          const statusLabel = normalizeStatus(nextStatus).toLowerCase();
+          const alreadyAll = targets.every(item => effectiveStatus(item) === normalizeStatus(nextStatus));
+          if (alreadyAll) return toast(`Demanda já está ${statusLabel}.`);
+          const justification = String(prompt(`Informe a justificativa para ${actionLabel.toLowerCase()} a demanda "${d.titulo || primaryDemand.id || ''}":`) || '').trim();
+          const justValidation = validateTextLimit(justification, 'Justificativa', INPUT_LIMITS.justification, { required:true });
+          if (justValidation) return toast(justValidation);
+          for (const item of targets) {
+            if (!item?.id || effectiveStatus(item) === normalizeStatus(nextStatus)) continue;
+            requestDemandStatusJustificationWithText(item, nextStatus, justification, { silent:true });
+          }
+          render();
+          toast(`Demanda ${statusLabel}.`);
+        };
+
         tr.appendChild(el('td', {}, [
           el('div', { class:'actionBtns' }, [
             iconButton('Editar', '✎', '', edit),
             iconButton('Reprogramar', '↻', '', reprogram),
+            iconButton('Concluir', '✓', 'primary', () => changeGroupStatus('Concluída', 'Concluir')),
+            iconButton('Cancelar', '✕', 'danger', () => changeGroupStatus('Cancelada', 'Cancelar')),
             iconButton('Excluir', '🗑', 'danger', del),
           ])
         ]));
