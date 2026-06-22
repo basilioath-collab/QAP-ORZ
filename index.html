@@ -10603,7 +10603,6 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     const ini = el('input', { type:'date', value: editingActivity?.data_inicio || todayISO() });
     const fim = el('input', { type:'date', value: editingActivity?.data_fim || todayISO() });
     const horas = el('input', { type:'text', inputmode:'decimal', value: isEditing ? decimalHoursToHHMM(editingActivity?.horas_dia || 0) : '01:00', placeholder:'Ex: 01:30 ou 1.5' });
-    const contabiliza = el('select', {}, [el('option', { value:'true' }, ['Contabiliza capacidade']), el('option', { value:'false' }, ['Apenas informativa'])]);
     const obs = el('textarea', { placeholder:'Observações...', maxlength:String(INPUT_LIMITS.demandNotes) }, [editingActivity?.observacoes || '']);
     setSelectValue(type, editingActivity?.tipo);
     contabiliza.value = editingActivity?.contabiliza_capacidade === false ? 'false' : 'true';
