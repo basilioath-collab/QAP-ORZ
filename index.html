@@ -1733,6 +1733,56 @@ main{padding:14px;overflow-x:hidden}
       for (const a of demand.allocations) add(a?.resourceId || a?.responsavel_id, a);
     }
     add(demand?.responsavel_id || demand?.resourceId, demand);
+    return reconcileAllocationsWithTransferHistory(demand, out, resources);
+  };
+
+  const transferHistoryEntries = (demand={}) => (Array.isArray(demand.transfer_history) ? demand.transfer_history : [])
+    .map((t, idx) => ({ ...t, __idx:idx, timestamp:Number(t?.timestamp || 0) || 0, transferDate:normalizeDateLikeToISO(t?.transferDate || t?.data_transferencia || t?.date || '') || '' }))
+    .filter(t => String(t.fromResourceId || t.from_resource_id || '').trim() || String(t.toResourceId || t.to_resource_id || '').trim())
+    .sort((a,b) => (a.timestamp - b.timestamp) || String(a.transferDate).localeCompare(String(b.transferDate)) || (a.__idx - b.__idx));
+
+  const allocationStartedAfterTransfer = (allocation={}, transfer={}) => {
+    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || '';
+    const nextStart = normalizeDateLikeToISO(transfer.nextStart || '') || (transfer.transferDate ? addDaysISO(transfer.transferDate, 1) : '');
+    if (start && nextStart) return start >= nextStart;
+    return Number(allocation.created_at || allocation.timestamp || 0) > Number(transfer.timestamp || 0);
+  };
+
+  const reconcileAllocationsWithTransferHistory = (demand={}, allocations=[], resources=[]) => {
+    const out = (Array.isArray(allocations) ? allocations : []).map(a => ({ ...a }));
+    const byResource = () => new Map(out.map((a, idx) => [String(a.resourceId || '').trim(), { a, idx }]).filter(([rid]) => rid));
+    for (const transfer of transferHistoryEntries(demand)) {
+      const fromId = String(transfer.fromResourceId || transfer.from_resource_id || '').trim();
+      const toId = String(transfer.toResourceId || transfer.to_resource_id || '').trim();
+      const transferDate = normalizeDateLikeToISO(transfer.transferDate || '') || todayISO();
+      const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+      const nextStart = transferDate;
+      const map = byResource();
+      if (fromId && map.has(fromId)) {
+        const entry = map.get(fromId);
+        if (!allocationStartedAfterTransfer(entry.a, { ...transfer, transferDate, nextStart })) entry.a.data_fim = previousEnd;
+      }
+      if (toId) {
+        const hours = firstHoursLike(transfer.horas_planejadas_dia, transfer.horas_dia, demand.horas_planejadas_dia, demand.horas_dia) ?? 0;
+        const existing = map.get(toId);
+        if (existing) {
+          const start = normalizeDateLikeToISO(existing.a.data_inicio || existing.a.dataInicio || existing.a.start_date || '') || '';
+          if (!start || start < nextStart) existing.a.data_inicio = nextStart;
+          if (!normalizeDateLikeToISO(existing.a.data_fim || existing.a.dataFim || existing.a.end_date || '')) {
+            existing.a.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
+          }
+          if (hours > 0) {
+            existing.a.horas_planejadas_dia = roundDemandHours(hours);
+            existing.a.percentual_diario = demandHoursToPercent(hours, toId, resources);
+          }
+        } else {
+          const nextAlloc = makeDemandAllocation(toId, hours, resources);
+          nextAlloc.data_inicio = nextStart;
+          nextAlloc.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
+          out.push(nextAlloc);
+        }
+      }
+    }
     return out;
   };
 
@@ -2115,8 +2165,11 @@ main{padding:14px;overflow-x:hidden}
         groups.push(group);
       }
       group.display_demands.push(demand);
-      const rid = String(demand.responsavel_id || demand.resourceId || '').trim();
-      if (rid && !group.display_responsavel_ids.includes(rid)) group.display_responsavel_ids.push(rid);
+      const activeIds = activeDemandAllocations(demand).map(a => String(a.resourceId || '').trim()).filter(Boolean);
+      if (!activeIds.length) activeIds.push(String(demand.responsavel_id || demand.resourceId || '').trim());
+      for (const rid of activeIds) {
+        if (rid && !group.display_responsavel_ids.includes(rid)) group.display_responsavel_ids.push(rid);
+      }
       group.createdAt = demandCreatedMs(demand) > demandCreatedMs(group) ? demand.createdAt : group.createdAt;
       group.updatedAt = demandCreatedMs({ createdAt:demand.updatedAt || demand.createdAt }) > demandCreatedMs({ createdAt:group.updatedAt || group.createdAt })
         ? demand.updatedAt
@@ -4086,6 +4139,19 @@ main{padding:14px;overflow-x:hidden}
     const allocs = normalizeDemandAllocations(demand, state.resources || []);
     return allocs.length ? allocs : [];
   };
+  const activeDemandAllocations = (demand, dateStr=todayISO()) => demandAllocations(demand)
+    .filter(a => demandAllocationActiveOnDate(a, demand, dateStr));
+
+  const normalizeDemandAllocationState = (demand, previousDemand=null, resources=state.resources || []) => {
+    const transfer_history = Array.isArray(demand?.transfer_history) && demand.transfer_history.length
+      ? demand.transfer_history
+      : (Array.isArray(previousDemand?.transfer_history) ? previousDemand.transfer_history : []);
+    const merged = { ...(previousDemand || {}), ...(demand || {}), transfer_history };
+    const allocations = normalizeDemandAllocations(merged, resources);
+    const active = allocations.filter(a => demandAllocationActiveOnDate(a, merged, todayISO()));
+    const primary = active.find(a => String(a.resourceId || '') === String(merged.responsavel_id || '')) || active[0] || allocations[0] || {};
+    return { ...merged, allocations, responsavel_id:String(primary.resourceId || merged.responsavel_id || '').trim() };
+  };
   const internalActivitiesForResourceOnDate = (resourceId, dateObj, { onlyCapacity=true } = {}) => {
     const dateStr = formatDate(dateObj);
     const rid = String(resourceId || '').trim();
@@ -4587,7 +4653,7 @@ main{padding:14px;overflow-x:hidden}
         break;
       case 'UPDATE_DEMAND': {
         const prev = (state.demands||[]).find(d => d.id === payload.id);
-        const stamped = applyUpdateMeta(normalizeDemandBaseline({ ...payload, baseline_inicio: payload.baseline_inicio || prev?.baseline_inicio, baseline_fim: payload.baseline_fim || prev?.baseline_fim }), prev);
+        const stamped = applyUpdateMeta(normalizeDemandAllocationState(normalizeDemandBaseline({ ...payload, baseline_inicio: payload.baseline_inicio || prev?.baseline_inicio, baseline_fim: payload.baseline_fim || prev?.baseline_fim }), prev), prev);
         state.demands = state.demands.map(d => d.id === stamped.id ? stamped : d);
         eventPayload = stamped;
         break;
@@ -4614,8 +4680,8 @@ main{padding:14px;overflow-x:hidden}
         const prev = (state.demands||[]).find(d => d.id === payload.demandId);
         if (!prev) { didMutate = false; break; }
         const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
-        const previousEnd = transferDate;
-        const nextStart = addDaysISO(transferDate, 1) || transferDate;
+        const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+        const nextStart = transferDate;
         const fromId = String(payload.fromResourceId || prev.responsavel_id || '').trim();
         const toId = String(payload.toResourceId || '').trim();
         const hours = firstHoursLike(payload.horas_planejadas_dia, payload.horas_dia) ?? firstHoursLike(prev.horas_planejadas_dia, prev.horas_dia) ?? 0;
@@ -4724,11 +4790,11 @@ main{padding:14px;overflow-x:hidden}
         case 'ADD_RESOURCE': rebuilt.resources.push(payload); break;
         case 'UPDATE_RESOURCE': rebuilt.resources = rebuilt.resources.map(r => r.id === payload.id ? payload : r); break;
         case 'DELETE_RESOURCE': removeResourceCascade(rebuilt, payload); break;
-        case 'ADD_DEMAND': rebuilt.demands.push(normalizeDemandBaseline(payload)); break;
+        case 'ADD_DEMAND': rebuilt.demands.push(normalizeDemandAllocationState(normalizeDemandBaseline(payload), null, rebuilt.resources || [])); break;
         case 'ADD_INTERNAL_ACTIVITY': rebuilt.internalActivities.push(payload); break;
         case 'UPDATE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.map(x => x.id === payload.id ? payload : x); break;
         case 'DELETE_INTERNAL_ACTIVITY': rebuilt.internalActivities = rebuilt.internalActivities.filter(x => String(x.id) !== String(payload)); break;
-        case 'UPDATE_DEMAND': rebuilt.demands = rebuilt.demands.map(d => d.id === payload.id ? normalizeDemandBaseline(payload) : d); break;
+        case 'UPDATE_DEMAND': rebuilt.demands = rebuilt.demands.map(d => d.id === payload.id ? normalizeDemandAllocationState(normalizeDemandBaseline(payload), d, rebuilt.resources || []) : d); break;
         case 'DELETE_DEMAND': rebuilt.demands = rebuilt.demands.filter(d => String(d.id) !== String(payload)); break;
         case 'DELETE_DEMANDS': rebuilt.demands = rebuilt.demands.filter(d => !demandMatchesDeletePayload(d, payload)); break;
         case 'REPROGRAM_DEMAND':
@@ -4740,7 +4806,7 @@ main{padding:14px;overflow-x:hidden}
           });
           break;
         case 'TRANSFER_DEMAND_ALLOCATION':
-          rebuilt.demands = rebuilt.demands.map(d => d.id === payload.demandId ? normalizeDemandBaseline(payload.demand || d) : d);
+          rebuilt.demands = rebuilt.demands.map(d => d.id === payload.demandId ? normalizeDemandAllocationState(normalizeDemandBaseline(payload.demand || d), d, rebuilt.resources || []) : d);
           break;
         case 'ADD_BLOCKING': rebuilt.blockings.push(payload); break;
         case 'DELETE_BLOCKING': rebuilt.blockings = rebuilt.blockings.filter(b => b.id !== payload); break;
@@ -5268,7 +5334,11 @@ main{padding:14px;overflow-x:hidden}
     switch (type) {
       case 'ADD_RESOURCE': case 'UPDATE_RESOURCE': target.resources = upsert(target.resources, payload); break;
       case 'DELETE_RESOURCE': removeResourceCascade(target, payload); break;
-      case 'ADD_DEMAND': case 'UPDATE_DEMAND': target.demands = upsert(target.demands, normalizeDemandBaseline(payload)); break;
+      case 'ADD_DEMAND': case 'UPDATE_DEMAND': {
+        const prev = (target.demands || []).find(d => String(d.id) === String(payload?.id));
+        target.demands = upsert(target.demands, normalizeDemandAllocationState(normalizeDemandBaseline(payload), prev, target.resources || []));
+        break;
+      }
       case 'ADD_INTERNAL_ACTIVITY': case 'UPDATE_INTERNAL_ACTIVITY': target.internalActivities = upsert(target.internalActivities, payload); break;
       case 'DELETE_INTERNAL_ACTIVITY': target.internalActivities = (target.internalActivities||[]).filter(x => String(x.id) !== String(payload)); break;
       case 'DELETE_DEMAND': target.demands = (target.demands||[]).filter(d => String(d.id) !== String(payload)); break;
@@ -5284,7 +5354,7 @@ main{padding:14px;overflow-x:hidden}
       }
       case 'TRANSFER_DEMAND_ALLOCATION': {
         if (payload?.demand && payload.demand.id) {
-          target.demands = upsert(target.demands, normalizeDemandBaseline(payload.demand));
+          target.demands = upsert(target.demands, normalizeDemandAllocationState(normalizeDemandBaseline(payload.demand), (target.demands || []).find(d => String(d.id) === String(payload.demand.id)), target.resources || []));
           break;
         }
 
@@ -5292,8 +5362,8 @@ main{padding:14px;overflow-x:hidden}
         target.demands = (target.demands || []).map(d => {
           if (String(d.id || '') !== demandId) return d;
           const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
-          const previousEnd = transferDate;
-          const nextStart = addDaysISO(transferDate, 1) || transferDate;
+          const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+          const nextStart = transferDate;
           const fromId = String(payload.fromResourceId || d.responsavel_id || '').trim();
           const toId = String(payload.toResourceId || '').trim();
           if (!toId || fromId === toId) return d;
@@ -6147,7 +6217,7 @@ main{padding:14px;overflow-x:hidden}
 
     const selectedRespIds = new Set();
     const respHoursById = new Map();
-    for (const a of demandAllocations(demand)) {
+    for (const a of activeDemandAllocations(demand)) {
       const rid = String(a.resourceId || '').trim();
       if (!rid) continue;
       selectedRespIds.add(rid);
@@ -6912,7 +6982,7 @@ main{padding:14px;overflow-x:hidden}
 
   const openDemandTransferModal = (demand) => {
     if (!demand) return;
-    const currentAllocs = demandAllocations(demand);
+    const currentAllocs = activeDemandAllocations(demand);
     const currentRid = String(demand.responsavel_id || currentAllocs[0]?.resourceId || '').trim();
     const currentAlloc = currentAllocs.find(a => String(a.resourceId || '') === currentRid) || currentAllocs[0] || {};
     let dlg = qs('#demandTransferModal');
@@ -6925,7 +6995,7 @@ main{padding:14px;overflow-x:hidden}
     const toSel = el('select', {}, (state.resources || []).filter(r => r?.ativo !== false && String(r.id) !== currentRid).map(r => el('option', { value:r.id }, [r.nome || r.id])));
     const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(currentAlloc.horas_planejadas_dia || currentAlloc.horas_dia || demand.horas_planejadas_dia || demand.horas_dia || 0), placeholder:'Ex: 06:00' });
     const justification = el('textarea', { placeholder:'Explique o motivo da transferência de atuação...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:110px' });
-    const status = el('div', { class:'tiny muted' }, ['A demanda fica contabilizada no responsável atual até a data informada; o novo recurso começa no dia seguinte.']);
+    const status = el('div', { class:'tiny muted' }, ['Na data informada, a alocação ativa passa imediatamente para o novo recurso; o recurso de origem fica com histórico até o dia anterior.']);
     const confirmTransfer = () => {
       const dateVal = normalizeDateLikeToISO(transferDate.value);
       const fromId = String(fromSel.value || '').trim();
@@ -6933,7 +7003,7 @@ main{padding:14px;overflow-x:hidden}
       const h = firstHoursLike(hours.value);
       const text = String(justification.value || '').trim();
       if (!dateVal) { status.textContent = 'Informe uma data de transferência válida.'; status.style.color = 'var(--danger)'; return; }
-      if (demand.data_fim && dateVal >= demand.data_fim) { status.textContent = 'O último dia no recurso atual precisa ser anterior ao fim da demanda para abrir janela ao novo recurso.'; status.style.color = 'var(--danger)'; return; }
+      if (demand.data_fim && dateVal > demand.data_fim) { status.textContent = 'A data da transferência precisa estar dentro do período da demanda.'; status.style.color = 'var(--danger)'; return; }
       if (!fromId || !toId || fromId === toId) { status.textContent = 'Selecione recursos de origem e destino diferentes.'; status.style.color = 'var(--danger)'; return; }
       if (h === null || h <= 0) { status.textContent = 'Informe horas/dia válidas para o novo responsável.'; status.style.color = 'var(--danger)'; return; }
       if (!text) { status.textContent = 'Informe a justificativa da transferência.'; status.style.color = 'var(--danger)'; return; }
@@ -6944,14 +7014,14 @@ main{padding:14px;overflow-x:hidden}
     dlg = el('dialog', { id:'demandTransferModal', class:'modal' }, [
       el('div', { class:'modalCard' }, [
         el('div', { class:'modalHd' }, [
-          el('div', {}, [el('div', { class:'modalTitle' }, [`Transferir atuação - ${demand.titulo || '-'}`]), el('div', { class:'modalSub' }, ['Preserva a alocação anterior até a data informada e inicia o novo recurso no dia seguinte.'])]),
+          el('div', {}, [el('div', { class:'modalTitle' }, [`Transferir atuação - ${demand.titulo || '-'}`]), el('div', { class:'modalSub' }, ['Preserva a origem no histórico até o dia anterior e inicia o novo recurso na data da transferência.'])]),
           button('Fechar ×', 'ghost', () => closeDialog(dlg))
         ]),
         el('div', { class:'modalBd' }, [
           el('div', { class:'grid', style:'grid-template-columns:repeat(2,minmax(0,1fr));gap:10px' }, [
             el('div', { class:'field' }, [el('label', {}, ['Sai de']), fromSel]),
             el('div', { class:'field' }, [el('label', {}, ['Vai para']), toSel]),
-            el('div', { class:'field' }, [el('label', {}, ['Último dia no recurso atual']), transferDate]),
+            el('div', { class:'field' }, [el('label', {}, ['Data da transferência']), transferDate]),
             el('div', { class:'field' }, [el('label', {}, ['Horas/dia no novo recurso']), hours]),
           ]),
           el('div', { class:'field', style:'margin-top:10px' }, [el('label', {}, ['Justificativa obrigatória']), justification]),
@@ -9815,7 +9885,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         tr.appendChild(el('td', {}, [d.focal||'-']));
         tr.appendChild(el('td', {}, respNames.map((name, idx) => el('div', {}, [idx === respNames.length - 1 ? name : `${name},`]))));
         tr.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]));
-        const allocLabels = demandAllocations(d)
+        const allocLabels = activeDemandAllocations(d)
           .map(a => {
             const rid = String(a.resourceId || '').trim();
             const nm = resMap[rid]?.nome || rid || '-';
