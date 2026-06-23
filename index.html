@@ -1762,12 +1762,25 @@ main{padding:14px;overflow-x:hidden}
         const entry = map.get(fromId);
         if (!allocationStartedAfterTransfer(entry.a, { ...transfer, transferDate, nextStart })) entry.a.data_fim = previousEnd;
       }
-      if (toId && !map.has(toId)) {
+      if (toId) {
         const hours = firstHoursLike(transfer.horas_planejadas_dia, transfer.horas_dia, demand.horas_planejadas_dia, demand.horas_dia) ?? 0;
-        const nextAlloc = makeDemandAllocation(toId, hours, resources);
-        nextAlloc.data_inicio = nextStart;
-        nextAlloc.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
-        out.push(nextAlloc);
+        const existing = map.get(toId);
+        if (existing) {
+          const start = normalizeDateLikeToISO(existing.a.data_inicio || existing.a.dataInicio || existing.a.start_date || '') || '';
+          if (!start || start < nextStart) existing.a.data_inicio = nextStart;
+          if (!normalizeDateLikeToISO(existing.a.data_fim || existing.a.dataFim || existing.a.end_date || '')) {
+            existing.a.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
+          }
+          if (hours > 0) {
+            existing.a.horas_planejadas_dia = roundDemandHours(hours);
+            existing.a.percentual_diario = demandHoursToPercent(hours, toId, resources);
+          }
+        } else {
+          const nextAlloc = makeDemandAllocation(toId, hours, resources);
+          nextAlloc.data_inicio = nextStart;
+          nextAlloc.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
+          out.push(nextAlloc);
+        }
       }
     }
     return out;
