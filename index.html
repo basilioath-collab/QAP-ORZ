@@ -1755,8 +1755,8 @@ main{padding:14px;overflow-x:hidden}
       const fromId = String(transfer.fromResourceId || transfer.from_resource_id || '').trim();
       const toId = String(transfer.toResourceId || transfer.to_resource_id || '').trim();
       const transferDate = normalizeDateLikeToISO(transfer.transferDate || '') || todayISO();
-      const previousEnd = normalizeDateLikeToISO(transfer.previousEnd || '') || transferDate;
-      const nextStart = normalizeDateLikeToISO(transfer.nextStart || '') || addDaysISO(transferDate, 1) || transferDate;
+      const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+      const nextStart = transferDate;
       const map = byResource();
       if (fromId && map.has(fromId)) {
         const entry = map.get(fromId);
@@ -4667,8 +4667,8 @@ main{padding:14px;overflow-x:hidden}
         const prev = (state.demands||[]).find(d => d.id === payload.demandId);
         if (!prev) { didMutate = false; break; }
         const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
-        const previousEnd = transferDate;
-        const nextStart = addDaysISO(transferDate, 1) || transferDate;
+        const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+        const nextStart = transferDate;
         const fromId = String(payload.fromResourceId || prev.responsavel_id || '').trim();
         const toId = String(payload.toResourceId || '').trim();
         const hours = firstHoursLike(payload.horas_planejadas_dia, payload.horas_dia) ?? firstHoursLike(prev.horas_planejadas_dia, prev.horas_dia) ?? 0;
@@ -5349,8 +5349,8 @@ main{padding:14px;overflow-x:hidden}
         target.demands = (target.demands || []).map(d => {
           if (String(d.id || '') !== demandId) return d;
           const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
-          const previousEnd = transferDate;
-          const nextStart = addDaysISO(transferDate, 1) || transferDate;
+          const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+          const nextStart = transferDate;
           const fromId = String(payload.fromResourceId || d.responsavel_id || '').trim();
           const toId = String(payload.toResourceId || '').trim();
           if (!toId || fromId === toId) return d;
@@ -6982,7 +6982,7 @@ main{padding:14px;overflow-x:hidden}
     const toSel = el('select', {}, (state.resources || []).filter(r => r?.ativo !== false && String(r.id) !== currentRid).map(r => el('option', { value:r.id }, [r.nome || r.id])));
     const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(currentAlloc.horas_planejadas_dia || currentAlloc.horas_dia || demand.horas_planejadas_dia || demand.horas_dia || 0), placeholder:'Ex: 06:00' });
     const justification = el('textarea', { placeholder:'Explique o motivo da transferência de atuação...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:110px' });
-    const status = el('div', { class:'tiny muted' }, ['A demanda fica contabilizada no responsável atual até a data informada; o novo recurso começa no dia seguinte.']);
+    const status = el('div', { class:'tiny muted' }, ['Na data informada, a alocação ativa passa imediatamente para o novo recurso; o recurso de origem fica com histórico até o dia anterior.']);
     const confirmTransfer = () => {
       const dateVal = normalizeDateLikeToISO(transferDate.value);
       const fromId = String(fromSel.value || '').trim();
@@ -6990,7 +6990,7 @@ main{padding:14px;overflow-x:hidden}
       const h = firstHoursLike(hours.value);
       const text = String(justification.value || '').trim();
       if (!dateVal) { status.textContent = 'Informe uma data de transferência válida.'; status.style.color = 'var(--danger)'; return; }
-      if (demand.data_fim && dateVal >= demand.data_fim) { status.textContent = 'O último dia no recurso atual precisa ser anterior ao fim da demanda para abrir janela ao novo recurso.'; status.style.color = 'var(--danger)'; return; }
+      if (demand.data_fim && dateVal > demand.data_fim) { status.textContent = 'A data da transferência precisa estar dentro do período da demanda.'; status.style.color = 'var(--danger)'; return; }
       if (!fromId || !toId || fromId === toId) { status.textContent = 'Selecione recursos de origem e destino diferentes.'; status.style.color = 'var(--danger)'; return; }
       if (h === null || h <= 0) { status.textContent = 'Informe horas/dia válidas para o novo responsável.'; status.style.color = 'var(--danger)'; return; }
       if (!text) { status.textContent = 'Informe a justificativa da transferência.'; status.style.color = 'var(--danger)'; return; }
@@ -7001,14 +7001,14 @@ main{padding:14px;overflow-x:hidden}
     dlg = el('dialog', { id:'demandTransferModal', class:'modal' }, [
       el('div', { class:'modalCard' }, [
         el('div', { class:'modalHd' }, [
-          el('div', {}, [el('div', { class:'modalTitle' }, [`Transferir atuação - ${demand.titulo || '-'}`]), el('div', { class:'modalSub' }, ['Preserva a alocação anterior até a data informada e inicia o novo recurso no dia seguinte.'])]),
+          el('div', {}, [el('div', { class:'modalTitle' }, [`Transferir atuação - ${demand.titulo || '-'}`]), el('div', { class:'modalSub' }, ['Preserva a origem no histórico até o dia anterior e inicia o novo recurso na data da transferência.'])]),
           button('Fechar ×', 'ghost', () => closeDialog(dlg))
         ]),
         el('div', { class:'modalBd' }, [
           el('div', { class:'grid', style:'grid-template-columns:repeat(2,minmax(0,1fr));gap:10px' }, [
             el('div', { class:'field' }, [el('label', {}, ['Sai de']), fromSel]),
             el('div', { class:'field' }, [el('label', {}, ['Vai para']), toSel]),
-            el('div', { class:'field' }, [el('label', {}, ['Último dia no recurso atual']), transferDate]),
+            el('div', { class:'field' }, [el('label', {}, ['Data da transferência']), transferDate]),
             el('div', { class:'field' }, [el('label', {}, ['Horas/dia no novo recurso']), hours]),
           ]),
           el('div', { class:'field', style:'margin-top:10px' }, [el('label', {}, ['Justificativa obrigatória']), justification]),
