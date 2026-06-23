@@ -1755,7 +1755,7 @@ main{padding:14px;overflow-x:hidden}
       const fromId = String(transfer.fromResourceId || transfer.from_resource_id || '').trim();
       const toId = String(transfer.toResourceId || transfer.to_resource_id || '').trim();
       const transferDate = normalizeDateLikeToISO(transfer.transferDate || '') || todayISO();
-      const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+      const previousEnd = transferDate;
       const nextStart = transferDate;
       const map = byResource();
       if (fromId && map.has(fromId)) {
@@ -4140,7 +4140,16 @@ main{padding:14px;overflow-x:hidden}
     return allocs.length ? allocs : [];
   };
   const activeDemandAllocations = (demand, dateStr=todayISO()) => demandAllocations(demand)
-    .filter(a => demandAllocationActiveOnDate(a, demand, dateStr));
+    .filter(a => demandAllocationActiveOnDate(a, demand, dateStr))
+    .filter(a => {
+      const rid = String(a.resourceId || '').trim();
+      return !transferHistoryEntries(demand).some(t => {
+        const fromId = String(t.fromResourceId || t.from_resource_id || '').trim();
+        const transferDate = normalizeDateLikeToISO(t.transferDate || '') || '';
+        if (!rid || rid !== fromId || !transferDate || String(dateStr || '') < transferDate) return false;
+        return !allocationStartedAfterTransfer(a, { ...t, transferDate, nextStart:transferDate });
+      });
+    });
 
   const normalizeDemandAllocationState = (demand, previousDemand=null, resources=state.resources || []) => {
     const transfer_history = Array.isArray(demand?.transfer_history) && demand.transfer_history.length
@@ -4148,7 +4157,7 @@ main{padding:14px;overflow-x:hidden}
       : (Array.isArray(previousDemand?.transfer_history) ? previousDemand.transfer_history : []);
     const merged = { ...(previousDemand || {}), ...(demand || {}), transfer_history };
     const allocations = normalizeDemandAllocations(merged, resources);
-    const active = allocations.filter(a => demandAllocationActiveOnDate(a, merged, todayISO()));
+    const active = activeDemandAllocations({ ...merged, allocations }, todayISO());
     const primary = active.find(a => String(a.resourceId || '') === String(merged.responsavel_id || '')) || active[0] || allocations[0] || {};
     return { ...merged, allocations, responsavel_id:String(primary.resourceId || merged.responsavel_id || '').trim() };
   };
@@ -4680,7 +4689,7 @@ main{padding:14px;overflow-x:hidden}
         const prev = (state.demands||[]).find(d => d.id === payload.demandId);
         if (!prev) { didMutate = false; break; }
         const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
-        const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+        const previousEnd = transferDate;
         const nextStart = transferDate;
         const fromId = String(payload.fromResourceId || prev.responsavel_id || '').trim();
         const toId = String(payload.toResourceId || '').trim();
@@ -5362,7 +5371,7 @@ main{padding:14px;overflow-x:hidden}
         target.demands = (target.demands || []).map(d => {
           if (String(d.id || '') !== demandId) return d;
           const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
-          const previousEnd = addDaysISO(transferDate, -1) || transferDate;
+          const previousEnd = transferDate;
           const nextStart = transferDate;
           const fromId = String(payload.fromResourceId || d.responsavel_id || '').trim();
           const toId = String(payload.toResourceId || '').trim();
@@ -6671,13 +6680,27 @@ main{padding:14px;overflow-x:hidden}
       if (demandValidation) { toast(demandValidation); return; }
       const respIds = (nextStatus === 'Mapeada') ? [] : selectedResponsaveis();
       if (nextStatus !== 'Mapeada' && !respIds.length) { toast('Selecione um ou mais responsáveis ou marque como Mapeada.'); return; }
+      const latestDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
+      const latestAllocations = demandAllocations(latestDemand);
+      const allocationEditStart = normalizeDateLikeToISO(todayISO()) || iniVal;
       const allocations = (nextStatus === 'Mapeada')
         ? []
-        : respIds.map(rid => makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []));
+        : respIds.map(rid => {
+          const previousAlloc = latestAllocations.find(a => String(a.resourceId || '') === String(rid || ''));
+          const wasActive = previousAlloc && demandAllocationActiveOnDate(previousAlloc, latestDemand, todayISO());
+          const alloc = makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []);
+          if (previousAlloc && wasActive) {
+            alloc.data_inicio = normalizeDateLikeToISO(previousAlloc.data_inicio || previousAlloc.dataInicio || previousAlloc.start_date || '') || '';
+            alloc.data_fim = normalizeDateLikeToISO(previousAlloc.data_fim || previousAlloc.dataFim || previousAlloc.end_date || '') || '';
+          } else if (previousAlloc && !wasActive) {
+            alloc.data_inicio = allocationEditStart;
+            alloc.data_fim = '';
+          }
+          return alloc;
+        });
       const allocValidation = validateDemandAllocationLimits(allocations);
       if (!allocValidation.ok) { toast(allocValidation.msg); return; }
       const primaryResponsavelId = allocations[0]?.resourceId || '';
-      const latestDemand = (state.demands || []).find(d => String(d.id) === String(demand.id)) || demand;
       const previousStatus = normalizeStatus(latestDemand.status);
       const statusChanged = previousStatus !== nextStatus;
       const statusAudit = statusChanged ? {
@@ -6995,7 +7018,7 @@ main{padding:14px;overflow-x:hidden}
     const toSel = el('select', {}, (state.resources || []).filter(r => r?.ativo !== false && String(r.id) !== currentRid).map(r => el('option', { value:r.id }, [r.nome || r.id])));
     const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(currentAlloc.horas_planejadas_dia || currentAlloc.horas_dia || demand.horas_planejadas_dia || demand.horas_dia || 0), placeholder:'Ex: 06:00' });
     const justification = el('textarea', { placeholder:'Explique o motivo da transferência de atuação...', maxlength:String(INPUT_LIMITS.justification), style:'min-height:110px' });
-    const status = el('div', { class:'tiny muted' }, ['Na data informada, a alocação ativa passa imediatamente para o novo recurso; o recurso de origem fica com histórico até o dia anterior.']);
+    const status = el('div', { class:'tiny muted' }, ['Na data informada, a alocação ativa passa para o novo recurso; o recurso de origem permanece contabilizado no histórico até essa data.']);
     const confirmTransfer = () => {
       const dateVal = normalizeDateLikeToISO(transferDate.value);
       const fromId = String(fromSel.value || '').trim();
@@ -7014,7 +7037,7 @@ main{padding:14px;overflow-x:hidden}
     dlg = el('dialog', { id:'demandTransferModal', class:'modal' }, [
       el('div', { class:'modalCard' }, [
         el('div', { class:'modalHd' }, [
-          el('div', {}, [el('div', { class:'modalTitle' }, [`Transferir atuação - ${demand.titulo || '-'}`]), el('div', { class:'modalSub' }, ['Preserva a origem no histórico até o dia anterior e inicia o novo recurso na data da transferência.'])]),
+          el('div', {}, [el('div', { class:'modalTitle' }, [`Transferir atuação - ${demand.titulo || '-'}`]), el('div', { class:'modalSub' }, ['Preserva a origem no histórico até a data informada e inicia o novo recurso na data da transferência.'])]),
           button('Fechar ×', 'ghost', () => closeDialog(dlg))
         ]),
         el('div', { class:'modalBd' }, [
