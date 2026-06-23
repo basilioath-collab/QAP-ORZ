@@ -1706,7 +1706,7 @@ main{padding:14px;overflow-x:hidden}
     const seen = new Set();
     const add = (resourceId, source={}) => {
       const rid = String(resourceId || '').trim();
-      if (!rid || seen.has(rid)) return;
+      if (!rid) return;
       const pctRaw = source?.percentual_diario ?? source?.dailyPercent ?? source?.percent ?? demand?.percentual_diario ?? demand?.dailyPercent ?? demand?.percent;
       const pct = numberOrNull(pctRaw);
       let horas = firstHoursLike(
@@ -1720,14 +1720,18 @@ main{padding:14px;overflow-x:hidden}
       const hasExplicitHours = horas !== null;
       if (horas === null) horas = percentToDemandHours(pct ?? 0, rid, resources);
       const pctFinal = hasExplicitHours ? demandHoursToPercent(horas, rid, resources) : (pct !== null ? Math.round(Math.max(0, pct) * 10) / 10 : 0);
+      const dataInicio = normalizeDateLikeToISO(source?.data_inicio || source?.dataInicio || source?.start_date || '') || '';
+      const dataFim = normalizeDateLikeToISO(source?.data_fim || source?.dataFim || source?.end_date || '') || '';
+      const key = `${rid}::${dataInicio}::${dataFim}`;
+      if (seen.has(key)) return;
       out.push({
         resourceId: rid,
         horas_planejadas_dia: roundDemandHours(horas),
         percentual_diario: pctFinal,
-        data_inicio: normalizeDateLikeToISO(source?.data_inicio || source?.dataInicio || source?.start_date || '') || '',
-        data_fim: normalizeDateLikeToISO(source?.data_fim || source?.dataFim || source?.end_date || '') || '',
+        data_inicio: dataInicio,
+        data_fim: dataFim,
       });
-      seen.add(rid);
+      seen.add(key);
     };
     if (Array.isArray(demand?.allocations)) {
       for (const a of demand.allocations) add(a?.resourceId || a?.responsavel_id, a);
@@ -1750,36 +1754,52 @@ main{padding:14px;overflow-x:hidden}
 
   const reconcileAllocationsWithTransferHistory = (demand={}, allocations=[], resources=[]) => {
     const out = (Array.isArray(allocations) ? allocations : []).map(a => ({ ...a }));
-    const byResource = () => new Map(out.map((a, idx) => [String(a.resourceId || '').trim(), { a, idx }]).filter(([rid]) => rid));
+    const allocationDateRange = (a={}) => ({
+      start: normalizeDateLikeToISO(a.data_inicio || a.dataInicio || a.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '') || '',
+      end: normalizeDateLikeToISO(a.data_fim || a.dataFim || a.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '') || '',
+    });
+    const allocationsForResource = (resourceId) => out.filter(a => String(a.resourceId || '').trim() === String(resourceId || '').trim());
+    const addTransferAllocation = (resourceId, hours, start, end) => {
+      const nextAlloc = makeDemandAllocation(resourceId, hours, resources);
+      nextAlloc.data_inicio = start;
+      nextAlloc.data_fim = end;
+      out.push(nextAlloc);
+      return nextAlloc;
+    };
     for (const transfer of transferHistoryEntries(demand)) {
       const fromId = String(transfer.fromResourceId || transfer.from_resource_id || '').trim();
       const toId = String(transfer.toResourceId || transfer.to_resource_id || '').trim();
       const transferDate = normalizeDateLikeToISO(transfer.transferDate || '') || todayISO();
       const previousEnd = transferDate;
-      const nextStart = transferDate;
-      const map = byResource();
-      if (fromId && map.has(fromId)) {
-        const entry = map.get(fromId);
-        if (!allocationStartedAfterTransfer(entry.a, { ...transfer, transferDate, nextStart })) entry.a.data_fim = previousEnd;
+      const nextStart = normalizeDateLikeToISO(transfer.nextStart || '') || addDaysISO(transferDate, 1) || transferDate;
+      if (fromId) {
+        const candidates = allocationsForResource(fromId)
+          .filter(a => !allocationStartedAfterTransfer(a, { ...transfer, transferDate, nextStart }))
+          .filter(a => {
+            const { start, end } = allocationDateRange(a);
+            return (!start || start <= transferDate) && (!end || end >= transferDate);
+          })
+          .sort((a,b) => String(b.data_inicio || '').localeCompare(String(a.data_inicio || '')));
+        if (candidates[0]) candidates[0].data_fim = previousEnd;
       }
       if (toId) {
         const hours = firstHoursLike(transfer.horas_planejadas_dia, transfer.horas_dia, demand.horas_planejadas_dia, demand.horas_dia) ?? 0;
-        const existing = map.get(toId);
+        const existing = allocationsForResource(toId).find(a => {
+          const { start, end } = allocationDateRange(a);
+          return (!start || start <= nextStart) && (!end || end >= nextStart);
+        });
         if (existing) {
-          const start = normalizeDateLikeToISO(existing.a.data_inicio || existing.a.dataInicio || existing.a.start_date || '') || '';
-          if (!start || start < nextStart) existing.a.data_inicio = nextStart;
-          if (!normalizeDateLikeToISO(existing.a.data_fim || existing.a.dataFim || existing.a.end_date || '')) {
-            existing.a.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
+          const start = normalizeDateLikeToISO(existing.data_inicio || existing.dataInicio || existing.start_date || '') || '';
+          if (!start || start < nextStart) existing.data_inicio = nextStart;
+          if (!normalizeDateLikeToISO(existing.data_fim || existing.dataFim || existing.end_date || '')) {
+            existing.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
           }
           if (hours > 0) {
-            existing.a.horas_planejadas_dia = roundDemandHours(hours);
-            existing.a.percentual_diario = demandHoursToPercent(hours, toId, resources);
+            existing.horas_planejadas_dia = roundDemandHours(hours);
+            existing.percentual_diario = demandHoursToPercent(hours, toId, resources);
           }
         } else {
-          const nextAlloc = makeDemandAllocation(toId, hours, resources);
-          nextAlloc.data_inicio = nextStart;
-          nextAlloc.data_fim = normalizeDateLikeToISO(demand.data_fim || '') || '';
-          out.push(nextAlloc);
+          addTransferAllocation(toId, hours, nextStart, normalizeDateLikeToISO(demand.data_fim || '') || '');
         }
       }
     }
@@ -4146,7 +4166,7 @@ main{padding:14px;overflow-x:hidden}
       return !transferHistoryEntries(demand).some(t => {
         const fromId = String(t.fromResourceId || t.from_resource_id || '').trim();
         const transferDate = normalizeDateLikeToISO(t.transferDate || '') || '';
-        if (!rid || rid !== fromId || !transferDate || String(dateStr || '') < transferDate) return false;
+        if (!rid || rid !== fromId || !transferDate || String(dateStr || '') <= transferDate) return false;
         return !allocationStartedAfterTransfer(a, { ...t, transferDate, nextStart:transferDate });
       });
     });
@@ -4690,13 +4710,12 @@ main{padding:14px;overflow-x:hidden}
         if (!prev) { didMutate = false; break; }
         const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
         const previousEnd = transferDate;
-        const nextStart = transferDate;
+        const nextStart = addDaysISO(transferDate, 1) || transferDate;
         const fromId = String(payload.fromResourceId || prev.responsavel_id || '').trim();
         const toId = String(payload.toResourceId || '').trim();
         const hours = firstHoursLike(payload.horas_planejadas_dia, payload.horas_dia) ?? firstHoursLike(prev.horas_planejadas_dia, prev.horas_dia) ?? 0;
         const allocations = demandAllocations(prev)
-          .filter(a => String(a.resourceId || '') !== toId)
-          .map(a => String(a.resourceId || '') === fromId
+          .map(a => String(a.resourceId || '') === fromId && demandAllocationActiveOnDate(a, prev, transferDate)
             ? { ...a, data_inicio: a.data_inicio || prev.data_inicio || '', data_fim: previousEnd }
             : a);
         allocations.push(makeDemandAllocation(toId, hours, state.resources || []));
@@ -5372,14 +5391,13 @@ main{padding:14px;overflow-x:hidden}
           if (String(d.id || '') !== demandId) return d;
           const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
           const previousEnd = transferDate;
-          const nextStart = transferDate;
+          const nextStart = addDaysISO(transferDate, 1) || transferDate;
           const fromId = String(payload.fromResourceId || d.responsavel_id || '').trim();
           const toId = String(payload.toResourceId || '').trim();
           if (!toId || fromId === toId) return d;
           const hours = firstHoursLike(payload.horas_planejadas_dia, payload.horas_dia, d.horas_planejadas_dia, d.horas_dia) ?? 0;
           const allocations = normalizeDemandAllocations(d, target.resources || [])
-            .filter(a => String(a.resourceId || '') !== toId)
-            .map(a => String(a.resourceId || '') === fromId
+            .map(a => String(a.resourceId || '') === fromId && demandAllocationActiveOnDate(a, d, transferDate)
               ? { ...a, data_inicio: a.data_inicio || d.data_inicio || '', data_fim: previousEnd }
               : a);
           const nextAlloc = makeDemandAllocation(toId, hours, target.resources || []);
