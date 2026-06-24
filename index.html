@@ -2632,18 +2632,25 @@ main{padding:14px;overflow-x:hidden}
     return !(e < rs || s > re);
   };
 
+  const normalizeSearchText = (value='') => String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
   const filterDemands = ({ status='', resourceId='', dateStart='', dateEnd='', titleQuery='' } = {}) => {
     const st = (status||'').trim();
     const rid = (resourceId||'').trim();
     const ds = (dateStart||'').trim();
     const de = (dateEnd||'').trim();
-    const tq = String(titleQuery||'').trim().toLowerCase();
+    const tq = normalizeSearchText(titleQuery);
 
     return (state.demands||[]).filter(d => {
       const dStatus = effectiveStatus(d);
       if (st && dStatus != st) return false;
 
-      if (tq && !String(d.titulo||'').toLowerCase().includes(tq)) return false;
+      const searchable = normalizeSearchText([d.titulo, d.nome, dStatus, d.status].filter(Boolean).join(' '));
+      if (tq && !searchable.includes(tq)) return false;
 
       if (rid) {
         const allocs = demandAllocations(d);
@@ -8413,7 +8420,7 @@ function buildConsolidatedYearSeries(year) {
       resSel.value = uiFilters.demandResourceId || '';
       resSel.addEventListener('change', () => { uiFilters.demandResourceId = resSel.value; uiPagination.demandsPage=1; render(); });
 
-      const titleSearch = el('input', { type:'search', placeholder:'Digite parte do título...' });
+      const titleSearch = el('input', { type:'search', placeholder:'Digite título ou status...' });
       bindDemandTitleSearch(titleSearch, 'dashboardDemandTitleSearch', 'dashboardSheetPage', 'dashboard', 'dashboard');
 
       const ds = el('input', { type:'date' });
@@ -8429,7 +8436,7 @@ function buildConsolidatedYearSeries(year) {
         el('div', { class:'row' }, [
           el('div', { class:'field' }, [el('label', {}, ['Status']), statusSel]),
           el('div', { class:'field' }, [el('label', {}, ['Recurso']), resSel]),
-          el('div', { class:'field', style:'flex:1;min-width:240px' }, [el('label', {}, ['Pesquisar título']), titleSearch]),
+          el('div', { class:'field', style:'flex:1;min-width:240px' }, [el('label', {}, ['Pesquisar título/status']), titleSearch]),
           el('div', { class:'field' }, [el('label', {}, ['De']), ds]),
           el('div', { class:'field' }, [el('label', {}, ['Até']), de]),
         ]),
@@ -8936,7 +8943,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     };
 
     const filtersBar = (() => {
-      const title = el('input', { type:'search', placeholder:'Filtrar por projeto...', value: getDemandTitleFilter('evaluation') });
+      const title = el('input', { type:'search', placeholder:'Filtrar por título ou status...', value: getDemandTitleFilter('evaluation') });
       bindDemandTitleSearch(title, 'evaluationProjectSearch', 'evaluationPage', 'evaluation', 'evaluation');
       const status = el('select', {}, [
         el('option', { value:'' }, ['Todos os status']),
@@ -8944,7 +8951,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       ]);
       status.addEventListener('change', () => { uiFilters.demandStatus = status.value; uiPagination.evaluationPage = 1; render(); });
       return el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;align-items:end' }, [
-        el('div', { class:'field', style:'min-width:220px;flex:1' }, [el('label', {}, ['Projeto']), title]),
+        el('div', { class:'field', style:'min-width:220px;flex:1' }, [el('label', {}, ['Título / status']), title]),
         el('div', { class:'field', style:'min-width:180px' }, [el('label', {}, ['Status']), status]),
       ]);
     })();
@@ -10107,7 +10114,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       resSel.value = uiFilters.demandResourceId || '';
       resSel.addEventListener('change', () => { uiFilters.demandResourceId = resSel.value; uiPagination.demandsPage=1; render(); });
 
-      const titleSearch = el('input', { type:'search', placeholder:'Digite parte do título...' });
+      const titleSearch = el('input', { type:'search', placeholder:'Digite título ou status...' });
       bindDemandTitleSearch(titleSearch, 'demandsDemandTitleSearch', 'demandsPage', 'demands', 'demands');
 
       const ds = el('input', { type:'date' });
@@ -10131,7 +10138,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       const filtersBar = el('div', { class:'demandFilters' }, [
         el('div', { class:'field' }, [el('label', {}, ['Status']), statusSel]),
         el('div', { class:'field' }, [el('label', {}, ['Recurso']), resSel]),
-        el('div', { class:'field', style:'grid-column:span 2' }, [el('label', {}, ['Pesquisar título']), titleSearch]),
+        el('div', { class:'field', style:'grid-column:span 2' }, [el('label', {}, ['Pesquisar título/status']), titleSearch]),
         el('div', { class:'field' }, [el('label', {}, ['Data início (filtro)']), ds]),
         el('div', { class:'field' }, [el('label', {}, ['Data fim (filtro)']), de]),
       ]);
