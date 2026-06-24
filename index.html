@@ -1754,6 +1754,17 @@ main{padding:14px;overflow-x:hidden}
     return Number(allocation.created_at || allocation.timestamp || 0) > Number(transfer.timestamp || 0);
   };
 
+  const transferSegmentStartForResource = (demand={}, resourceId='', transferDate='') => {
+    const rid = String(resourceId || '').trim();
+    const limit = normalizeDateLikeToISO(transferDate || '') || '';
+    const priorInbound = transferHistoryEntries(demand)
+      .filter(t => String(t.toResourceId || t.to_resource_id || '').trim() === rid)
+      .map(t => normalizeDateLikeToISO(t.transferDate || t.data_transferencia || t.date || '') || '')
+      .filter(date => date && (!limit || date < limit))
+      .sort();
+    return priorInbound[priorInbound.length - 1] || normalizeDateLikeToISO(demand.data_inicio || '') || '';
+  };
+
   const reconcileAllocationsWithTransferHistory = (demand={}, allocations=[], resources=[]) => {
     const out = (Array.isArray(allocations) ? allocations : []).map(a => ({ ...a }));
     for (const transfer of transferHistoryEntries(demand)) {
@@ -1773,12 +1784,18 @@ main{padding:14px;overflow-x:hidden}
           touchedFrom = true;
         }
         if (!touchedFrom) {
-          const hours = firstHoursLike(transfer.horas_planejadas_dia, transfer.horas_dia, demand.horas_planejadas_dia, demand.horas_dia) ?? 0;
-          const previousAlloc = makeDemandAllocation(fromId, hours, resources);
-          previousAlloc.data_inicio = normalizeDateLikeToISO(demand.data_inicio || '') || '';
-          previousAlloc.data_fim = previousEnd;
-          previousAlloc.created_at = transfer.timestamp || '';
-          out.push(previousAlloc);
+          const alreadyClosedFrom = out.some(a =>
+            String(a.resourceId || '').trim() === fromId &&
+            (normalizeDateLikeToISO(a.data_fim || a.dataFim || a.end_date || '') || '') === previousEnd
+          );
+          if (!alreadyClosedFrom) {
+            const hours = firstHoursLike(transfer.horas_planejadas_dia, transfer.horas_dia, demand.horas_planejadas_dia, demand.horas_dia) ?? 0;
+            const previousAlloc = makeDemandAllocation(fromId, hours, resources);
+            previousAlloc.data_inicio = transferSegmentStartForResource(demand, fromId, transferDate);
+            previousAlloc.data_fim = previousEnd;
+            previousAlloc.created_at = transfer.timestamp || '';
+            out.push(previousAlloc);
+          }
         }
       }
       if (toId) {
