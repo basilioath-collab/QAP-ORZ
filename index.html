@@ -149,6 +149,7 @@
     .pill.warn{border-color:rgba(245,158,11,.48);background:var(--warning-soft);color:#92400E}
     .pill.bad{border-color:var(--danger-border);background:var(--danger-soft);color:var(--danger)}
     .pill.info{border-color:rgba(79,70,229,.22);background:rgba(79,70,229,.08);color:var(--indigo)}
+    .pill.good{border-color:rgba(27,170,85,.35);background:var(--success-soft);color:var(--success)}
     .pill .dot{height:10px;width:10px;border-radius:999px;border:1px solid rgba(0,0,0,.15)}
 
     .pill .xbtn{margin-left:4px;border:none;background:transparent;cursor:pointer;font-weight:950;color:var(--muted);line-height:1;padding:0 4px;border-radius:8px}
@@ -3195,6 +3196,93 @@ main{padding:14px;overflow-x:hidden}
       ''
     );
     return explicitDate || timestampToLocalISO(demand?.status_changed_at || demand?.last_edit_at || demand?.updatedAt || demand?.updated_at);
+  };
+
+  const demandCompletionInfo = (demand) => {
+    const isCompleted = normalizeStatus(demand?.status) === 'Concluída';
+    const completionDate = demandCompletionActionDate(demand);
+    const currentDeadline = String(demand?.data_fim || demand?.end || '').trim();
+    const originalDeadline = String(demand?.baseline_fim || demand?.prazo_original || currentDeadline || '').trim();
+    const reprogrammings = relatedDemandReprogrammings(demand, state.reprogrammings);
+    const wasPostponed = reprogrammings.length > 0 || (isISODateString(originalDeadline) && isISODateString(currentDeadline) && currentDeadline > originalDeadline);
+    const referenceDeadline = currentDeadline || originalDeadline;
+    let classification = isCompleted ? 'Concluída sem prazo informado' : 'Não concluída';
+    let daysDelta = '';
+    if (isCompleted && isISODateString(completionDate) && isISODateString(referenceDeadline)) {
+      const diff = diffDaysISO(referenceDeadline, completionDate);
+      daysDelta = diff;
+      if (diff <= 0) classification = wasPostponed ? 'Concluída no prazo após postergação' : 'Concluída no prazo';
+      else classification = wasPostponed ? 'Concluída fora do prazo após postergação' : 'Concluída fora do prazo';
+    } else if (isCompleted && completionDate) {
+      classification = wasPostponed ? 'Concluída após postergação' : 'Concluída';
+    }
+    return {
+      isCompleted,
+      completionDate,
+      completionDateBR: completionDate ? formatDateBR(completionDate) : '',
+      currentDeadline,
+      originalDeadline,
+      referenceDeadline,
+      wasPostponed,
+      reprogrammingsCount: reprogrammings.length,
+      classification,
+      daysDelta,
+    };
+  };
+
+  const demandFinalStatusInfo = (demand) => {
+    const status = normalizeStatus(demand?.status);
+    const isFinal = status === 'Concluída' || status === 'Cancelada';
+    if (!isFinal) return { isFinal:false, status };
+    const actionDate = normalizeDateLikeToISO(
+      demand?.status_action_date ||
+      (status === 'Concluída' ? (demand?.completed_at || demand?.completion_date || demand?.data_conclusao || demand?.data_conclusão) : '') ||
+      ''
+    ) || timestampToLocalISO(demand?.status_changed_at || demand?.last_edit_at || demand?.updatedAt || demand?.updated_at);
+    const actor = String(demand?.status_changed_by || demand?.last_edit_by || demand?.updated_by || demand?.updatedBy || '').trim();
+    const actorId = String(demand?.status_changed_by_id || demand?.updated_by_id || demand?.updatedById || '').trim();
+    const reason = String(demand?.status_reason || demand?.last_edit_justification || '').trim();
+    const actionLabel = status === 'Cancelada' ? 'cancelada' : 'concluída';
+    return {
+      isFinal,
+      status,
+      actionLabel,
+      buttonLabel: `Demanda ${actionLabel}`,
+      actionDate,
+      actionDateBR: actionDate ? formatDateBR(actionDate) : '',
+      actor,
+      actorId,
+      reason,
+    };
+  };
+
+  const openDemandFinalStatusDetailsModal = (demand) => {
+    const info = demandFinalStatusInfo(demand);
+    if (!info.isFinal) return;
+    const dlg = qs('#demandStatusModal');
+    if (!dlg) return;
+    qs('#demandStatusModalTitle').textContent = info.status === 'Cancelada' ? 'Demanda cancelada' : 'Demanda concluída';
+    qs('#demandStatusModalSub').textContent = demand?.titulo || demand?.id || 'Detalhes da demanda';
+    const body = qs('#demandStatusModalBody');
+    body.innerHTML = '';
+    const detailRow = (label, value) => el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface)' }, [
+      el('div', { class:'tiny muted' }, [label]),
+      el('div', { style:'font-weight:900;margin-top:3px;white-space:pre-wrap;word-break:break-word' }, [value || '-'])
+    ]);
+    body.appendChild(el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'hint' }, [
+        el('b', {}, [demand?.titulo || 'Demanda']),
+        el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Status atual: ${info.status}`])
+      ]),
+      el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px' }, [
+        detailRow('Quando', info.actionDateBR || info.actionDate),
+        detailRow('Quem', info.actorId ? `${info.actor} (${info.actorId})` : info.actor),
+        detailRow('Situação', info.status),
+      ]),
+      detailRow('Justificativa', info.reason),
+      el('div', { class:'row end' }, [button('Fechar', '', () => { try { dlg.close(); } catch { dlg.removeAttribute('open'); } })])
+    ]));
+    openDialog(dlg);
   };
 
   const demandCountsInAllocationOnDate = (demand, dateStr) => {
@@ -8688,7 +8776,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       )[0] || null;
       const stepBadges = [...new Set(apontamentos.map(a => normalizeProjectStep(a.etapa)).filter(Boolean))].slice(0,6);
       const windowSummary = demandApontamentoWindowSummary(d, apontamentos);
-      return { demand:d, metrics, apontamentos, windowPct, plannedWindowPct, reprogrammedPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, windowClassification, remainingDays: remainingDaysLabel(d) };
+      const finalStatusInfo = demandFinalStatusInfo(d);
+      return { demand:d, metrics, apontamentos, windowPct, plannedWindowPct, reprogrammedPct, health, remainingBalance, etapasUnicas, lastStep, stepBadges, windowSummary, windowClassification, remainingDays: remainingDaysLabel(d), finalStatusInfo };
     }).sort((a,b) => {
       const toneWeight = { danger:0, warn:1, neutral:2, ok:3 };
       return (toneWeight[a.health.tone] ?? 9) - (toneWeight[b.health.tone] ?? 9) || String(a.demand.data_fim||'').localeCompare(String(b.demand.data_fim||''));
@@ -8733,6 +8822,19 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         ? `${formatDateBR(p.lastStep.data)} - ${normalizeProjectStep(p.lastStep.etapa)}`
         : '-';
       const wc = p.windowClassification || {};
+      const finalInfo = p.finalStatusInfo || demandFinalStatusInfo(d);
+      const finalStatusTone = finalInfo.status === 'Cancelada' ? 'bad' : 'good';
+      const finalStatusBlock = finalInfo.isFinal ? el('div', {
+        style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:var(--surface);display:grid;gap:8px'
+      }, [
+        el('div', { class:'row', style:'gap:8px;justify-content:space-between;align-items:center' }, [
+          el('span', { class:`pill ${finalStatusTone}` }, [finalInfo.status]),
+          button(finalInfo.buttonLabel, finalInfo.status === 'Cancelada' ? 'danger small' : 'primary small', () => openDemandFinalStatusDetailsModal(d))
+        ]),
+        el('div', { class:'tiny muted' }, [
+          `${finalInfo.buttonLabel} ${finalInfo.actionDateBR ? 'em ' + finalInfo.actionDateBR : 'sem data registrada'}${finalInfo.actor ? ' por ' + finalInfo.actor : ''}.`
+        ])
+      ]) : null;
       const windowIndicatorBadges = [
         wc.exceedsPlannedWindow ? el('span', {
           class:'pill warn',
@@ -8752,8 +8854,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
             el('div', { class:'tiny muted', style:'margin-top:3px' }, [`Programado original: ${formatDateBR(wc.baselineStart)} até ${formatDateBR(wc.baselineEnd)}`]),
             windowIndicatorBadges.length ? el('div', { class:'row', style:'gap:6px;flex-wrap:wrap;margin-top:6px' }, windowIndicatorBadges) : null
           ]),
-          el('span', { class:`pill ${statusTone}`, title:p.health.hint, style:'white-space:nowrap' }, [p.health.label])
+          el('div', { class:'grid', style:'gap:6px;justify-items:end' }, [
+            statusPill(d),
+            el('span', { class:`pill ${statusTone}`, title:p.health.hint, style:'white-space:nowrap' }, [p.health.label])
+          ])
         ]),
+
+        finalStatusBlock,
 
         el('div', { style:'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px' }, [
           miniMetric('Horas planejadas', hoursText(m.plannedHours), `${m.plannedDays || 0} dia(s) úteis`),
@@ -10004,6 +10111,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         el('th', {}, ['Horas/dia']),
         el('th', {}, ['Prioridade']),
         el('th', {}, ['Status']),
+        el('th', {}, ['Conclusão']),
         el('th', {}, ['Ações']),
       ])]));
       const tb = el('tbody');
@@ -10039,6 +10147,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         tr.appendChild(el('td', {}, [allocLabels.length ? allocLabels.join(' | ') : decimalHoursToHHMM(d.horas_planejadas_dia ?? d.horas_dia ?? 0)]));
         tr.appendChild(el('td', {}, [d.prioridade]));
         tr.appendChild(el('td', {}, [statusPill(d)]));
+        const completionInfo = demandCompletionInfo(primaryDemand);
+        tr.appendChild(el('td', {}, [completionInfo.isCompleted
+          ? el('div', { class:'grid', style:'gap:3px;min-width:170px' }, [
+              el('span', { class:`pill ${completionInfo.classification.includes('fora') ? 'bad' : (completionInfo.wasPostponed ? 'warn' : 'good')}` }, [completionInfo.classification]),
+              el('span', { class:'tiny muted mono' }, [completionInfo.completionDateBR ? `Em ${completionInfo.completionDateBR}` : 'Data de conclusão não registrada']),
+              completionInfo.wasPostponed ? el('span', { class:'tiny muted' }, [`${completionInfo.reprogrammingsCount || 1} postergação(ões)`]) : null
+            ].filter(Boolean))
+          : el('span', { class:'tiny muted' }, ['-'])
+        ]));
 
         const edit = () => {
           openDemandEditModal(primaryDemand);
@@ -10079,7 +10196,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         const msg = (state.demands||[]).length === 0
           ? 'Nenhuma demanda ainda.'
           : (hasAnyDemandFilters() ? 'Nenhuma demanda para estes filtros.' : 'Nenhuma demanda encontrada.');
-        tb.appendChild(el('tr', {}, [el('td', { colspan:'9', style:'padding:20px;text-align:center;color:var(--muted)' }, [msg])]));
+        tb.appendChild(el('tr', {}, [el('td', { colspan:'10', style:'padding:20px;text-align:center;color:var(--muted)' }, [msg])]));
       }
 
       t.appendChild(tb);
@@ -12834,6 +12951,7 @@ return el('div', { class:'grid' }, [
   const buildDemandasExportData = () => {
     const headers = [
       'id','titulo','responsavel','data_inicio','data_fim','status_base','status_atual',
+      'concluida','data_conclusao','classificacao_conclusao','concluida_pos_postergacao','qtd_reprogramacoes','dias_apos_prazo',
       'percentual_diario','horas_dia','prioridade','predio','focal','observacoes'
     ];
     const resMap = resourceById();
@@ -12843,6 +12961,7 @@ return el('div', { class:'grid' }, [
       const pct = Number(alloc.percentual_diario ?? d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
       const horas = Number(alloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0);
       const res = resMap[rid];
+      const completionInfo = demandCompletionInfo(d);
       return {
         id: d.id || '',
         titulo: d.titulo || d.nome || '',
@@ -12851,6 +12970,12 @@ return el('div', { class:'grid' }, [
         data_fim: d.end || d.data_fim || '',
         status_base: d.status || '',
         status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
+        concluida: completionInfo.isCompleted ? 'true' : 'false',
+        data_conclusao: completionInfo.completionDate || '',
+        classificacao_conclusao: completionInfo.classification || '',
+        concluida_pos_postergacao: completionInfo.wasPostponed ? 'true' : 'false',
+        qtd_reprogramacoes: completionInfo.reprogrammingsCount || 0,
+        dias_apos_prazo: completionInfo.daysDelta === '' ? '' : Math.max(0, Number(completionInfo.daysDelta || 0)),
         percentual_diario: isFinite(pct) ? pct : '',
         horas_dia: isFinite(horas) ? Number(horas.toFixed(2)) : '',
         prioridade: d.prioridade || '',
@@ -12959,7 +13084,8 @@ return el('div', { class:'grid' }, [
     const resMap = resourceById();
     const headers = [
       'demand_id','titulo','status_base','status_atual','responsavel_id','responsavel','data_inicio','data_fim',
-      'baseline_inicio','baseline_fim','percentual_diario','horas_dia','prioridade','predio','focal',
+      'baseline_inicio','baseline_fim','data_conclusao','classificacao_conclusao','concluida_pos_postergacao','qtd_reprogramacoes','dias_apos_prazo',
+      'percentual_diario','horas_dia','prioridade','predio','focal',
       'observacoes','created_by','created_by_id','updated_by','updated_by_id'
     ];
     const rows = (state.demands || []).map(d => {
@@ -12967,6 +13093,7 @@ return el('div', { class:'grid' }, [
       const alloc = demandAllocations(d).find(a => String(a.resourceId || '') === String(rid || '')) || demandAllocations(d)[0] || {};
       const pct = Number(alloc.percentual_diario ?? d.dailyPercent ?? d.percentual_diario ?? d.percent ?? 0);
       const horas = Number(alloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0);
+      const completionInfo = demandCompletionInfo(d);
       return {
         demand_id: d.id || '',
         titulo: d.titulo || d.nome || '',
@@ -12978,6 +13105,11 @@ return el('div', { class:'grid' }, [
         data_fim: d.end || d.data_fim || '',
         baseline_inicio: d.baseline_inicio || d.data_inicio || '',
         baseline_fim: d.baseline_fim || d.data_fim || '',
+        data_conclusao: completionInfo.completionDate || '',
+        classificacao_conclusao: completionInfo.classification || '',
+        concluida_pos_postergacao: completionInfo.wasPostponed ? 'true' : 'false',
+        qtd_reprogramacoes: completionInfo.reprogrammingsCount || 0,
+        dias_apos_prazo: completionInfo.daysDelta === '' ? '' : Math.max(0, Number(completionInfo.daysDelta || 0)),
         percentual_diario: isFinite(pct) ? pct : '',
         horas_dia: isFinite(horas) ? Number(horas.toFixed(2)) : '',
         prioridade: d.prioridade || '',
@@ -13101,6 +13233,7 @@ return el('div', { class:'grid' }, [
     const headers = [
       'apontamento_id','data','semana_inicio','ano_mes','demand_id','demanda','status_atual',
       'responsavel_id','responsavel','etapa','horas','usuario','user_id','observacao',
+      'demanda_finalizada','status_final','data_status_final','usuario_status_final','user_id_status_final','justificativa_status_final',
       'created_at','updated_at','updated_by','updated_by_id','antecipado','fora_prazo',
       'predio','focal','prioridade'
     ];
@@ -13108,6 +13241,7 @@ return el('div', { class:'grid' }, [
     for (const d of (state.demands || [])) {
       const rid = d.responsavel_id || d.resourceId || '';
       const responsavel = resMap[rid]?.nome || d.responsavel || rid || '';
+      const finalInfo = demandFinalStatusInfo(d);
       for (const a of normalizeDemandApontamentos(d)) {
         const flags = apontamentoWindowFlags(d, a);
         rows.push({
@@ -13125,6 +13259,12 @@ return el('div', { class:'grid' }, [
           usuario: a.usuario || '',
           user_id: a.user_id || '',
           observacao: a.observacao || '',
+          demanda_finalizada: finalInfo.isFinal ? 'true' : 'false',
+          status_final: finalInfo.isFinal ? finalInfo.status : '',
+          data_status_final: finalInfo.actionDate || '',
+          usuario_status_final: finalInfo.actor || '',
+          user_id_status_final: finalInfo.actorId || '',
+          justificativa_status_final: finalInfo.reason || '',
           created_at: a.created_at || '',
           updated_at: a.updated_at || '',
           updated_by: a.updated_by || '',
@@ -13679,6 +13819,7 @@ return el('div', { class:'grid' }, [
     const headers = [
       'demand_id','demanda','status_atual','responsavel','data_inicio','data_fim','baseline_inicio','baseline_fim',
       'dias_atraso','prazo_original_excedido','dias_excedidos_original','qtd_reprogramacoes','ultimo_motivo_reprogramacao',
+      'data_conclusao','classificacao_conclusao','concluida_pos_postergacao','dias_apos_prazo',
       'motivo_inferido','horas_planejadas','horas_realizadas','saldo_horas','pct_realizado',
       'qtd_apontamentos','apontamentos_antecipados','apontamentos_fora_prazo','horas_antecipadas','horas_fora_prazo',
       'predio','focal','prioridade'
@@ -13694,6 +13835,7 @@ return el('div', { class:'grid' }, [
       if (!isAttention) continue;
       const rid = d.responsavel_id || d.resourceId || '';
       const lastRp = rps[rps.length - 1] || {};
+      const completionInfo = demandCompletionInfo(d);
       rows.push({
         demand_id: d.id || '',
         demanda: d.titulo || d.nome || d.id || '',
@@ -13708,6 +13850,10 @@ return el('div', { class:'grid' }, [
         dias_excedidos_original: wc.exceededDays || 0,
         qtd_reprogramacoes: rps.length,
         ultimo_motivo_reprogramacao: lastRp.motivo || lastRp.justificativa || '',
+        data_conclusao: completionInfo.completionDate || '',
+        classificacao_conclusao: completionInfo.classification || '',
+        concluida_pos_postergacao: completionInfo.wasPostponed ? 'true' : 'false',
+        dias_apos_prazo: completionInfo.daysDelta === '' ? '' : Math.max(0, Number(completionInfo.daysDelta || 0)),
         motivo_inferido: inferOrizonPackDelayReason({ demand:d, metrics, windowClassification:wc, reprogrammings:rps }),
         horas_planejadas: Number(metrics.plannedHours || 0),
         horas_realizadas: Number(metrics.realHours || 0),
@@ -13961,10 +14107,12 @@ return el('div', { class:'grid' }, [
   const exportDemandasCSV = () => {
     const headers = [
       'id','titulo','responsavel','data_inicio','data_fim','status_base','status_atual',
+      'concluida','data_conclusao','classificacao_conclusao','concluida_pos_postergacao','qtd_reprogramacoes','dias_apos_prazo',
       'percentual_diario','horas_planejadas_dia','prioridade','observacoes'
     ];
     const rows = (state.demands||[]).map(d => {
       const alloc = demandAllocations(d)[0] || {};
+      const completionInfo = demandCompletionInfo(d);
       return {
         id: d.id || '',
         titulo: d.titulo || d.nome || '',
@@ -13973,6 +14121,12 @@ return el('div', { class:'grid' }, [
         data_fim: d.end || d.data_fim || '',
         status_base: d.status || '',
         status_atual: effectiveStatus ? effectiveStatus(d) : (d.status||''),
+        concluida: completionInfo.isCompleted ? 'true' : 'false',
+        data_conclusao: completionInfo.completionDate || '',
+        classificacao_conclusao: completionInfo.classification || '',
+        concluida_pos_postergacao: completionInfo.wasPostponed ? 'true' : 'false',
+        qtd_reprogramacoes: completionInfo.reprogrammingsCount || 0,
+        dias_apos_prazo: completionInfo.daysDelta === '' ? '' : Math.max(0, Number(completionInfo.daysDelta || 0)),
         percentual_diario: (alloc.percentual_diario ?? d.dailyPercent ?? d.percentual_diario ?? d.percent ?? ''),
         horas_planejadas_dia: (alloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? ''),
         prioridade: d.prioridade || '',
