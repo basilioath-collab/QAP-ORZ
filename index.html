@@ -1742,7 +1742,10 @@ main{padding:14px;overflow-x:hidden}
   const transferHistoryEntries = (demand={}) => (Array.isArray(demand.transfer_history) ? demand.transfer_history : [])
     .map((t, idx) => ({ ...t, __idx:idx, timestamp:Number(t?.timestamp || 0) || 0, transferDate:normalizeDateLikeToISO(t?.transferDate || t?.data_transferencia || t?.date || '') || '' }))
     .filter(t => String(t.fromResourceId || t.from_resource_id || '').trim() || String(t.toResourceId || t.to_resource_id || '').trim())
-    .sort((a,b) => (a.timestamp - b.timestamp) || String(a.transferDate).localeCompare(String(b.transferDate)) || (a.__idx - b.__idx));
+    // A janela de atuação precisa seguir a data efetiva da transferência, não a ordem
+    // em que o evento foi criado/sincronizado. Ex.: Arthur atua até 18, Teste de
+    // 19 a 24 e Fulano a partir de 25, mesmo que os eventos cheguem fora de ordem.
+    .sort((a,b) => String(a.transferDate).localeCompare(String(b.transferDate)) || (a.timestamp - b.timestamp) || (a.__idx - b.__idx));
 
   const allocationStartedAfterTransfer = (allocation={}, transfer={}) => {
     const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || '';
