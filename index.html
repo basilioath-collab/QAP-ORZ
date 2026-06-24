@@ -3379,6 +3379,7 @@ main{padding:14px;overflow-x:hidden}
     blockingsPage: 1,
     holidaysPage: 1,
     internalActivitiesPage: 1,
+    launchDemandApontamentosPage: 1,
     myDayPage: 1,
     // Modais
     donutModalPage: 1,
@@ -9331,9 +9332,16 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
             .sort((a,b) => Number(b.hours || 0) - Number(a.hours || 0))
             .slice(0, 4);
           const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
-          return el('div', { style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:12px;align-items:center' }, [
+          return el('div', {
+            role:'button',
+            tabindex:'0',
+            title:'Abrir lançamentos do recurso',
+            style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:12px;align-items:center;cursor:pointer;transition:border-color .14s ease,box-shadow .14s ease',
+            onclick:() => openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()),
+            onkeydown:(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()); } }
+          }, [
             el('div', {}, [
-              el('button', { type:'button', style:'font-weight:950;text-align:left;padding:0;border:0;background:transparent;color:var(--primary);cursor:pointer', onclick:() => openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()) }, [resourceName]),
+              el('div', { style:'font-weight:950;text-align:left;color:var(--primary)' }, [resourceName]),
               el('div', { class:'tiny muted', style:'margin-top:4px' }, [`Meta ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`]),
               el('div', { style:'margin-top:8px' }, [el('span', { class:`pill ${tone}` }, [pct(adherence)])])
             ]),
@@ -11314,9 +11322,16 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
         const realW = Math.max(4, Math.round((Number(row.real || 0) / maxHours) * 100));
         const adherence = row.planned > 0 ? (row.real / row.planned) * 100 : (row.real > 0 ? 100 : 0);
         const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
-        return el('div', { style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:#fff' }, [
+        return el('div', {
+          role:'button',
+          tabindex:'0',
+          title:'Abrir lançamentos do recurso',
+          style:'border:1px solid var(--border);border-radius:14px;padding:10px;background:#fff;cursor:pointer;transition:border-color .14s ease,box-shadow .14s ease',
+          onclick:() => openDailyResourceLaunchesModal(row, launchExecutionDate),
+          onkeydown:(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDailyResourceLaunchesModal(row, launchExecutionDate); } }
+        }, [
           el('div', { style:'display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap' }, [
-            el('button', { type:'button', style:'font-weight:950;text-align:left;padding:0;border:0;background:transparent;color:var(--primary);cursor:pointer', onclick:() => openDailyResourceLaunchesModal(row, launchExecutionDate) }, [resourceName]),
+            el('div', { style:'font-weight:950;text-align:left;color:var(--primary)' }, [resourceName]),
             el('span', { class:`pill ${adherence < 80 ? 'warn' : adherence > 130 ? 'bad' : 'info'}` }, [launchExecutionPct(adherence)])
           ]),
           el('div', { style:'display:grid;grid-template-columns:74px 1fr 48px;gap:8px;align-items:center;margin-top:8px' }, [
@@ -11345,7 +11360,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       .sort((a,b) => String(a.data_fim || '').localeCompare(String(b.data_fim || '')) || String(a.titulo || '').localeCompare(String(b.titulo || '')));
     if (!launchDemandId || !userDemandRows.some(d => String(d.id) === String(launchDemandId))) launchDemandId = userDemandRows[0]?.id || '';
     const demandSelect = el('select', {
-      onchange: (ev) => { launchDemandId = ev.target.value; editingLaunchApontamentoId = ''; render(); }
+      onchange: (ev) => { launchDemandId = ev.target.value; editingLaunchApontamentoId = ''; uiPagination.launchDemandApontamentosPage = 1; render(); }
     }, [
       el('option', { value:'' }, [userDemandRows.length ? 'Selecione uma demanda...' : 'Nenhuma demanda aberta vinculada a você'])
     ]);
@@ -11369,6 +11384,24 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     const selectedApontamentos = selectedDemand ? normalizeDemandApontamentos(selectedDemand) : [];
     if (editingLaunchApontamentoId && !selectedApontamentos.some(a => String(a.id) === String(editingLaunchApontamentoId))) editingLaunchApontamentoId = '';
     const editingLaunchApontamento = selectedApontamentos.find(a => String(a.id) === String(editingLaunchApontamentoId)) || null;
+    const launchApontamentosPageSize = 15;
+    const sortedLaunchApontamentos = [...selectedApontamentos].reverse();
+    const launchAptTotal = sortedLaunchApontamentos.length;
+    const launchAptTotalPages = Math.max(1, Math.ceil(launchAptTotal / launchApontamentosPageSize));
+    uiPagination.launchDemandApontamentosPage = Math.min(Math.max(1, Number(uiPagination.launchDemandApontamentosPage || 1)), launchAptTotalPages);
+    const launchAptStartIdx = (uiPagination.launchDemandApontamentosPage - 1) * launchApontamentosPageSize;
+    const launchAptPageItems = sortedLaunchApontamentos.slice(launchAptStartIdx, launchAptStartIdx + launchApontamentosPageSize);
+    const launchAptPager = launchAptTotal > launchApontamentosPageSize ? buildPager({
+      page: uiPagination.launchDemandApontamentosPage,
+      totalPages: launchAptTotalPages,
+      total: launchAptTotal,
+      startIdx: launchAptStartIdx,
+      shown: launchAptPageItems.length,
+      onPrev: () => { uiPagination.launchDemandApontamentosPage--; render(); },
+      onNext: () => { uiPagination.launchDemandApontamentosPage++; render(); },
+      onFirst: () => { uiPagination.launchDemandApontamentosPage = 1; render(); },
+      onLast: () => { uiPagination.launchDemandApontamentosPage = launchAptTotalPages; render(); },
+    }) : null;
     const aptData = el('input', { type:'date', value:editingLaunchApontamento?.data || todayISO(), min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
     const aptEtapa = el('select');
     for (const step of PROJECT_STEP_OPTIONS) aptEtapa.appendChild(el('option', { value:step }, [step]));
@@ -11423,6 +11456,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       });
       const wasEditing = !!editingLaunchApontamentoId;
       editingLaunchApontamentoId = '';
+      uiPagination.launchDemandApontamentosPage = 1;
       toast(wasEditing ? 'Apontamento atualizado.' : 'Apontamento cadastrado.');
       render();
     };
@@ -11452,7 +11486,8 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       selectedDemand ? el('div', { class:'grid', style:'gap:8px' }, [
         el('div', { class:'tiny muted' }, [`Histórico recente: ${selectedApontamentos.length} apontamento(s) / ${fmtHours((selectedMetrics?.realHours || 0))}h.`]),
         selectedApontamentos.length
-          ? el('div', { style:'display:flex;flex-wrap:wrap;gap:8px;align-items:stretch' }, [...selectedApontamentos].reverse().map(a => el('div', { style:`flex:0 0 clamp(280px, calc(20% - 8px), 360px);max-width:100%;box-sizing:border-box;border:1px solid ${String(a.id) === String(editingLaunchApontamentoId) ? 'var(--primary-light)' : 'var(--border)'};border-radius:14px;padding:10px 12px;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.04)` }, [
+          ? el('div', { class:'grid', style:'gap:10px' }, [
+            el('div', { style:'display:flex;flex-wrap:wrap;gap:8px;align-items:stretch' }, launchAptPageItems.map(a => el('div', { style:`flex:0 0 clamp(280px, calc(20% - 8px), 360px);max-width:100%;box-sizing:border-box;border:1px solid ${String(a.id) === String(editingLaunchApontamentoId) ? 'var(--primary-light)' : 'var(--border)'};border-radius:14px;padding:10px 12px;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.04)` }, [
               el('div', { style:'display:flex;justify-content:space-between;gap:8px;align-items:flex-start' }, [
                 el('div', { style:'font-weight:950' }, [`${formatDateBR(a.data)} - ${a.etapa} - ${fmtHours(a.horas || 0)}h`]),
                 el('div', { class:'row', style:'gap:6px;flex-wrap:nowrap' }, [
@@ -11463,6 +11498,7 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
                     const apontamentos = normalizeDemandApontamentos(demand).filter(x => String(x.id) !== String(a.id));
                     dispatch('UPDATE_DEMAND', { ...demand, apontamentos, last_edit_by:userName, last_edit_at:Date.now(), last_edit_justification:'Apontamento excluído pela aba Lançamentos.' });
                     if (String(editingLaunchApontamentoId) === String(a.id)) editingLaunchApontamentoId = '';
+                    uiPagination.launchDemandApontamentosPage = 1;
                     toast('Apontamento excluído.');
                     render();
                   })
@@ -11470,7 +11506,9 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
               ]),
               el('div', { class:'tiny muted', style:'margin-top:4px' }, [a.observacao || 'Sem observação.']),
               el('div', { class:'tiny muted', style:'margin-top:4px' }, [a.usuario || 'Sessão local'])
-            ])))
+            ]))),
+            launchAptPager
+          ].filter(Boolean))
           : el('div', { style:'padding:14px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:var(--surface)' }, ['Nenhum apontamento cadastrado para esta demanda.'])
       ]) : null,
     ].filter(Boolean)));
