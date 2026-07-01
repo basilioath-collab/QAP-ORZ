@@ -1635,8 +1635,8 @@ main{padding:14px;overflow-x:hidden}
   const demandAllocationActiveOnDate = (allocation={}, demand={}, dateStr='') => {
     const date = String(dateStr || '').trim();
     if (!date) return true;
-    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || demandHistoricalStart(demand) || normalizeDateLikeToISO(demand.data_inicio || '');
-    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || demandHistoricalEnd(demand) || normalizeDateLikeToISO(demand.data_fim || '');
+    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '');
+    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '');
     if (start && date < start) return false;
     if (end && date > end) return false;
     return true;
@@ -4415,7 +4415,11 @@ main{padding:14px;overflow-x:hidden}
       if (currentOrFutureIds.has(rid)) continue;
       const hours = firstHoursLike(hoursById.get(rid), previousDemand.horas_planejadas_dia, previousDemand.horas_dia) ?? resourceHoursById(rid, state.resources || []);
       const nextAlloc = makeDemandAllocation(rid, hours, state.resources || []);
-      nextAlloc.data_inicio = previousAllocs.length ? today : demandStart;
+      // A tela de demanda não possui período individual por responsável.
+      // Portanto, ao incluir um responsável pela edição comum, a alocação deve
+      // herdar a janela da demanda inteira; datas segmentadas devem surgir
+      // apenas pelos fluxos explícitos de transferência/reprogramação.
+      nextAlloc.data_inicio = demandStart;
       nextAlloc.data_fim = demandEnd;
       nextAlloc.created_at = Date.now();
       out.push(nextAlloc);
@@ -4452,9 +4456,25 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const demandAllocationOverlapsRange = (allocation={}, demand={}, rangeStart='', rangeEnd='') => {
-    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || demandHistoricalStart(demand) || normalizeDateLikeToISO(demand.data_inicio || '') || '';
-    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || demandHistoricalEnd(demand) || normalizeDateLikeToISO(demand.data_fim || '') || '';
+    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '') || '';
+    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '') || '';
     return overlapsRange(start, end, rangeStart, rangeEnd) || demandHasActualWorkInRange(demand, rangeStart, rangeEnd);
+  };
+
+
+  const demandHasTransferHistory = (demand={}) => Array.isArray(demand?.transfer_history) && demand.transfer_history.length > 0;
+
+  const alignNonTransferAllocationsToDemandWindow = (demand={}, resources=state.resources || []) => {
+    if (!demand || typeof demand !== 'object' || Array.isArray(demand)) return demand;
+    if (demandHasTransferHistory(demand)) return demand;
+    const start = normalizeDateLikeToISO(demand.data_inicio || '') || '';
+    const end = normalizeDateLikeToISO(demand.data_fim || '') || '';
+    const allocations = normalizeDemandAllocations(demand, resources).map(a => ({
+      ...a,
+      data_inicio: start,
+      data_fim: end,
+    }));
+    return { ...demand, allocations };
   };
 
   const normalizeDemandAllocationState = (demand, previousDemand=null, resources=state.resources || []) => {
@@ -4986,7 +5006,8 @@ main{padding:14px;overflow-x:hidden}
         state.demands = state.demands.map(d => {
           if (d.id !== payload.demandId) return d;
           const novoFim = rp.novo_fim || rp.novo_prazo || d.data_fim || '';
-          return applyUpdateMeta({ ...d, data_fim: novoFim, reprogramacoes: (d.reprogramacoes||0) + 1 }, d);
+          const updated = { ...d, data_fim: novoFim, reprogramacoes: (d.reprogramacoes||0) + 1 };
+          return applyUpdateMeta(alignNonTransferAllocationsToDemandWindow(updated), d);
         });
         eventPayload = { ...payload, reprogramming: rp };
         break;
@@ -5664,7 +5685,8 @@ main{padding:14px;overflow-x:hidden}
         target.demands = (target.demands||[]).map(d => {
           if (String(d.id) !== String(payload?.demandId)) return d;
           const rp = payload.reprogramming || {};
-          return { ...d, data_fim: rp.novo_fim || rp.novo_prazo || d.data_fim || '', reprogramacoes: (d.reprogramacoes||0) + 1 };
+          const updated = { ...d, data_fim: rp.novo_fim || rp.novo_prazo || d.data_fim || '', reprogramacoes: (d.reprogramacoes||0) + 1 };
+          return alignNonTransferAllocationsToDemandWindow(updated, target.resources || []);
         });
         break;
       }
@@ -10069,7 +10091,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
 
         const allocations = (st === 'Mapeada')
           ? []
-          : respIds.map(rid => makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []));
+          : respIds.map(rid => ({
+            ...makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []),
+            data_inicio: iniVal,
+            data_fim: fimVal,
+          }));
         const allocValidation = validateDemandAllocationLimits(allocations);
         if (!allocValidation.ok) return toast(allocValidation.msg);
         const basePayload = {
