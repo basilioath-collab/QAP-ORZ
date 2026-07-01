@@ -1635,12 +1635,61 @@ main{padding:14px;overflow-x:hidden}
   const demandAllocationActiveOnDate = (allocation={}, demand={}, dateStr='') => {
     const date = String(dateStr || '').trim();
     if (!date) return true;
-    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '');
-    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '');
+    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || demandHistoricalStart(demand) || normalizeDateLikeToISO(demand.data_inicio || '');
+    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || demandHistoricalEnd(demand) || normalizeDateLikeToISO(demand.data_fim || '');
     if (start && date < start) return false;
     if (end && date > end) return false;
     return true;
   };
+
+  const demandHistoricalStart = (demand={}) => {
+    const candidates = [
+      demand?.baseline_inicio,
+      demand?.baselineInicio,
+      demand?.original_data_inicio,
+      demand?.data_inicio_original,
+      demand?.data_inicio,
+    ].map(normalizeDateLikeToISO).filter(Boolean).sort();
+    return candidates[0] || '';
+  };
+
+  const demandHistoricalEnd = (demand={}) => {
+    const candidates = [
+      demand?.data_fim,
+      demand?.baseline_fim,
+      demand?.baselineFim,
+      demand?.original_data_fim,
+      demand?.data_fim_original,
+      demand?.prazo_original,
+    ].map(normalizeDateLikeToISO).filter(Boolean).sort();
+    return candidates[candidates.length - 1] || '';
+  };
+
+  const demandHasActualWorkInRange = (demand={}, rangeStart='', rangeEnd='') => {
+    const apontamentos = normalizeDemandApontamentos(demand);
+    if (!apontamentos.length) return false;
+    const rs = rangeStart || '0000-01-01';
+    const re = rangeEnd || '9999-12-31';
+    return apontamentos.some(a => {
+      const date = normalizeDateLikeToISO(a?.data || '');
+      return !!date && date >= rs && date <= re;
+    });
+  };
+
+  const demandHistoricalWindowOverlapsRange = (demand={}, rangeStart='', rangeEnd='') => {
+    const start = demandHistoricalStart(demand) || normalizeDateLikeToISO(demand?.data_inicio || '');
+    const end = demandHistoricalEnd(demand) || normalizeDateLikeToISO(demand?.data_fim || '');
+    return overlapsRange(start, end, rangeStart, rangeEnd) || demandHasActualWorkInRange(demand, rangeStart, rangeEnd);
+  };
+
+  const demandHistoricalWindowContainsDate = (demand={}, dateStr='') => {
+    const date = String(dateStr || '').trim();
+    if (!date) return false;
+    const start = demandHistoricalStart(demand) || normalizeDateLikeToISO(demand?.data_inicio || '');
+    const end = demandHistoricalEnd(demand) || normalizeDateLikeToISO(demand?.data_fim || '');
+    return (!start || date >= start) && (!end || date <= end);
+  };
+
   const formatDate = (date) => {
     const d = (date instanceof Date) ? date : new Date(date);
     const z = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
@@ -2686,7 +2735,7 @@ main{padding:14px;overflow-x:hidden}
       }
 
       if (ds || de) {
-        if (!overlapsRange(d.data_inicio, d.data_fim, ds, de)) return false;
+        if (!demandHistoricalWindowOverlapsRange(d, ds, de)) return false;
       }
       return true;
     });
@@ -4403,9 +4452,9 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const demandAllocationOverlapsRange = (allocation={}, demand={}, rangeStart='', rangeEnd='') => {
-    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '') || '';
-    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '') || '';
-    return overlapsRange(start, end, rangeStart, rangeEnd);
+    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || demandHistoricalStart(demand) || normalizeDateLikeToISO(demand.data_inicio || '') || '';
+    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || demandHistoricalEnd(demand) || normalizeDateLikeToISO(demand.data_fim || '') || '';
+    return overlapsRange(start, end, rangeStart, rangeEnd) || demandHasActualWorkInRange(demand, rangeStart, rangeEnd);
   };
 
   const normalizeDemandAllocationState = (demand, previousDemand=null, resources=state.resources || []) => {
@@ -6078,7 +6127,7 @@ main{padding:14px;overflow-x:hidden}
       let total = 0;
       for (const dem of (state.demands || [])) {
         if (!demandCountsInAllocationOnDate(dem, dateStr)) continue;
-        if (!(dateStr >= dem.data_inicio && dateStr <= dem.data_fim)) continue;
+        if (!demandHistoricalWindowContainsDate(dem, dateStr)) continue;
         const allocHours = demandAllocations(dem)
           .filter(a => String(a.resourceId || '') === String(resourceId || ''))
           .filter(a => demandAllocationActiveOnDate(a, dem, dateStr))
@@ -6168,7 +6217,7 @@ main{padding:14px;overflow-x:hidden}
       const hasResource = demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId || '') && demandAllocationActiveOnDate(a, d, dateStr));
       if (!hasResource) return false;
       if (!demandCountsInAllocationOnDate(d, dateStr)) return false;
-      return dateStr >= d.data_inicio && dateStr <= d.data_fim;
+      return demandHistoricalWindowContainsDate(d, dateStr);
     });
   };
 
@@ -8527,8 +8576,8 @@ function buildConsolidatedYearSeries(year) {
           const st = effectiveStatus(d);
           if (st === 'Mapeada' || st === 'Concluída' || st === 'Cancelada') return false;
           // overlap com o mês
-          const start = d.data_inicio;
-          const end = d.data_fim;
+          const start = demandHistoricalStart(d) || d.data_inicio;
+          const end = demandHistoricalEnd(d) || d.data_fim;
           const monthStart = formatDate(daysInMonth[0]);
           const monthEnd = formatDate(daysInMonth[daysInMonth.length-1]);
           return !(end < monthStart || start > monthEnd);
@@ -9017,7 +9066,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
 
   const plannedDemandHoursForDate = (demand={}, dateStr='', resourceIds=null) => {
     const ids = Array.isArray(resourceIds) ? resourceIds.map(String) : null;
-    if (!dateStr || String(demand.data_inicio || '') > dateStr || String(demand.data_fim || '') < dateStr) return 0;
+    if (!dateStr || !demandHistoricalWindowContainsDate(demand, dateStr)) return 0;
     if (!demandCountsInAllocationOnDate(demand, dateStr)) return 0;
     return demandAllocations(demand).reduce((acc, a) => {
       const rid = String(a.resourceId || '').trim();
@@ -10622,7 +10671,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       const monthStart = `${y}-${String(m0+1).padStart(2,'0')}-01`;
       const lastDay = String(new Date(y, m0+1, 0).getDate()).padStart(2,'0');
       const monthEnd = `${y}-${String(m0+1).padStart(2,'0')}-${lastDay}`;
-      if (String(d.data_inicio||'') > monthEnd || String(d.data_fim||'') < monthStart) return false;
+      if (!demandHistoricalWindowOverlapsRange(d, monthStart, monthEnd)) return false;
       if (STATUS_COUNTS_IN_ALLOCATION.has(st)) return true;
       if (st !== 'Concluída') return false;
       const completionDate = demandCompletionActionDate(d);
