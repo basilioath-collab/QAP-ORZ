@@ -1785,6 +1785,15 @@ main{padding:14px;overflow-x:hidden}
     const directRid = String(demand?.responsavel_id || demand?.resourceId || '').trim();
     const hasDirectAllocation = directRid && sourceAllocations.some(a => String(a?.resourceId || a?.responsavel_id || '').trim() === directRid);
     if (!hasDirectAllocation) add(directRid, demand);
+    if (!transferHistoryEntries(demand).length) {
+      const demandStart = normalizeDateLikeToISO(demand?.data_inicio || '') || '';
+      const demandEnd = normalizeDateLikeToISO(demand?.data_fim || '') || '';
+      return out.map(a => ({
+        ...a,
+        data_inicio: demandStart,
+        data_fim: demandEnd,
+      }));
+    }
     return reconcileAllocationsWithTransferHistory(demand, out, resources);
   };
 
