@@ -6666,7 +6666,7 @@ main{padding:14px;overflow-x:hidden}
       respAllocList.innerHTML = '';
       const ids = [...selectedRespIds];
       respAllocEditor.classList.toggle('is-empty', !ids.length);
-      respAllocList.style.display = 'none';
+      respAllocList.style.display = ids.length ? 'grid' : 'block';
       if (!ids.length) {
         respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para informar as horas diárias.']));
       }
@@ -7218,7 +7218,7 @@ main{padding:14px;overflow-x:hidden}
         sectionTitle(3, 'Responsáveis e dedicação'),
         el('div', { class:'demandCreateGrid' }, [
           el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-          el('div', { class:'field demandCreateField demandPercField span-4' }, [el('label', {}, ['Dedicação diária']), respAllocEditor, respAllocList]),
+          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), respAllocEditor, respAllocList]),
         ])
       ]),
       el('div', { class:'demandCreateSection' }, [
@@ -9982,7 +9982,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         respAllocList.innerHTML = '';
         const ids = [...selectedRespIds];
         respAllocEditor.classList.toggle('is-empty', !ids.length);
-        respAllocList.style.display = 'none';
+        respAllocList.style.display = ids.length ? 'grid' : 'block';
         respAllocPick.innerHTML = '';
         for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
         if (ids.length) {
@@ -10339,7 +10339,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           sectionTitle(3, 'Responsáveis e dedicação'),
           el('div', { class:'demandCreateGrid' }, [
             el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandCreateField demandPercField span-4' }, [el('label', {}, ['Dedicação diária']), respAllocEditor, respAllocList]),
+            el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), respAllocEditor, respAllocList]),
           ])
         ]),
         el('div', { class:'demandCreateSection' }, [
