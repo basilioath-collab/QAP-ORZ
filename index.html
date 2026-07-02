@@ -712,6 +712,10 @@ main{padding:14px;overflow-x:hidden}
 #demandsFormCard .demandCreateField textarea{width:100%;min-width:0}
 #demandsFormCard .demandCreateAllocationBox{border:1px solid rgba(138,212,32,.28);border-radius:16px;background:linear-gradient(180deg,rgba(138,212,32,.08),rgba(255,255,255,.92));padding:12px}
 #demandsFormCard .demandCreateAllocationBox .demandCreateGrid{gap:12px}
+
+#demandsFormCard .demandAllocSummaryField{border:1px solid var(--border);border-radius:14px;padding:12px;background:var(--surface)}
+#demandsFormCard .demandAllocSummaryField .respAllocList{grid-template-columns:repeat(auto-fill,minmax(220px,280px));align-items:stretch}
+#demandsFormCard .demandAllocSummaryField .respAllocRow{min-width:0}
 #demandsFormCard .demandCreateActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:2px}
 #demandsFormCard .demandPercField .respAllocEditor{grid-template-columns:minmax(0,1fr) 110px}
 #demandsFormCard .demandPercField .respAllocEditor input{height:42px}
@@ -736,7 +740,7 @@ main{padding:14px;overflow-x:hidden}
 #demandEditModalBody .demandPercField .respAllocEditor{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;align-items:center;margin-top:0}
 #demandEditModalBody .demandPercField .respAllocEditor input{height:42px;text-align:right}
 #demandEditModalBody .demandPercField .respAllocEditor.is-empty{display:none}
-#demandEditModalBody .demandPercField .respAllocList{display:none}
+#demandEditModalBody .demandPercField .respAllocList{display:grid}
 @media (max-width:900px){
   #demandEditModalBody .demandCreateField.span-8,
   #demandEditModalBody .demandCreateField.span-6,
@@ -7218,7 +7222,7 @@ main{padding:14px;overflow-x:hidden}
         sectionTitle(3, 'Responsáveis e dedicação'),
         el('div', { class:'demandCreateGrid' }, [
           el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), respAllocEditor, respAllocList]),
+          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), el('div', { class:'respAllocHint' }, ['Configure horas padrão e, se precisar, aplique horários específicos por data ou intervalo. Ex.: 02:00 de 10 a 15 e 03:00 no dia 16.']), respAllocEditor, respAllocList]),
         ])
       ]),
       el('div', { class:'demandCreateSection' }, [
@@ -9984,6 +9988,9 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         respAllocEditor.classList.toggle('is-empty', !ids.length);
         respAllocList.style.display = ids.length ? 'grid' : 'block';
         respAllocPick.innerHTML = '';
+        if (!ids.length) {
+          respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para configurar horas por data.']));
+        }
         for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
         if (ids.length) {
           const current = ids.includes(respAllocPick.value) ? respAllocPick.value : ids[0];
@@ -10339,7 +10346,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           sectionTitle(3, 'Responsáveis e dedicação'),
           el('div', { class:'demandCreateGrid' }, [
             el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), respAllocEditor, respAllocList]),
+            el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), el('div', { class:'respAllocHint' }, ['Configure horas padrão e, se precisar, aplique horários específicos por data ou intervalo. Ex.: 02:00 de 10 a 15 e 03:00 no dia 16.']), respAllocEditor, respAllocList]),
           ])
         ]),
         el('div', { class:'demandCreateSection' }, [
