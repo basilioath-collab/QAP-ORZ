@@ -717,7 +717,7 @@ main{padding:14px;overflow-x:hidden}
 #demandsFormCard .demandAllocSummaryField .respAllocList{grid-template-columns:repeat(auto-fill,minmax(220px,280px));align-items:stretch}
 #demandsFormCard .demandAllocSummaryField .respAllocRow{min-width:0}
 #demandsFormCard .demandCreateActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:2px}
-#demandsFormCard .demandPercField .respAllocEditor{grid-template-columns:minmax(0,1fr) 110px}
+#demandsFormCard .demandPercField .respAllocEditor{grid-template-columns:minmax(0,1fr) 140px 140px 110px}
 #demandsFormCard .demandPercField .respAllocEditor input{height:42px}
 #demandEditModalBody .demandCreateIntro{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:12px 14px;border:1px solid var(--border);border-radius:16px;background:var(--primary-wash)}
 #demandEditModalBody .demandCreateIntro strong{display:block;font-size:13px;font-weight:950;color:var(--text)}
@@ -737,7 +737,7 @@ main{padding:14px;overflow-x:hidden}
 #demandEditModalBody .demandCreateField textarea{width:100%;min-width:0}
 #demandEditModalBody .demandCreateAllocationBox{border:1px solid rgba(138,212,32,.28);border-radius:16px;background:linear-gradient(180deg,rgba(138,212,32,.08),rgba(255,255,255,.92));padding:12px}
 #demandEditModalBody .demandCreateActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:2px}
-#demandEditModalBody .demandPercField .respAllocEditor{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;align-items:center;margin-top:0}
+#demandEditModalBody .demandPercField .respAllocEditor{display:grid;grid-template-columns:minmax(0,1fr) 140px 140px 110px;gap:8px;align-items:center;margin-top:0}
 #demandEditModalBody .demandPercField .respAllocEditor input{height:42px;text-align:right}
 #demandEditModalBody .demandPercField .respAllocEditor.is-empty{display:none}
 #demandEditModalBody .demandPercField .respAllocList{display:grid}
@@ -6653,12 +6653,19 @@ main{padding:14px;overflow-x:hidden}
     };
     const respAllocList = el('div', { class:'respAllocList' });
     const respAllocPick = el('select');
-    const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30' });
-    const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocHoursEditor]);
-    respAllocPick.addEventListener('change', () => {
+    const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Início da alocação do responsável' });
+    const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Fim da alocação do responsável' });
+    const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas/dia do responsável no período' });
+    const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocStartEditor, respAllocEndEditor, respAllocHoursEditor]);
+    const syncRespAllocEditor = () => {
       const rid = String(respAllocPick.value || '');
-      respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []));
-    });
+      respAllocHoursEditor.value = rid ? decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])) : '';
+      respAllocStartEditor.value = rid ? (respStartById.get(rid) || ini.value || demandStartForAlloc) : '';
+      respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value || demandEndForAlloc) : '';
+    };
+    respAllocPick.addEventListener('change', syncRespAllocEditor);
+    respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); renderApontamentos(); });
+    respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); renderApontamentos(); });
     respAllocHoursEditor.addEventListener('input', () => {
       const rid = String(respAllocPick.value || '');
       if (!rid) return;
@@ -6680,9 +6687,14 @@ main{padding:14px;overflow-x:hidden}
         const current = ids.includes(respAllocPick.value) ? respAllocPick.value : ids[0];
         respAllocPick.value = current;
         respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(current) ?? resourceHoursById(current, state.resources || []));
+        respAllocStartEditor.value = respStartById.get(current) || ini.value || demandStartForAlloc;
+        respAllocEndEditor.value = respEndById.get(current) || fim.value || demandEndForAlloc;
       } else {
         respAllocHoursEditor.value = '';
+        respAllocStartEditor.value = '';
+        respAllocEndEditor.value = '';
       }
+      syncRespAllocEditor();
       for (const rid of selectedRespIds) {
         const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
           el('span', {}, [getRespName(rid)]),
@@ -7222,7 +7234,7 @@ main{padding:14px;overflow-x:hidden}
         sectionTitle(3, 'Responsáveis e dedicação'),
         el('div', { class:'demandCreateGrid' }, [
           el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), el('div', { class:'respAllocHint' }, ['Configure horas padrão e, se precisar, aplique horários específicos por data ou intervalo. Ex.: 02:00 de 10 a 15 e 03:00 no dia 16.']), respAllocEditor, respAllocList]),
+          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Alocação do responsável']), respAllocEditor, respAllocList]),
         ])
       ]),
       el('div', { class:'demandCreateSection' }, [
@@ -9966,14 +9978,21 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       };
 
       const respAllocList = el('div', { class:'respAllocList' });
-      const respAllocPick = el('select', { title:'Selecione o responsável para ajustar as horas diárias', 'data-demand-create-field':'horasResponsavel' });
-      const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas diárias reservadas', 'data-demand-create-field':'horasValor' });
-      const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocHoursEditor]);
-      respAllocPick.addEventListener('change', () => {
+      const respAllocPick = el('select', { title:'Selecione o responsável para ajustar a alocação', 'data-demand-create-field':'horasResponsavel' });
+      const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Início da alocação do responsável', 'data-demand-create-field':'inicioAlocacaoSelecionada' });
+      const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Fim da alocação do responsável', 'data-demand-create-field':'fimAlocacaoSelecionada' });
+      const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas/dia do responsável no período', 'data-demand-create-field':'horasValor' });
+      const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocStartEditor, respAllocEndEditor, respAllocHoursEditor]);
+      const syncRespAllocEditor = () => {
         const rid = String(respAllocPick.value || '');
-        respAllocHoursEditor.value = decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []));
-        respAllocHoursEditor.setAttribute('data-demand-create-rid', rid);
-      });
+        respAllocHoursEditor.value = rid ? decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])) : '';
+        respAllocStartEditor.value = rid ? (respStartById.get(rid) || ini.value) : '';
+        respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value) : '';
+        if (rid) respAllocHoursEditor.setAttribute('data-demand-create-rid', rid); else respAllocHoursEditor.removeAttribute('data-demand-create-rid');
+      };
+      respAllocPick.addEventListener('change', syncRespAllocEditor);
+      respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); persistDemandCreateDraft(); });
+      respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); persistDemandCreateDraft(); });
       respAllocHoursEditor.addEventListener('input', () => {
         const rid = String(respAllocPick.value || '');
         if (!rid) return;
@@ -9999,8 +10018,11 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           respAllocHoursEditor.setAttribute('data-demand-create-rid', current);
         } else {
           respAllocHoursEditor.value = '';
+          respAllocStartEditor.value = '';
+          respAllocEndEditor.value = '';
           respAllocHoursEditor.removeAttribute('data-demand-create-rid');
         }
+        syncRespAllocEditor();
         for (const rid of selectedRespIds) {
           const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
             el('span', {}, [getRespName(rid)]),
@@ -10346,7 +10368,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           sectionTitle(3, 'Responsáveis e dedicação'),
           el('div', { class:'demandCreateGrid' }, [
             el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-            el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Dedicação diária / agenda por data']), el('div', { class:'respAllocHint' }, ['Configure horas padrão e, se precisar, aplique horários específicos por data ou intervalo. Ex.: 02:00 de 10 a 15 e 03:00 no dia 16.']), respAllocEditor, respAllocList]),
+            el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Alocação do responsável']), respAllocEditor, respAllocList]),
           ])
         ]),
         el('div', { class:'demandCreateSection' }, [
