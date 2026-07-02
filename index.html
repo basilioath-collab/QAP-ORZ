@@ -1870,8 +1870,21 @@ main{padding:14px;overflow-x:hidden}
     const directRid = String(demand?.responsavel_id || demand?.resourceId || '').trim();
     const hasDirectAllocation = directRid && sourceAllocations.some(a => String(a?.resourceId || a?.responsavel_id || '').trim() === directRid);
     if (!hasDirectAllocation) add(directRid, demand);
-    if (!transferHistoryEntries(demand).length) return out;
-    return reconcileAllocationsWithTransferHistory(demand, out, resources);
+    const deduped = [];
+    const seen = new Set();
+    for (const allocation of out) {
+      const key = [
+        String(allocation.resourceId || '').trim(),
+        normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || '',
+        normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || '',
+        String(roundDemandHours(allocation.horas_planejadas_dia ?? allocation.horas_dia ?? 0)),
+      ].join('|');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(allocation);
+    }
+    if (!transferHistoryEntries(demand).length) return deduped;
+    return reconcileAllocationsWithTransferHistory(demand, deduped, resources);
   };
 
   const transferHistoryEntries = (demand={}) => (Array.isArray(demand.transfer_history) ? demand.transfer_history : [])
@@ -4472,32 +4485,32 @@ main{padding:14px;overflow-x:hidden}
   const activeDemandAllocations = (demand, dateStr=todayISO()) => demandAllocations(demand)
     .filter(a => demandAllocationActiveOnDate(a, demand, dateStr));
 
+  const dedupeDemandAllocationLabels = (labels=[]) => {
+    const seen = new Set();
+    const out = [];
+    for (const label of (Array.isArray(labels) ? labels : [])) {
+      const key = String(label || '').trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(key);
+    }
+    return out;
+  };
+
   const buildEditedDemandAllocations = (previousDemand={}, selectedResourceIds=[], hoursById=new Map(), nextStatus='', nextStart='', nextEnd='') => {
     if (normalizeStatus(nextStatus) === 'Mapeada') return [];
     const selectedIds = [...new Set((Array.isArray(selectedResourceIds) ? selectedResourceIds : []).map(id => String(id || '').trim()).filter(Boolean))];
     if (!selectedIds.length) return [];
 
     const selected = new Set(selectedIds);
-    const today = todayISO();
     const demandStart = normalizeDateLikeToISO(nextStart || previousDemand.data_inicio || '') || '';
     const demandEnd = normalizeDateLikeToISO(nextEnd || previousDemand.data_fim || '') || '';
     const previousAllocs = demandAllocations(previousDemand).map(a => ({ ...a }));
     const out = [];
 
-    const isHistorical = (allocation) => {
-      const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || normalizeDateLikeToISO(previousDemand.data_fim || '') || '';
-      return !!end && end < today;
-    };
-    const isCurrentOrFuture = (allocation) => !isHistorical(allocation);
-
     for (const allocation of previousAllocs) {
       const rid = String(allocation.resourceId || '').trim();
-      if (!rid) continue;
-      if (isHistorical(allocation)) {
-        out.push({ ...allocation });
-        continue;
-      }
-      if (!selected.has(rid)) continue;
+      if (!rid || !selected.has(rid)) continue;
       const hours = firstHoursLike(hoursById.get(rid), allocation.horas_planejadas_dia, allocation.horas_dia, previousDemand.horas_planejadas_dia, previousDemand.horas_dia) ?? resourceHoursById(rid, state.resources || []);
       out.push({
         ...allocation,
@@ -4508,7 +4521,7 @@ main{padding:14px;overflow-x:hidden}
       });
     }
 
-    const currentOrFutureIds = new Set(out.filter(isCurrentOrFuture).map(a => String(a.resourceId || '').trim()).filter(Boolean));
+    const currentOrFutureIds = new Set(out.map(a => String(a.resourceId || '').trim()).filter(Boolean));
     for (const rid of selectedIds) {
       if (currentOrFutureIds.has(rid)) continue;
       const hours = firstHoursLike(hoursById.get(rid), previousDemand.horas_planejadas_dia, previousDemand.horas_dia) ?? resourceHoursById(rid, state.resources || []);
@@ -10444,7 +10457,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         const respNames = respIds.length
           ? respIds.map(id => resMap[id]?.nome || id)
           : ['-'];
-        const timelineLabels = groupItems.flatMap(item => demandAllocationTimelineLabels(item));
+        const timelineLabels = dedupeDemandAllocationLabels(groupItems.flatMap(item => demandAllocationTimelineLabels(item)));
         const primaryDemand = groupItems[0] || d;
         const tr = el('tr');
         if (effectiveStatus(d) === 'Atrasada') tr.classList.add('overdueRow');
