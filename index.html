@@ -740,7 +740,7 @@ main{padding:14px;overflow-x:hidden}
 #demandEditModalBody .demandPercField .respAllocEditor{display:grid;grid-template-columns:minmax(0,1fr) 140px 140px 110px;gap:8px;align-items:center;margin-top:0}
 #demandEditModalBody .demandPercField .respAllocEditor input{height:42px;text-align:right}
 #demandEditModalBody .demandPercField .respAllocEditor.is-empty{display:none}
-#demandEditModalBody .demandPercField .respAllocList{display:none}
+#demandEditModalBody .demandPercField .respAllocList{display:grid}
 @media (max-width:900px){
   #demandEditModalBody .demandCreateField.span-8,
   #demandEditModalBody .demandCreateField.span-6,
@@ -6677,7 +6677,7 @@ main{padding:14px;overflow-x:hidden}
       respAllocList.innerHTML = '';
       const ids = [...selectedRespIds];
       respAllocEditor.classList.toggle('is-empty', !ids.length);
-      respAllocList.style.display = 'none';
+      respAllocList.style.display = ids.length ? 'grid' : 'block';
       if (!ids.length) {
         respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para informar as horas diárias.']));
       }
@@ -10005,7 +10005,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         respAllocList.innerHTML = '';
         const ids = [...selectedRespIds];
         respAllocEditor.classList.toggle('is-empty', !ids.length);
-        respAllocList.style.display = 'none';
+        respAllocList.style.display = ids.length ? 'grid' : 'block';
         respAllocPick.innerHTML = '';
         if (!ids.length) {
           respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para configurar horas por data.']));
