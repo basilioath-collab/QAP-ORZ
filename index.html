@@ -20,6 +20,10 @@
         Object.entries(attrs).forEach(([k, v]) => link.setAttribute(k, v));
         document.head.appendChild(link);
       };
+      try {
+        const theme = localStorage.getItem('orizon_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch {}
       addLink({ rel:'manifest', href:'./manifest.webmanifest' });
       addLink({ rel:'icon', type:'image/png', sizes:'192x192', href:'./icons/icon-192.png' });
       addLink({ rel:'apple-touch-icon', href:'./icons/icon-192.png' });
@@ -78,6 +82,63 @@
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: Inter, "Segoe UI", ui-sans-serif, system-ui, -apple-system, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
     }
+    [data-theme="dark"]{
+      --bg:#0D1117;
+      --surface:#151B23;
+      --card:#151B23;
+      --border:#303846;
+      --line:#303846;
+      --text:#F2F5F0;
+      --muted:#A8B3A2;
+      --header:#050505;
+      --header-hover:#10170E;
+      --primary:#B6F26A;
+      --primary-light:#8AD420;
+      --primary-soft:rgba(138,212,32,.18);
+      --primary-wash:rgba(138,212,32,.10);
+      --success-soft:rgba(138,212,32,.18);
+      --success-wash:rgba(138,212,32,.10);
+      --warning-soft:rgba(245,158,11,.18);
+      --alert-soft:rgba(245,158,11,.16);
+      --danger-soft:rgba(220,38,38,.18);
+      --danger-border:rgba(248,113,113,.36);
+      --shadow:0 1px 2px rgba(0,0,0,.32), 0 18px 34px rgba(0,0,0,.35);
+    }
+    [data-theme="dark"] body{color-scheme:dark}
+    [data-theme="dark"] .card,
+    [data-theme="dark"] .kpi .k,
+    [data-theme="dark"] .modalCard,
+    [data-theme="dark"] .monthCell,
+    [data-theme="dark"] .monthlyDemandCard,
+    [data-theme="dark"] .respAllocRow,
+    [data-theme="dark"] .hint,
+    [data-theme="dark"] .userFlowBlock{background:var(--card);border-color:var(--border)}
+    [data-theme="dark"] nav,
+    [data-theme="dark"] .notifyPanel,
+    [data-theme="dark"] .notifyPanel::before,
+    [data-theme="dark"] .multiSelectMenu,
+    [data-theme="dark"] .legendMenu,
+    [data-theme="dark"] .floatingActionMenu,
+    [data-theme="dark"] .floatingActionMenu::before{background:var(--surface);border-color:var(--border);color:var(--text)}
+    [data-theme="dark"] .field input,
+    [data-theme="dark"] .field select,
+    [data-theme="dark"] .field textarea,
+    [data-theme="dark"] .multiSelectBox,
+    [data-theme="dark"] .btn,
+    [data-theme="dark"] .pill,
+    [data-theme="dark"] input,
+    [data-theme="dark"] select,
+    [data-theme="dark"] textarea{background:#0F141B;border-color:var(--border);color:var(--text)}
+    [data-theme="dark"] thead th{background:#101720;color:var(--muted)}
+    [data-theme="dark"] table:not(.calTable) tbody tr:nth-child(even) td{background:rgba(255,255,255,.025)}
+    [data-theme="dark"] table:not(.calTable) tbody tr:hover td{background:rgba(138,212,32,.10)}
+    [data-theme="dark"] .stickyCol{background:var(--card)}
+    [data-theme="dark"] .donut::after{background:var(--card)}
+    .themeToggle{height:42px;min-width:42px;border-radius:999px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 12px;font-size:13px;font-weight:950;cursor:pointer;transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .12s ease}
+    .themeToggle:hover{background:var(--success);border-color:var(--success);color:var(--header);transform:translateY(-1px)}
+    .themeToggle .themeText{font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+    @media (max-width:760px){.themeToggle{order:2}.themeToggle .themeText{display:none}}
+
     *{box-sizing:border-box}
     html,body{height:100%}
     body{margin:0;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:14px;letter-spacing:0}
@@ -859,6 +920,64 @@ main{padding:14px;overflow-x:hidden}
     line-height:1.5;
 }
 
+
+
+/* --- UI Responsáveis e dedicação: editor único por responsável --- */
+#demandsFormCard .demandCreateAllocationBox,
+#demandEditModalBody .demandCreateAllocationBox{
+  overflow:visible;
+}
+#demandsFormCard .demandAllocSummaryField,
+#demandEditModalBody .demandAllocSummaryField{
+  overflow:visible;
+}
+#demandsFormCard .demandPercField .respAllocEditor,
+#demandEditModalBody .demandPercField .respAllocEditor{
+  display:grid;
+  grid-template-columns:minmax(220px,1.3fr) repeat(3,minmax(140px,.75fr));
+  gap:10px;
+  align-items:end;
+}
+#demandsFormCard .respAllocEditorField,
+#demandEditModalBody .respAllocEditorField{
+  display:flex;
+  min-width:0;
+  flex-direction:column;
+  gap:6px;
+}
+#demandsFormCard .respAllocEditorField label,
+#demandEditModalBody .respAllocEditorField label{
+  margin:0;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:900;
+  line-height:1.2;
+}
+#demandsFormCard .respAllocEditorField input,
+#demandsFormCard .respAllocEditorField select,
+#demandEditModalBody .respAllocEditorField input,
+#demandEditModalBody .respAllocEditorField select{
+  width:100%;
+  min-width:0;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocList,
+#demandEditModalBody .demandAllocSummaryField .respAllocList{
+  display:block;
+  margin-top:8px;
+}
+@media (max-width:1100px){
+  #demandsFormCard .demandPercField .respAllocEditor,
+  #demandEditModalBody .demandPercField .respAllocEditor{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width:700px){
+  #demandsFormCard .demandPercField .respAllocEditor,
+  #demandEditModalBody .demandPercField .respAllocEditor{
+    grid-template-columns:1fr;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -878,6 +997,11 @@ main{padding:14px;overflow-x:hidden}
   <button class="eventFolderStatus disconnected" id="eventFolderHeaderStatus" type="button" title="Conectar pasta ORIZONData">
     <span class="eventFolderDot" aria-hidden="true"></span>
     <span class="eventFolderText">Conectar pasta de eventos</span>
+  </button>
+
+  <button class="themeToggle" id="themeToggle" type="button" aria-label="Alternar modo escuro" title="Alternar modo escuro" aria-pressed="false">
+    <span class="themeIcon" aria-hidden="true">🌙</span>
+    <span class="themeText">Escuro</span>
   </button>
 
   <div class="notifyWrap" id="notifyWrap">
@@ -910,6 +1034,37 @@ main{padding:14px;overflow-x:hidden}
   <footer class="appFooter">© 2026 ORIZON Planning. All rights reserved. Unauthorized reproduction, distribution, or modification is prohibited. Developed by Arthur Basílio.</footer>
 
   <div class="toast" id="toast"></div>
+
+  <script>
+    (() => {
+      const KEY = 'orizon_theme';
+      const applyTheme = (theme) => {
+        const next = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        const btn = document.getElementById('themeToggle');
+        if (btn) {
+          btn.setAttribute('aria-pressed', String(next === 'dark'));
+          btn.title = next === 'dark' ? 'Alternar para modo claro' : 'Alternar para modo escuro';
+          const icon = btn.querySelector('.themeIcon');
+          const text = btn.querySelector('.themeText');
+          if (icon) icon.textContent = next === 'dark' ? '☀️' : '🌙';
+          if (text) text.textContent = next === 'dark' ? 'Claro' : 'Escuro';
+        }
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', next === 'dark' ? '#050505' : '#F8F7F2');
+      };
+      const saved = (() => { try { return localStorage.getItem(KEY); } catch { return null; } })();
+      applyTheme(saved || document.documentElement.getAttribute('data-theme') || 'light');
+      document.addEventListener('DOMContentLoaded', () => {
+        applyTheme(document.documentElement.getAttribute('data-theme') || 'light');
+        document.getElementById('themeToggle')?.addEventListener('click', () => {
+          const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          try { localStorage.setItem(KEY, next); } catch {}
+          applyTheme(next);
+        });
+      });
+    })();
+  </script>
 
   <dialog id="dayModal" class="modal">
     <div class="modalCard">
@@ -6653,10 +6808,15 @@ main{padding:14px;overflow-x:hidden}
     };
     const respAllocList = el('div', { class:'respAllocList' });
     const respAllocPick = el('select');
-    const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Início da alocação do responsável' });
-    const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Fim da alocação do responsável' });
-    const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas/dia do responsável no período' });
-    const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocStartEditor, respAllocEndEditor, respAllocHoursEditor]);
+    const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação inicial do responsável' });
+    const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação final do responsável' });
+    const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas alocadas por dia para o responsável' });
+    const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Responsável']), respAllocPick]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação inicial']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação final']), respAllocEndEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Horas alocadas']), respAllocHoursEditor]),
+    ]);
     const syncRespAllocEditor = () => {
       const rid = String(respAllocPick.value || '');
       respAllocHoursEditor.value = rid ? decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])) : '';
@@ -6664,22 +6824,24 @@ main{padding:14px;overflow-x:hidden}
       respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value || demandEndForAlloc) : '';
     };
     respAllocPick.addEventListener('change', syncRespAllocEditor);
-    respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); renderApontamentos(); });
-    respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); renderApontamentos(); });
+    respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); respDailyById.set(rid, {}); renderApontamentos(); });
+    respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); respDailyById.set(rid, {}); renderApontamentos(); });
     respAllocHoursEditor.addEventListener('input', () => {
       const rid = String(respAllocPick.value || '');
       if (!rid) return;
       respHoursById.set(rid, parseHoursInput(respAllocHoursEditor.value));
+      respDailyById.set(rid, {});
       renderApontamentos();
     });
     const renderRespChips = () => {
       respChips.innerHTML = '';
       respAllocList.innerHTML = '';
       const ids = [...selectedRespIds];
+      ids.forEach(rid => respDailyById.set(rid, {}));
       respAllocEditor.classList.toggle('is-empty', !ids.length);
-      respAllocList.style.display = ids.length ? 'grid' : 'block';
+      respAllocList.style.display = ids.length ? 'none' : 'block';
       if (!ids.length) {
-        respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para informar as horas diárias.']));
+        respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para configurar atuação e horas alocadas.']));
       }
       respAllocPick.innerHTML = '';
       for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
@@ -6712,50 +6874,6 @@ main{padding:14px;overflow-x:hidden}
           syncMapeada();
         });
         respChips.appendChild(chip);
-        const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), title:'Horas padrão por dia quando não houver agenda diária específica', placeholder:'Ex: 03:30' });
-        const allocStart = el('input', { type:'date', value:respStartById.get(rid) || ini.value || demandStartForAlloc, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data em que este responsável começa a consumir horas' });
-        const allocEnd = el('input', { type:'date', value:respEndById.get(rid) || fim.value || demandEndForAlloc, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data em que este responsável para de consumir horas' });
-        const dailyStart = el('input', { type:'date', value:allocStart.value, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Primeiro dia da agenda diária' });
-        const dailyEnd = el('input', { type:'date', value:allocStart.value, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Último dia da agenda diária' });
-        const dailyHours = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:00', title:'Horas a aplicar no período informado' });
-        const dailySummary = el('div', { class:'tiny muted', style:'grid-column:1/-1' });
-        const updateDailySummary = () => {
-          const entries = Object.entries(normalizeAllocationDailyHours(respDailyById.get(rid) || {})).sort(([a],[b]) => a.localeCompare(b));
-          dailySummary.textContent = entries.length
-            ? `Agenda diária: ${entries.map(([date, h]) => `${formatDateBR(date)} ${decimalHoursToHHMM(h)}`).join(' | ')}`
-            : 'Sem agenda diária: usa as horas/dia padrão em todos os dias da alocação.';
-        };
-        const applyDaily = () => {
-          const start = normalizeDateLikeToISO(dailyStart.value || '') || '';
-          const end = normalizeDateLikeToISO(dailyEnd.value || dailyStart.value || '') || start;
-          const h = parseHoursInput(dailyHours.value);
-          const validation = validateDateRangeLimits(start, end, { allowEmpty:false, label:'Período da agenda diária' });
-          if (validation) return toast(validation);
-          if (!Number.isFinite(h) || h < 0) return toast('Informe as horas da agenda diária em HH:MM, exemplo 02:00.');
-          const maxHours = resourceHoursById(rid, state.resources || []);
-          if (h > maxHours) return toast(`Horas da agenda diária não podem passar de ${decimalHoursToHHMM(maxHours)} por dia.`);
-          const nextDaily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
-          for (let date = start; date && date <= end; date = addDaysISO(date, 1)) nextDaily[date] = h;
-          respDailyById.set(rid, nextDaily);
-          updateDailySummary();
-          renderApontamentos();
-        };
-        const clearDaily = () => { respDailyById.set(rid, {}); updateDailySummary(); renderApontamentos(); };
-        hours.addEventListener('input', () => { respHoursById.set(rid, parseHoursInput(hours.value)); renderApontamentos(); });
-        allocStart.addEventListener('input', () => { respStartById.set(rid, allocStart.value); dailyStart.value = dailyStart.value || allocStart.value; renderApontamentos(); });
-        allocEnd.addEventListener('input', () => { respEndById.set(rid, allocEnd.value); renderApontamentos(); });
-        updateDailySummary();
-        respAllocList.appendChild(el('div', { class:'respAllocRow' }, [
-          el('div', { class:'respAllocName', title:getRespName(rid) }, [getRespName(rid)]),
-          el('div', { class:'respAllocPct' }, [el('label', {}, ['Horas/dia padrão']), hours]),
-          el('div', { class:'respAllocPct' }, [el('label', {}, ['Início na alocação']), allocStart]),
-          el('div', { class:'respAllocPct' }, [el('label', {}, ['Fim na alocação']), allocEnd]),
-          el('div', { class:'respAllocPct' }, [el('label', {}, ['Agenda de']), dailyStart]),
-          el('div', { class:'respAllocPct' }, [el('label', {}, ['Até']), dailyEnd]),
-          el('div', { class:'respAllocPct' }, [el('label', {}, ['Horas no período']), dailyHours]),
-          el('div', { class:'row', style:'align-items:end' }, [button('Aplicar agenda', 'ghost', applyDaily), button('Limpar agenda', '', clearDaily)]),
-          dailySummary,
-        ]));
       }
     };
     const openRespMenu = () => { responsavel.classList.add('open'); renderRespOptions(); };
@@ -9979,10 +10097,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
 
       const respAllocList = el('div', { class:'respAllocList' });
       const respAllocPick = el('select', { title:'Selecione o responsável para ajustar a alocação', 'data-demand-create-field':'horasResponsavel' });
-      const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Início da alocação do responsável', 'data-demand-create-field':'inicioAlocacaoSelecionada' });
-      const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Fim da alocação do responsável', 'data-demand-create-field':'fimAlocacaoSelecionada' });
-      const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas/dia do responsável no período', 'data-demand-create-field':'horasValor' });
-      const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocPick, respAllocStartEditor, respAllocEndEditor, respAllocHoursEditor]);
+      const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação inicial do responsável', 'data-demand-create-field':'inicioAlocacaoSelecionada' });
+      const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação final do responsável', 'data-demand-create-field':'fimAlocacaoSelecionada' });
+      const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas alocadas por dia para o responsável', 'data-demand-create-field':'horasValor' });
+      const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Responsável']), respAllocPick]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação inicial']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação final']), respAllocEndEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Horas alocadas']), respAllocHoursEditor]),
+    ]);
       const syncRespAllocEditor = () => {
         const rid = String(respAllocPick.value || '');
         respAllocHoursEditor.value = rid ? decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])) : '';
@@ -9991,12 +10114,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         if (rid) respAllocHoursEditor.setAttribute('data-demand-create-rid', rid); else respAllocHoursEditor.removeAttribute('data-demand-create-rid');
       };
       respAllocPick.addEventListener('change', syncRespAllocEditor);
-      respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); persistDemandCreateDraft(); });
-      respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); persistDemandCreateDraft(); });
+      respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); respDailyById.set(rid, {}); persistDemandCreateDraft(); });
+      respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); respDailyById.set(rid, {}); persistDemandCreateDraft(); });
       respAllocHoursEditor.addEventListener('input', () => {
         const rid = String(respAllocPick.value || '');
         if (!rid) return;
         respHoursById.set(rid, parseHoursInput(respAllocHoursEditor.value));
+        respDailyById.set(rid, {});
         persistDemandCreateDraft();
       });
       const renderRespChips = () => {
@@ -10004,11 +10128,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         respChips.innerHTML = '';
         respAllocList.innerHTML = '';
         const ids = [...selectedRespIds];
+        ids.forEach(rid => respDailyById.set(rid, {}));
         respAllocEditor.classList.toggle('is-empty', !ids.length);
-        respAllocList.style.display = ids.length ? 'grid' : 'block';
+        respAllocList.style.display = ids.length ? 'none' : 'block';
         respAllocPick.innerHTML = '';
         if (!ids.length) {
-          respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para configurar horas por data.']));
+          respAllocList.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para configurar atuação e horas alocadas.']));
         }
         for (const rid of ids) respAllocPick.appendChild(el('option', { value: rid }, [getRespName(rid)]));
         if (ids.length) {
@@ -10039,50 +10164,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
             ev.stopPropagation();
           });
           respChips.appendChild(chip);
-          const hours = el('input', { type:'text', inputmode:'decimal', value:decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), title:'Horas padrão por dia quando não houver agenda diária específica', placeholder:'Ex: 03:30', 'data-demand-create-field':'horasLinha', 'data-demand-create-rid': rid });
-          const allocStart = el('input', { type:'date', value:respStartById.get(rid) || ini.value, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data em que este responsável começa a consumir horas', 'data-demand-create-field':'inicioAlocacao', 'data-demand-create-rid': rid });
-          const allocEnd = el('input', { type:'date', value:respEndById.get(rid) || fim.value, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data em que este responsável para de consumir horas', 'data-demand-create-field':'fimAlocacao', 'data-demand-create-rid': rid });
-          const dailyStart = el('input', { type:'date', value:allocStart.value, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Primeiro dia da agenda diária', 'data-demand-create-field':'agendaInicio', 'data-demand-create-rid': rid });
-          const dailyEnd = el('input', { type:'date', value:allocStart.value, min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Último dia da agenda diária', 'data-demand-create-field':'agendaFim', 'data-demand-create-rid': rid });
-          const dailyHours = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 02:00', title:'Horas a aplicar no período informado', 'data-demand-create-field':'agendaHoras', 'data-demand-create-rid': rid });
-          const dailySummary = el('div', { class:'tiny muted', style:'grid-column:1/-1' });
-          const updateDailySummary = () => {
-            const entries = Object.entries(normalizeAllocationDailyHours(respDailyById.get(rid) || {})).sort(([a],[b]) => a.localeCompare(b));
-            dailySummary.textContent = entries.length
-              ? `Agenda diária: ${entries.map(([date, h]) => `${formatDateBR(date)} ${decimalHoursToHHMM(h)}`).join(' | ')}`
-              : 'Sem agenda diária: usa as horas/dia padrão em todos os dias da alocação.';
-          };
-          const applyDaily = () => {
-            const start = normalizeDateLikeToISO(dailyStart.value || '') || '';
-            const end = normalizeDateLikeToISO(dailyEnd.value || dailyStart.value || '') || start;
-            const h = parseHoursInput(dailyHours.value);
-            const validation = validateDateRangeLimits(start, end, { allowEmpty:false, label:'Período da agenda diária' });
-            if (validation) return toast(validation);
-            if (!Number.isFinite(h) || h < 0) return toast('Informe as horas da agenda diária em HH:MM, exemplo 02:00.');
-            const maxHours = resourceHoursById(rid, state.resources || []);
-            if (h > maxHours) return toast(`Horas da agenda diária não podem passar de ${decimalHoursToHHMM(maxHours)} por dia.`);
-            const nextDaily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
-            for (let date = start; date && date <= end; date = addDaysISO(date, 1)) nextDaily[date] = h;
-            respDailyById.set(rid, nextDaily);
-            updateDailySummary();
-            persistDemandCreateDraft();
-          };
-          const clearDaily = () => { respDailyById.set(rid, {}); updateDailySummary(); persistDemandCreateDraft(); };
-          hours.addEventListener('input', () => { respHoursById.set(rid, parseHoursInput(hours.value)); persistDemandCreateDraft(); });
-          allocStart.addEventListener('input', () => { respStartById.set(rid, allocStart.value); dailyStart.value = dailyStart.value || allocStart.value; persistDemandCreateDraft(); });
-          allocEnd.addEventListener('input', () => { respEndById.set(rid, allocEnd.value); persistDemandCreateDraft(); });
-          updateDailySummary();
-          respAllocList.appendChild(el('div', { class:'respAllocRow' }, [
-            el('div', { class:'respAllocName', title:getRespName(rid) }, [getRespName(rid)]),
-            el('div', { class:'respAllocPct' }, [el('label', {}, ['Horas/dia padrão']), hours]),
-            el('div', { class:'respAllocPct' }, [el('label', {}, ['Início na alocação']), allocStart]),
-            el('div', { class:'respAllocPct' }, [el('label', {}, ['Fim na alocação']), allocEnd]),
-            el('div', { class:'respAllocPct' }, [el('label', {}, ['Agenda de']), dailyStart]),
-            el('div', { class:'respAllocPct' }, [el('label', {}, ['Até']), dailyEnd]),
-            el('div', { class:'respAllocPct' }, [el('label', {}, ['Horas no período']), dailyHours]),
-            el('div', { class:'row', style:'align-items:end' }, [button('Aplicar agenda', 'ghost', applyDaily), button('Limpar agenda', '', clearDaily)]),
-            dailySummary,
-          ]));
         }
         restoreRespBoxScroll(keepScrollLeft, false);
       };
