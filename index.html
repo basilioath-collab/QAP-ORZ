@@ -859,6 +859,96 @@ main{padding:14px;overflow-x:hidden}
     line-height:1.5;
 }
 
+
+
+/* --- UI Responsáveis e dedicação: layout limpo para alocações --- */
+#demandsFormCard .demandCreateAllocationBox,
+#demandEditModalBody .demandCreateAllocationBox{
+  overflow:hidden;
+}
+#demandsFormCard .demandAllocSummaryField,
+#demandEditModalBody .demandAllocSummaryField{
+  overflow:hidden;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocList,
+#demandEditModalBody .demandAllocSummaryField .respAllocList{
+  grid-template-columns:1fr;
+  gap:12px;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocRow,
+#demandEditModalBody .demandAllocSummaryField .respAllocRow{
+  display:grid;
+  grid-template-columns:minmax(180px,1.25fr) repeat(3,minmax(132px,.75fr));
+  gap:12px;
+  align-items:end;
+  padding:14px;
+  min-height:0;
+  overflow:hidden;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocName,
+#demandEditModalBody .demandAllocSummaryField .respAllocName{
+  align-self:center;
+  min-width:0;
+  padding:9px 10px;
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--primary-wash);
+  font-weight:950;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocPct,
+#demandEditModalBody .demandAllocSummaryField .respAllocPct{
+  align-items:stretch;
+  min-width:0;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocPct label,
+#demandEditModalBody .demandAllocSummaryField .respAllocPct label{
+  text-align:left;
+  white-space:normal;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocPct input,
+#demandEditModalBody .demandAllocSummaryField .respAllocPct input{
+  width:100% !important;
+  min-width:0 !important;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocRow > .row,
+#demandEditModalBody .demandAllocSummaryField .respAllocRow > .row{
+  grid-column:1 / -1;
+  justify-content:flex-start;
+  gap:8px;
+}
+#demandsFormCard .demandAllocSummaryField .respAllocRow > .tiny,
+#demandEditModalBody .demandAllocSummaryField .respAllocRow > .tiny{
+  grid-column:1 / -1;
+  padding-top:2px;
+  line-height:1.35;
+}
+#demandsFormCard .demandPercField .respAllocEditor,
+#demandEditModalBody .demandPercField .respAllocEditor{
+  grid-template-columns:minmax(180px,1fr) repeat(3,minmax(120px,140px));
+}
+@media (max-width:1100px){
+  #demandsFormCard .demandAllocSummaryField .respAllocRow,
+  #demandEditModalBody .demandAllocSummaryField .respAllocRow{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  #demandsFormCard .demandAllocSummaryField .respAllocName,
+  #demandEditModalBody .demandAllocSummaryField .respAllocName{
+    grid-column:1 / -1;
+  }
+  #demandsFormCard .demandPercField .respAllocEditor,
+  #demandEditModalBody .demandPercField .respAllocEditor{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+}
+@media (max-width:700px){
+  #demandsFormCard .demandAllocSummaryField .respAllocRow,
+  #demandEditModalBody .demandAllocSummaryField .respAllocRow,
+  #demandsFormCard .demandPercField .respAllocEditor,
+  #demandEditModalBody .demandPercField .respAllocEditor{
+    grid-template-columns:1fr;
+  }
+}
+
 </style>
 </head>
 <body>
