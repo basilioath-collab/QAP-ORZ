@@ -3657,6 +3657,8 @@ main{padding:14px;overflow-x:hidden}
   let editingLaunchApontamentoId = '';
   let dailyExecutionUnlocked = false;
   let dailyExecutionDate = todayISO();
+  let dailyExecutionStartDate = todayISO();
+  let dailyExecutionEndDate = todayISO();
   const DAILY_EXECUTION_PASSWORD = 'CAPVIEW';
 
   const uiPagination = {
@@ -9371,6 +9373,46 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       .sort((a,b) => (Number(b.real || 0) - Number(a.real || 0)) || String(a.resource?.nome || '').localeCompare(String(b.resource?.nome || '')));
   };
 
+
+  const dailyResourceExecutionRowsForRange = (startStr=todayISO(), endStr=startStr, { includeAllResources=false } = {}) => {
+    let start = normalizeDateLikeToISO(startStr) || todayISO();
+    let end = normalizeDateLikeToISO(endStr) || start;
+    if (end < start) [start, end] = [end, start];
+    const byResource = new Map();
+    let cursor = start;
+    let guard = 0;
+    while (cursor && cursor <= end && guard < 8000) {
+      for (const dayRow of dailyResourceExecutionRows(cursor, { includeAllResources })) {
+        const rid = String(dayRow.resource?.id || '').trim();
+        if (!rid) continue;
+        if (!byResource.has(rid)) {
+          byResource.set(rid, { resource:dayRow.resource, planned:0, demandReal:0, internalReal:0, items:[] });
+        }
+        const row = byResource.get(rid);
+        row.planned += Number(dayRow.planned || 0);
+        row.demandReal += Number(dayRow.demandReal || 0);
+        row.internalReal += Number(dayRow.internalReal || 0);
+        for (const item of (dayRow.items || [])) row.items.push({ ...item, date:cursor });
+      }
+      cursor = addDaysISO(cursor, 1);
+      guard++;
+    }
+    return {
+      rows:[...byResource.values()]
+        .map(row => ({
+          ...row,
+          planned:roundDemandHours(row.planned),
+          demandReal:roundDemandHours(row.demandReal),
+          internalReal:roundDemandHours(row.internalReal),
+          real:roundDemandHours(row.demandReal + row.internalReal),
+        }))
+        .filter(row => includeAllResources || row.planned > 0 || row.real > 0)
+        .sort((a,b) => (Number(b.real || 0) - Number(a.real || 0)) || String(a.resource?.nome || '').localeCompare(String(b.resource?.nome || ''))),
+      start,
+      end,
+    };
+  };
+
   const executionExportDateBounds = () => {
     const dates = [];
     const add = (value) => {
@@ -9437,13 +9479,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       : `CSV de Execução diária exportado de ${formatDateBR(start)} até ${formatDateBR(end)}.`);
   };
 
-  const openDailyExecutionExportModal = () => {
+  const openDailyExecutionExportModal = (initialStart='', initialEnd='') => {
     let dlg = qs('#dailyExecutionExportModal');
     if (dlg) dlg.remove();
-    const bounds = executionExportDateBounds();
-    const defaultDate = dailyExecutionDate || todayISO();
-    const startDateInput = el('input', { type:'date', value:defaultDate, min:bounds.start, max:bounds.end });
-    const endDateInput = el('input', { type:'date', value:defaultDate, min:bounds.start, max:bounds.end });
+    const defaultStart = normalizeDateLikeToISO(initialStart || dailyExecutionStartDate || dailyExecutionDate) || todayISO();
+    const defaultEnd = normalizeDateLikeToISO(initialEnd || dailyExecutionEndDate || defaultStart) || defaultStart;
+    const startDateInput = el('input', { type:'date', value:defaultStart });
+    const endDateInput = el('input', { type:'date', value:defaultEnd });
     const status = el('div', { class:'tiny muted', style:'margin-top:8px' }, ['Informe a data inicial e final para exportar o período desejado.']);
     const syncBounds = () => {
       if (startDateInput.value) endDateInput.min = startDateInput.value;
@@ -9453,13 +9495,16 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     endDateInput.onchange = syncBounds;
     syncBounds();
     const confirm = () => {
-      const start = normalizeDateLikeToISO(startDateInput.value || defaultDate);
-      const end = normalizeDateLikeToISO(endDateInput.value || start || defaultDate);
+      const start = normalizeDateLikeToISO(startDateInput.value || defaultStart);
+      const end = normalizeDateLikeToISO(endDateInput.value || start || defaultEnd);
       if (!start || !end) {
         status.textContent = 'Selecione uma data inicial e uma data final válidas.';
         status.style.color = 'var(--danger)';
         return;
       }
+      dailyExecutionStartDate = start;
+      dailyExecutionEndDate = end;
+      dailyExecutionDate = end;
       exportDailyExecutionRangeCSV(start, end);
       closeDialog(dlg);
     };
@@ -9488,16 +9533,17 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     openDialog(dlg);
   };
 
-  const openDailyResourceLaunchesModal = (row, dateStr) => {
+  const openDailyResourceLaunchesModal = (row, dateStr, endDateStr='') => {
     let dlg = qs('#dailyResourceLaunchesModal');
     if (dlg) dlg.remove();
     const resourceName = row.resource?.nome || row.resource?.name || row.resource?.id || 'Recurso';
     const items = row.items.filter(i => i.type !== 'planned');
     const tbl = el('table', { class:'demandsTable' });
-    tbl.appendChild(el('thead', {}, [el('tr', {}, ['Tipo','Lançamento','Horas','Detalhe','Usuário'].map(h => el('th', {}, [h])))]));
+    tbl.appendChild(el('thead', {}, [el('tr', {}, ['Data','Tipo','Lançamento','Horas','Detalhe','Usuário'].map(h => el('th', {}, [h])))]));
     const tbody = el('tbody');
     for (const item of items) {
       tbody.appendChild(el('tr', {}, [
+        el('td', { class:'mono' }, [formatDateBR(item.date || dateStr)]),
         el('td', {}, [item.type === 'internal' ? 'Atividade interna' : 'Demanda']),
         el('td', {}, [item.label || '-']),
         el('td', { class:'mono' }, [`${fmtHours(item.hours)}h`]),
@@ -9505,19 +9551,19 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         el('td', {}, [item.user || '-']),
       ]));
     }
-    if (!items.length) tbody.appendChild(el('tr', {}, [el('td', { colspan:'5', style:'padding:18px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento registrado para este recurso na data.'])]));
+    if (!items.length) tbody.appendChild(el('tr', {}, [el('td', { colspan:'6', style:'padding:18px;text-align:center;color:var(--muted)' }, ['Nenhum lançamento registrado para este recurso na data.'])]));
     tbl.appendChild(tbody);
     dlg = el('dialog', { id:'dailyResourceLaunchesModal', class:'modal' }, [
       el('div', { class:'modalCard' }, [
         el('div', { class:'modalHd' }, [
           el('div', {}, [
             el('div', { class:'modalTitle' }, [`Lançamentos de ${resourceName}`]),
-            el('div', { class:'modalSub' }, [`${formatDateBR(dateStr)} · Meta ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`])
+            el('div', { class:'modalSub' }, [`${endDateStr && endDateStr !== dateStr ? formatDateBR(dateStr) + ' até ' + formatDateBR(endDateStr) : formatDateBR(dateStr)} · Meta ${fmtHours(row.planned)}h · Executado ${fmtHours(row.real)}h`])
           ]),
           button('Fechar ×', 'ghost', () => closeDialog(dlg))
         ]),
         el('div', { class:'modalBd' }, [
-          el('div', { class:'tiny muted', style:'margin-bottom:10px' }, ['Resumo do dia selecionado. A exportação da aba gera todos os dias de todos os recursos.']),
+          el('div', { class:'tiny muted', style:'margin-bottom:10px' }, ['Resumo do período selecionado. A exportação da aba usa a data inicial e final informadas.']),
           el('div', { class:'scrollX' }, [tbl])
         ])
       ])
@@ -9700,8 +9746,26 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       ]);
     }
 
-    const dateInput = el('input', { type:'date', value:dailyExecutionDate || todayISO(), onchange:(ev) => { dailyExecutionDate = ev.target.value || todayISO(); render(); } });
-    const resourceRows = dailyResourceExecutionRows(dailyExecutionDate || todayISO());
+    dailyExecutionStartDate = normalizeDateLikeToISO(dailyExecutionStartDate || dailyExecutionDate) || todayISO();
+    dailyExecutionEndDate = normalizeDateLikeToISO(dailyExecutionEndDate || dailyExecutionStartDate) || dailyExecutionStartDate;
+    if (dailyExecutionEndDate < dailyExecutionStartDate) dailyExecutionEndDate = dailyExecutionStartDate;
+    dailyExecutionDate = dailyExecutionEndDate || dailyExecutionStartDate || todayISO();
+    const startDateInput = el('input', { type:'date', value:dailyExecutionStartDate, onchange:(ev) => {
+      dailyExecutionStartDate = normalizeDateLikeToISO(ev.target.value) || todayISO();
+      if (!dailyExecutionEndDate || dailyExecutionEndDate < dailyExecutionStartDate) dailyExecutionEndDate = dailyExecutionStartDate;
+      dailyExecutionDate = dailyExecutionEndDate;
+      render();
+    } });
+    const endDateInput = el('input', { type:'date', value:dailyExecutionEndDate, onchange:(ev) => {
+      dailyExecutionEndDate = normalizeDateLikeToISO(ev.target.value) || dailyExecutionStartDate || todayISO();
+      if (dailyExecutionEndDate < dailyExecutionStartDate) dailyExecutionStartDate = dailyExecutionEndDate;
+      dailyExecutionDate = dailyExecutionEndDate;
+      render();
+    } });
+    const dailyRange = dailyResourceExecutionRowsForRange(dailyExecutionStartDate, dailyExecutionEndDate);
+    const resourceRows = dailyRange.rows;
+    const rangeIsSingleDay = dailyRange.start === dailyRange.end;
+    const rangeLabel = rangeIsSingleDay ? formatDateBR(dailyRange.start) : `${formatDateBR(dailyRange.start)} até ${formatDateBR(dailyRange.end)}`;
     const totalsWithInternal = {
       planned: resourceRows.reduce((acc, r) => acc + Number(r.planned || 0), 0),
       real: resourceRows.reduce((acc, r) => acc + Number(r.real || 0), 0),
@@ -9737,8 +9801,8 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
             tabindex:'0',
             title:'Abrir lançamentos do recurso',
             style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:12px;align-items:center;cursor:pointer;transition:border-color .14s ease,box-shadow .14s ease',
-            onclick:() => openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()),
-            onkeydown:(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDailyResourceLaunchesModal(row, dailyExecutionDate || todayISO()); } }
+            onclick:() => openDailyResourceLaunchesModal(row, rangeIsSingleDay ? dailyRange.start : dailyRange.start, dailyRange.end),
+            onkeydown:(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); openDailyResourceLaunchesModal(row, rangeIsSingleDay ? dailyRange.start : dailyRange.start, dailyRange.end); } }
           }, [
             el('div', {}, [
               el('div', { style:'font-weight:950;text-align:left;color:var(--primary)' }, [resourceName]),
@@ -9767,19 +9831,20 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
             ])
           ]);
         }))
-      : el('div', { class:'hint tiny' }, ['Nenhum recurso com planejamento, apontamento ou atividade interna na data selecionada.']);
+      : el('div', { class:'hint tiny' }, ['Nenhum recurso com planejamento, apontamento ou atividade interna no período selecionado.']);
 
     return el('div', { class:'grid' }, [
       card('Execução diária', el('div', { class:'row toolbarAligned' }, [
-        el('div', { class:'field' }, [el('label', {}, ['Data']), dateInput]),
-        button('Hoje', '', () => { dailyExecutionDate = todayISO(); render(); }),
-        button('Exportar todos os dias', 'primary', openDailyExecutionExportModal),
+        el('div', { class:'field' }, [el('label', {}, ['Data inicial']), startDateInput]),
+        el('div', { class:'field' }, [el('label', {}, ['Data final']), endDateInput]),
+        button('Hoje', '', () => { dailyExecutionDate = todayISO(); dailyExecutionStartDate = todayISO(); dailyExecutionEndDate = todayISO(); render(); }),
+        button('Exportar período', 'primary', () => openDailyExecutionExportModal(dailyRange.start, dailyRange.end)),
         button('Bloquear', 'ghost', () => { dailyExecutionUnlocked = false; render(); })
       ]), el('div', { class:'grid', style:'gap:12px' }, [
-        el('div', { class:'tiny muted' }, ['Indicador gerencial do dia selecionado. A meta é 9h para interno, 8h para interno às sextas e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do dia.']),
+        el('div', { class:'tiny muted' }, [`Indicador gerencial do período selecionado (${rangeLabel}). A meta é 9h para interno, 8h para interno às sextas e 8h para terceiro. Clique no nome do recurso para ver os lançamentos do período.`]),
         el('div', { style:'display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px' }, [
-          metric('Meta do dia', `${fmtHours(totalsWithInternal.planned)}h`, 'interno 9h; sexta 8h; terceiro 8h'),
-          metric('Executado no dia', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
+          metric('Meta do período', `${fmtHours(totalsWithInternal.planned)}h`, 'interno 9h; sexta 8h; terceiro 8h'),
+          metric('Executado no período', `${fmtHours(totalsWithInternal.real)}h`, `${totalsWithInternal.apontamentos} apontamento(s) + ${fmtHours(totalsWithInternal.internal)}h internas`),
           metric('Aderência', pct(totalsWithInternal.adherence), 'executado ÷ planejado', totalsWithInternal.adherence < 60 ? 'warn' : ''),
           metric('Pendente', `${fmtHours(totalsWithInternal.pending)}h`, 'meta ainda sem execução'),
           metric('Extra', `${fmtHours(totalsWithInternal.extra)}h`, 'executado acima da meta', totalsWithInternal.extra > 0 ? 'warn' : ''),
@@ -9793,7 +9858,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Clique para comparar planejamento, execução real, aderência e apontamentos por demanda no mês.'])
         ])),
         card('Execução por recurso', null, el('div', { class:'grid', style:'gap:10px' }, [
-          el('div', { class:'tiny muted' }, ['Gráfico horizontal por recurso. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.']),
+          el('div', { class:'tiny muted' }, ['Gráfico horizontal por recurso no período. Executado soma apontamentos em demandas e atividades internas lançadas no mesmo recurso.']),
           resourceCards
         ]))
       ]))
