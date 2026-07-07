@@ -877,6 +877,29 @@ main{padding:14px;overflow-x:hidden}
   gap:10px;
   align-items:end;
 }
+#demandEditModalBody .demandPercField .respAllocEditor.allocSummaryMode{
+  display:block;
+}
+#demandEditModalBody .allocHeaderPremium{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;
+}
+#demandEditModalBody .allocIconBtn{
+  width:38px;height:38px;border-radius:14px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:17px;
+}
+#demandEditModalBody .allocSummaryGrid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px;margin-top:0!important;
+}
+#demandEditModalBody .allocSummaryCard{
+  border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,#fff,var(--surface));padding:12px;box-shadow:0 10px 28px rgba(15,23,42,.05);
+}
+#demandEditModalBody .allocSummaryTop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+#demandEditModalBody .allocSummaryName{font-weight:950;color:var(--text)}
+#demandEditModalBody .allocSummaryRange{font-size:11px;color:var(--muted);font-weight:800;margin-top:2px}
+#demandEditModalBody .allocSummaryBadge{border:1px solid var(--primary-light);background:var(--primary-soft);color:var(--primary);border-radius:999px;padding:4px 8px;font-size:10px;font-weight:950;white-space:nowrap}
+#demandEditModalBody .allocSegmentList{display:flex;flex-wrap:wrap;gap:6px}
+#demandEditModalBody .allocSegmentChip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:850;color:var(--text)}
+#demandEditModalBody .allocDailyModalGrid{display:grid;grid-template-columns:1.2fr repeat(3, minmax(120px,.7fr));gap:10px;align-items:end}
+@media (max-width:760px){#demandEditModalBody .allocDailyModalGrid{grid-template-columns:1fr}}
 #demandsFormCard .respAllocEditorField,
 #demandEditModalBody .respAllocEditorField{
   display:flex;
@@ -7025,9 +7048,26 @@ main{padding:14px;overflow-x:hidden}
       respAllocStartEditor.value = rid ? (respStartById.get(rid) || ini.value || demandStartForAlloc) : '';
       respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value || demandEndForAlloc) : '';
     };
+    const compactDailySegmentsForSummary = (rid, start='', end='') => {
+      const daily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
+      const entries = Object.entries(daily).filter(([date]) => (!start || date >= start) && (!end || date <= end)).sort(([a],[b]) => a.localeCompare(b));
+      if (!entries.length) return [{ start, end, hours:roundDemandHours(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), custom:false }];
+      const segments = [];
+      for (const [date, hoursRaw] of entries) {
+        const hours = roundDemandHours(hoursRaw);
+        const last = segments.at(-1);
+        if (last && last.hours === hours && addDaysISO(last.end, 1) === date) {
+          last.end = date;
+        } else {
+          segments.push({ start:date, end:date, hours, custom:true });
+        }
+      }
+      return segments;
+    };
     const renderRespAllocSummary = () => {
       respAllocSummary.innerHTML = '';
       const ids = selectedResponsaveis();
+      respAllocSummary.classList.add('allocSummaryGrid');
       if (!ids.length) {
         respAllocSummary.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para configurar atuação e horas alocadas.']));
         return;
@@ -7035,11 +7075,18 @@ main{padding:14px;overflow-x:hidden}
       for (const rid of ids) {
         const start = normalizeDateLikeToISO(respStartById.get(rid) || '') || ini.value || demandStartForAlloc;
         const end = normalizeDateLikeToISO(respEndById.get(rid) || '') || fim.value || demandEndForAlloc;
-        const daily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
-        const segments = allocationAuditSnapshot({ ...demand, data_inicio:start, data_fim:end, allocations:[{ resourceId:rid, data_inicio:start, data_fim:end, horas_planejadas_dia:respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), daily_hours:daily }] });
-        respAllocSummary.appendChild(el('div', { class:'respAllocItem' }, [
-          el('div', { style:'font-weight:950' }, [getRespName(rid)]),
-          el('div', { class:'tiny muted' }, [segments.length ? segments.map(allocationAuditLine).join(' | ') : `${formatDateBR(start)} até ${formatDateBR(end)} • ${decimalHoursToHHMM(respHoursById.get(rid) ?? 0)}/dia`])
+        const segments = compactDailySegmentsForSummary(rid, start, end);
+        const visibleSegments = segments.slice(0, 4);
+        const extraCount = Math.max(0, segments.length - visibleSegments.length);
+        respAllocSummary.appendChild(el('div', { class:'allocSummaryCard' }, [
+          el('div', { class:'allocSummaryTop' }, [
+            el('div', {}, [el('div', { class:'allocSummaryName' }, [getRespName(rid)]), el('div', { class:'allocSummaryRange' }, [`${formatDateBR(start)} até ${formatDateBR(end)}`])]),
+            el('span', { class:'allocSummaryBadge' }, [segments.length > 1 ? `${segments.length} trechos` : 'padrão'])
+          ]),
+          el('div', { class:'allocSegmentList' }, [
+            ...visibleSegments.map(seg => el('span', { class:'allocSegmentChip', title:`${formatDateBR(seg.start)} até ${formatDateBR(seg.end)}` }, [`${formatDateBR(seg.start)}-${formatDateBR(seg.end)} • ${decimalHoursToHHMM(seg.hours)}`])),
+            extraCount ? el('span', { class:'allocSegmentChip' }, [`+${extraCount} trecho(s)`]) : el('span', { style:'display:none' }, [])
+          ])
         ]));
       }
     };
@@ -7085,8 +7132,7 @@ main{padding:14px;overflow-x:hidden}
       modal.appendChild(el('div', { class:'modalCard', style:'max-width:720px' }, [
         el('div', { class:'modalHd' }, [el('div', {}, [el('h2', {}, ['Alterar alocação diária']), el('div', { class:'sub' }, ['Recadastre o período e as horas. O heatmap passa a usar essa agenda diária.'])]), button('Fechar', '', () => { closeDialog(modal); modal.remove(); })]),
         el('div', { class:'modalBd' }, [el('div', { class:'grid' }, [
-          el('div', { class:'field' }, [el('label', {}, ['Responsável']), pick]),
-          el('div', { class:'row' }, [el('div', { class:'field' }, [el('label', {}, ['De']), startInput]), el('div', { class:'field' }, [el('label', {}, ['Até']), endInput]), el('div', { class:'field' }, [el('label', {}, ['Horas/dia']), hoursInput])]),
+          el('div', { class:'allocDailyModalGrid' }, [el('div', { class:'field' }, [el('label', {}, ['Responsável']), pick]), el('div', { class:'field' }, [el('label', {}, ['De']), startInput]), el('div', { class:'field' }, [el('label', {}, ['Até']), endInput]), el('div', { class:'field' }, [el('label', {}, ['Horas/dia']), hoursInput])]),
           el('div', { class:'hint' }, ['Exemplo: 01 a 07 = 03:00, depois 08 a 10 = 02:00, depois 11 a 15 = 06:00. Cada salvamento adiciona/atualiza esse trecho na alocação do responsável.']),
           el('div', { class:'row', style:'justify-content:flex-end' }, [button('Salvar alteração diária', 'primary', saveDaily)])
         ])])
@@ -7094,8 +7140,9 @@ main{padding:14px;overflow-x:hidden}
       document.body.appendChild(modal);
       openDialog(modal);
     };
-    const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [respAllocSummary]);
-    const allocationChangeBtn = button('Alterar alocação diária', 'small', openDailyAllocationModal);
+    const respAllocEditor = el('div', { class:'respAllocEditor allocSummaryMode is-empty' }, [respAllocSummary]);
+    const allocationChangeBtn = el('button', { type:'button', class:'btn small ghost allocIconBtn', title:'Alterar alocação diária', 'aria-label':'Alterar alocação diária' }, ['✎']);
+    allocationChangeBtn.addEventListener('click', openDailyAllocationModal);
     const renderRespChips = () => {
       respChips.innerHTML = '';
       respAllocList.innerHTML = '';
@@ -7686,7 +7733,7 @@ main{padding:14px;overflow-x:hidden}
         sectionTitle(3, 'Responsáveis e dedicação'),
         el('div', { class:'demandCreateGrid' }, [
           el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('div', { class:'row', style:'justify-content:space-between;align-items:center;gap:10px' }, [el('label', {}, ['Alocação do responsável']), allocationChangeBtn]), respAllocEditor, respAllocList]),
+          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('div', { class:'allocHeaderPremium' }, [el('label', {}, ['Alocação do responsável']), allocationChangeBtn]), respAllocEditor, respAllocList]),
         ])
       ]),
       el('div', { class:'demandCreateSection' }, [
