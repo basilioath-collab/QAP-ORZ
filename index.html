@@ -1835,6 +1835,39 @@ main{padding:14px;overflow-x:hidden}
     return Object.prototype.hasOwnProperty.call(daily, date) ? daily[date] : null;
   };
 
+
+  const fillAllocationDailyHoursRange = (dailyHours={}, startStr='', endStr='', hours=0) => {
+    const daily = normalizeAllocationDailyHours(dailyHours || {});
+    let cursor = normalizeDateLikeToISO(startStr || '') || '';
+    const end = normalizeDateLikeToISO(endStr || '') || '';
+    const value = roundDemandHours(hours);
+    let guard = 0;
+    while (cursor && end && cursor <= end && guard < 8000) {
+      daily[cursor] = value;
+      cursor = addDaysISO(cursor, 1);
+      guard++;
+    }
+    return daily;
+  };
+
+  const applyIndividualAllocationHourChange = ({ rid, nextHours, changeFrom, respHoursById, respStartById, respEndById, respDailyById, fallbackStart='', fallbackEnd='' }) => {
+    if (!rid) return;
+    const previousHours = Number(respHoursById.get(rid) ?? 0);
+    const originalStart = normalizeDateLikeToISO(respStartById.get(rid) || fallbackStart || '') || '';
+    const end = normalizeDateLikeToISO(respEndById.get(rid) || fallbackEnd || '') || '';
+    const from = normalizeDateLikeToISO(changeFrom || '') || originalStart;
+    let daily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
+    if (originalStart && from && from > originalStart && Number.isFinite(previousHours)) {
+      const historyEnd = addDaysISO(from, -1);
+      daily = fillAllocationDailyHoursRange(daily, originalStart, historyEnd, previousHours);
+    }
+    if (end && from && from <= end) {
+      daily = fillAllocationDailyHoursRange(daily, from, end, nextHours);
+    }
+    respDailyById.set(rid, daily);
+    respHoursById.set(rid, roundDemandHours(nextHours));
+  };
+
   const normalizeDemandAllocations = (demand, resources=[]) => {
     const out = [];
     const add = (resourceId, source={}) => {
@@ -4742,13 +4775,43 @@ main{padding:14px;overflow-x:hidden}
     return [...new Set(names)].sort((a,b) => a.localeCompare(b, 'pt-BR'));
   };
 
-  const createFocalInput = ({ value='', draftField=false } = {}) => {
-    const listId = generateId('focal-users');
-    const attrs = { value, placeholder:'Selecione ou digite o focal', maxlength:String(INPUT_LIMITS.focal), list:listId };
+  const createFocalPicker = ({ value='', draftField=false } = {}) => {
+    const attrs = { value, placeholder:'Digite para buscar o focal...', maxlength:String(INPUT_LIMITS.focal) };
     if (draftField) attrs['data-demand-create-field'] = 'focal';
     const input = el('input', attrs);
-    const datalist = el('datalist', { id:listId }, focalUserOptions().map(name => el('option', { value:name }, [])));
-    return { input, datalist };
+    input.className = 'multiSelectInput';
+    const menu = el('div', { class:'multiSelectMenu' });
+    const box = el('div', { class:'multiSelectBox' }, [input]);
+    const control = el('div', { class:'multiSelect', title:'Digite para buscar e clique para selecionar um usuário cadastrado' }, [box, menu]);
+    const closeMenu = () => control.classList.remove('open');
+    const renderOptions = () => {
+      const q = normalizeSearchText(input.value || '');
+      const options = focalUserOptions().filter(name => !q || normalizeSearchText(name).includes(q)).slice(0, 50);
+      menu.innerHTML = '';
+      if (!options.length) {
+        menu.appendChild(el('div', { class:'multiSelectEmpty' }, [q ? 'Nenhum usuário encontrado.' : 'Nenhum usuário cadastrado encontrado.']));
+        return;
+      }
+      for (const name of options) {
+        menu.appendChild(el('button', { type:'button', class:'multiSelectOption', 'data-focal-name':name }, [name]));
+      }
+    };
+    const openMenu = () => { control.classList.add('open'); renderOptions(); };
+    menu.addEventListener('mousedown', (ev) => {
+      const opt = ev.target.closest('.multiSelectOption');
+      if (!opt) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      input.value = opt.getAttribute('data-focal-name') || '';
+      input.dispatchEvent(new Event('input', { bubbles:true }));
+      input.dispatchEvent(new Event('change', { bubbles:true }));
+      closeMenu();
+    });
+    input.addEventListener('input', openMenu);
+    input.addEventListener('focus', openMenu);
+    input.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeMenu(); });
+    document.addEventListener('mousedown', (ev) => { if (!control.contains(ev.target)) closeMenu(); });
+    return { input, control };
   };
 
   const validateDemandFields = ({ titulo='', predio='', focal='', data_inicio='', data_fim='', observacoes='', status='Mapeada' } = {}) => {
@@ -6702,7 +6765,7 @@ main{padding:14px;overflow-x:hidden}
 
     const titulo = el('input', { value: demand.titulo || '', placeholder:'Ex: PQ Sistema X', maxlength:String(INPUT_LIMITS.demandTitle) });
     const predio = el('input', { value: demand.predio || '', placeholder:'Ex: Prédio A', maxlength:String(INPUT_LIMITS.building) });
-    const { input: focal, datalist: focalDatalist } = createFocalInput({ value: demand.focal || '' });
+    const { input: focal, control: focalControl } = createFocalPicker({ value: demand.focal || '' });
 
     const selectedRespIds = new Set();
     const respHoursById = new Map();
@@ -6770,20 +6833,18 @@ main{padding:14px;overflow-x:hidden}
       respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value || demandEndForAlloc) : '';
     };
     respAllocPick.addEventListener('change', syncRespAllocEditor);
-    respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); respDailyById.set(rid, {}); renderApontamentos(); });
-    respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); respDailyById.set(rid, {}); renderApontamentos(); });
+    respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (rid) { const current = normalizeDateLikeToISO(respStartById.get(rid) || '') || ''; const next = normalizeDateLikeToISO(respAllocStartEditor.value || '') || ''; if (!current || (next && next <= current)) respStartById.set(rid, next); } renderApontamentos(); });
+    respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); renderApontamentos(); });
     respAllocHoursEditor.addEventListener('input', () => {
       const rid = String(respAllocPick.value || '');
       if (!rid) return;
-      respHoursById.set(rid, parseHoursInput(respAllocHoursEditor.value));
-      respDailyById.set(rid, {});
+      applyIndividualAllocationHourChange({ rid, nextHours: parseHoursInput(respAllocHoursEditor.value), changeFrom: respAllocStartEditor.value, respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value || demandStartForAlloc, fallbackEnd: fim.value || demandEndForAlloc });
       renderApontamentos();
     });
     const renderRespChips = () => {
       respChips.innerHTML = '';
       respAllocList.innerHTML = '';
       const ids = [...selectedRespIds];
-      ids.forEach(rid => respDailyById.set(rid, {}));
       respAllocEditor.classList.toggle('is-empty', !ids.length);
       respAllocList.style.display = ids.length ? 'none' : 'block';
       if (!ids.length) {
@@ -7283,7 +7344,7 @@ main{padding:14px;overflow-x:hidden}
           el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Título']), titulo]),
           el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prioridade']), prioridade]),
           el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prédio']), predio]),
-          el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal, focalDatalist, el('div', { class:'tiny muted' }, ['Busque usuários cadastrados para evitar nomes digitados aleatoriamente.'])]),
+          el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focalControl, el('div', { class:'tiny muted' }, ['Busque usuários cadastrados para evitar nomes digitados aleatoriamente.'])]),
         ])
       ]),
       el('div', { class:'demandCreateSection' }, [
@@ -10072,7 +10133,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     const form = (() => {
       const titulo = el('input', { placeholder:'Ex: PQ Sistema X', maxlength:String(INPUT_LIMITS.demandTitle), 'data-demand-create-field':'titulo' });
       const predio = el('input', { placeholder:'Ex: Prédio A', maxlength:String(INPUT_LIMITS.building), 'data-demand-create-field':'predio' });
-      const { input: focal, datalist: focalDatalist } = createFocalInput({ draftField:true });
+      const { input: focal, control: focalControl } = createFocalPicker({ draftField:true });
 
       // Responsáveis: busca + chips (mais intuitivo que select multiple/Ctrl)
       const selectedRespIds = new Set();
@@ -10136,13 +10197,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         if (rid) respAllocHoursEditor.setAttribute('data-demand-create-rid', rid); else respAllocHoursEditor.removeAttribute('data-demand-create-rid');
       };
       respAllocPick.addEventListener('change', syncRespAllocEditor);
-      respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respStartById.set(rid, respAllocStartEditor.value); respDailyById.set(rid, {}); persistDemandCreateDraft(); });
-      respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); respDailyById.set(rid, {}); persistDemandCreateDraft(); });
+      respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (rid) { const current = normalizeDateLikeToISO(respStartById.get(rid) || '') || ''; const next = normalizeDateLikeToISO(respAllocStartEditor.value || '') || ''; if (!current || (next && next <= current)) respStartById.set(rid, next); } persistDemandCreateDraft(); });
+      respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); persistDemandCreateDraft(); });
       respAllocHoursEditor.addEventListener('input', () => {
         const rid = String(respAllocPick.value || '');
         if (!rid) return;
-        respHoursById.set(rid, parseHoursInput(respAllocHoursEditor.value));
-        respDailyById.set(rid, {});
+        applyIndividualAllocationHourChange({ rid, nextHours: parseHoursInput(respAllocHoursEditor.value), changeFrom: respAllocStartEditor.value, respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value, fallbackEnd: fim.value });
         persistDemandCreateDraft();
       });
       const renderRespChips = () => {
@@ -10150,7 +10210,6 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         respChips.innerHTML = '';
         respAllocList.innerHTML = '';
         const ids = [...selectedRespIds];
-        ids.forEach(rid => respDailyById.set(rid, {}));
         respAllocEditor.classList.toggle('is-empty', !ids.length);
         respAllocList.style.display = ids.length ? 'none' : 'block';
         respAllocPick.innerHTML = '';
@@ -10456,7 +10515,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
             el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Título']), titulo]),
             el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prioridade']), prioridade]),
             el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prédio']), predio]),
-            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal, focalDatalist, el('div', { class:'tiny muted' }, ['Busque usuários cadastrados para evitar nomes digitados aleatoriamente.'])]),
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focalControl, el('div', { class:'tiny muted' }, ['Busque usuários cadastrados para evitar nomes digitados aleatoriamente.'])]),
           ])
         ]),
         el('div', { class:'demandCreateSection' }, [
