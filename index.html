@@ -4889,10 +4889,11 @@ main{padding:14px;overflow-x:hidden}
     return daily;
   };
 
-  const applyAllocationHoursFromDate = ({ rid='', changeFrom='', nextHours=0, respHoursById, respStartById, respEndById, respDailyById, fallbackStart='', fallbackEnd='' }) => {
+  const applyAllocationHoursFromDate = ({ rid='', changeFrom='', nextHours=0, respHoursById, respStartById, respEndById, respDailyById, fallbackStart='', fallbackEnd='', originalStartOverride='' }) => {
     const resourceId = String(rid || '').trim();
     if (!resourceId) return;
-    const originalStart = normalizeDateLikeToISO(respStartById.get(resourceId) || fallbackStart || '') || '';
+    const currentStart = normalizeDateLikeToISO(respStartById.get(resourceId) || fallbackStart || '') || '';
+    const originalStart = normalizeDateLikeToISO(originalStartOverride || '') || currentStart;
     const end = normalizeDateLikeToISO(respEndById.get(resourceId) || fallbackEnd || '') || originalStart;
     const from = normalizeDateLikeToISO(changeFrom || '') || originalStart;
     const previousHours = Number(respHoursById.get(resourceId) ?? 0);
@@ -4902,12 +4903,18 @@ main{padding:14px;overflow-x:hidden}
     if (originalStart && from && from > originalStart && Number.isFinite(previousHours)) {
       daily = fillDailyHoursRange(daily, originalStart, addDaysISO(from, -1), previousHours);
       respHoursById.set(resourceId, newHours);
+      // A data informada no editor de horas representa o início da nova carga,
+      // não o início da alocação. Mantemos a alocação ativa desde o início
+      // planejado e materializamos as horas anteriores em daily_hours para o
+      // heatmap continuar contando o histórico dia a dia.
+      respStartById.set(resourceId, originalStart);
       if (end && from <= end) daily = fillDailyHoursRange(daily, from, end, newHours);
       respDailyById.set(resourceId, daily);
       return;
     }
 
-    respStartById.set(resourceId, from || originalStart);
+    respStartById.set(resourceId, originalStart || from);
+    if (end && from && from <= end) daily = fillDailyHoursRange(daily, from, end, newHours);
     respHoursById.set(resourceId, newHours);
     respDailyById.set(resourceId, daily);
   };
@@ -7035,7 +7042,7 @@ main{padding:14px;overflow-x:hidden}
     respAllocHoursEditor.addEventListener('input', () => {
       const rid = String(respAllocPick.value || '');
       if (!rid) return;
-      applyAllocationHoursFromDate({ rid, changeFrom: respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value || demandStartForAlloc, fallbackEnd: fim.value || demandEndForAlloc });
+      applyAllocationHoursFromDate({ rid, changeFrom: respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value || demandStartForAlloc, fallbackEnd: fim.value || demandEndForAlloc, originalStartOverride: originalRespStartById.get(rid) || demandStartForAlloc });
       renderApontamentos();
       refreshAllocationPreview();
     });
@@ -7180,7 +7187,7 @@ main{padding:14px;overflow-x:hidden}
       allocationDiffPreview.appendChild(el('b', {}, [`Alterações detectadas na alocação de ${statePreview.name}`]));
       allocationDiffPreview.appendChild(el('ul', { class:'tiny', style:'margin:8px 0 0 18px;padding:0' }, [
         ...lines.map(line => el('li', {}, [line])),
-        el('li', {}, [`Inicial: ${formatDateBR(statePreview.before.inicio)} até ${formatDateBR(statePreview.before.fim)} • ${decimalHoursToHHMM(statePreview.before.horas)}/dia`]),
+        el('li', {}, [`Planejado: ${formatDateBR(statePreview.before.inicio)} até ${formatDateBR(statePreview.before.fim)} • ${decimalHoursToHHMM(statePreview.before.horas)}/dia`]),
         el('li', {}, [`Alterado: ${formatDateBR(statePreview.after.inicio)} até ${formatDateBR(statePreview.after.fim)} • ${decimalHoursToHHMM(statePreview.after.horas)}/dia`]),
       ]));
     };
@@ -10459,12 +10466,12 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         if (rid) respAllocHoursEditor.setAttribute('data-demand-create-rid', rid); else respAllocHoursEditor.removeAttribute('data-demand-create-rid');
       };
       respAllocPick.addEventListener('change', syncRespAllocEditor);
-      respAllocStartEditor.addEventListener('input', () => { persistDemandCreateDraft(); });
+      respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (rid) respStartById.set(rid, normalizeDateLikeToISO(respAllocStartEditor.value || '') || respAllocStartEditor.value || ''); persistDemandCreateDraft(); });
       respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); persistDemandCreateDraft(); });
       respAllocHoursEditor.addEventListener('input', () => {
         const rid = String(respAllocPick.value || '');
         if (!rid) return;
-        applyAllocationHoursFromDate({ rid, changeFrom: respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value, fallbackEnd: fim.value });
+        applyAllocationHoursFromDate({ rid, changeFrom: respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value, fallbackEnd: fim.value, originalStartOverride: ini.value });
         persistDemandCreateDraft();
       });
       const renderRespChips = () => {
