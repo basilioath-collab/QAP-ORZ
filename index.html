@@ -7016,11 +7016,13 @@ main{padding:14px;overflow-x:hidden}
     const respAllocList = el('div', { class:'respAllocList' });
     const respAllocPick = el('select');
     const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação inicial do responsável' });
+    const respAllocChangeFromEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data a partir da qual a nova carga horária passa a valer' });
     const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação final do responsável' });
     const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas alocadas por dia para o responsável' });
     const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Responsável']), respAllocPick]),
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início da atuação / alteração de carga']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início real/planejado']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Alterar carga a partir de']), respAllocChangeFromEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação final']), respAllocEndEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Horas alocadas']), respAllocHoursEditor]),
     ]);
@@ -7028,6 +7030,7 @@ main{padding:14px;overflow-x:hidden}
       const rid = String(respAllocPick.value || '');
       respAllocHoursEditor.value = rid ? decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])) : '';
       respAllocStartEditor.value = rid ? (respStartById.get(rid) || ini.value || demandStartForAlloc) : '';
+      respAllocChangeFromEditor.value = respAllocStartEditor.value;
       respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value || demandEndForAlloc) : '';
     };
     respAllocPick.addEventListener('change', () => { syncRespAllocEditor(); refreshAllocationPreview(); });
@@ -7038,11 +7041,14 @@ main{padding:14px;overflow-x:hidden}
       renderApontamentos();
       refreshAllocationPreview();
     });
+    respAllocChangeFromEditor.addEventListener('input', () => {
+      refreshAllocationPreview();
+    });
     respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); renderApontamentos(); refreshAllocationPreview(); });
     respAllocHoursEditor.addEventListener('input', () => {
       const rid = String(respAllocPick.value || '');
       if (!rid) return;
-      applyAllocationHoursFromDate({ rid, changeFrom: respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value || demandStartForAlloc, fallbackEnd: fim.value || demandEndForAlloc, originalStartOverride: originalRespStartById.get(rid) || demandStartForAlloc });
+      applyAllocationHoursFromDate({ rid, changeFrom: respAllocChangeFromEditor.value || respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value || demandStartForAlloc, fallbackEnd: fim.value || demandEndForAlloc, originalStartOverride: originalRespStartById.get(rid) || demandStartForAlloc });
       renderApontamentos();
       refreshAllocationPreview();
     });
@@ -7168,6 +7174,7 @@ main{padding:14px;overflow-x:hidden}
         after:{
           inicio: normalizeDateLikeToISO(respAllocStartEditor.value || respStartById.get(rid) || '') || ini.value || demandStartForAlloc,
           fim: normalizeDateLikeToISO(respAllocEndEditor.value || respEndById.get(rid) || '') || fim.value || demandEndForAlloc,
+          alteracaoInicio: normalizeDateLikeToISO(respAllocChangeFromEditor.value || respAllocStartEditor.value || respStartById.get(rid) || '') || ini.value || demandStartForAlloc,
           horas: roundDemandHours(parseHoursInput(respAllocHoursEditor.value) ?? respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])),
         }
       };
@@ -7188,7 +7195,7 @@ main{padding:14px;overflow-x:hidden}
       allocationDiffPreview.appendChild(el('ul', { class:'tiny', style:'margin:8px 0 0 18px;padding:0' }, [
         ...lines.map(line => el('li', {}, [line])),
         el('li', {}, [`Planejado: ${formatDateBR(statePreview.before.inicio)} até ${formatDateBR(statePreview.before.fim)} • ${decimalHoursToHHMM(statePreview.before.horas)}/dia`]),
-        el('li', {}, [`Alterado: ${formatDateBR(statePreview.after.inicio)} até ${formatDateBR(statePreview.after.fim)} • ${decimalHoursToHHMM(statePreview.after.horas)}/dia`]),
+        el('li', {}, [`Alterado: ${formatDateBR(statePreview.after.alteracaoInicio)} até ${formatDateBR(statePreview.after.fim)} • ${decimalHoursToHHMM(statePreview.after.horas)}/dia`]),
       ]));
     };
     ini.addEventListener('input', refreshAllocationPreview);
@@ -10450,11 +10457,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       const respAllocList = el('div', { class:'respAllocList' });
       const respAllocPick = el('select', { title:'Selecione o responsável para ajustar a alocação', 'data-demand-create-field':'horasResponsavel' });
       const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação inicial do responsável', 'data-demand-create-field':'inicioAlocacaoSelecionada' });
+      const respAllocChangeFromEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data a partir da qual a nova carga horária passa a valer', 'data-demand-create-field':'inicioAlteracaoCargaSelecionada' });
       const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação final do responsável', 'data-demand-create-field':'fimAlocacaoSelecionada' });
       const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas alocadas por dia para o responsável', 'data-demand-create-field':'horasValor' });
       const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Responsável']), respAllocPick]),
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início da atuação / alteração de carga']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início real/planejado']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Alterar carga a partir de']), respAllocChangeFromEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação final']), respAllocEndEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Horas alocadas']), respAllocHoursEditor]),
     ]);
@@ -10462,16 +10471,18 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         const rid = String(respAllocPick.value || '');
         respAllocHoursEditor.value = rid ? decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])) : '';
         respAllocStartEditor.value = rid ? (respStartById.get(rid) || ini.value) : '';
+        respAllocChangeFromEditor.value = respAllocStartEditor.value;
         respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value) : '';
         if (rid) respAllocHoursEditor.setAttribute('data-demand-create-rid', rid); else respAllocHoursEditor.removeAttribute('data-demand-create-rid');
       };
       respAllocPick.addEventListener('change', syncRespAllocEditor);
       respAllocStartEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (rid) respStartById.set(rid, normalizeDateLikeToISO(respAllocStartEditor.value || '') || respAllocStartEditor.value || ''); persistDemandCreateDraft(); });
+      respAllocChangeFromEditor.addEventListener('input', persistDemandCreateDraft);
       respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); persistDemandCreateDraft(); });
       respAllocHoursEditor.addEventListener('input', () => {
         const rid = String(respAllocPick.value || '');
         if (!rid) return;
-        applyAllocationHoursFromDate({ rid, changeFrom: respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value, fallbackEnd: fim.value, originalStartOverride: ini.value });
+        applyAllocationHoursFromDate({ rid, changeFrom: respAllocChangeFromEditor.value || respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value, fallbackEnd: fim.value, originalStartOverride: ini.value });
         persistDemandCreateDraft();
       });
       const renderRespChips = () => {
