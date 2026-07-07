@@ -6977,6 +6977,9 @@ main{padding:14px;overflow-x:hidden}
       respEndById.set(demand.responsavel_id, demandEndForAlloc);
       respDailyById.set(demand.responsavel_id, {});
     }
+    const originalRespHoursById = new Map(respHoursById);
+    const originalRespStartById = new Map(respStartById);
+    const originalRespEndById = new Map(respEndById);
     const respSearch = el('input', { class:'multiSelectInput', placeholder:'Digite o nome do responsável...' });
     const respChips = el('div', { style:'display:contents' });
     const respMenu = el('div', { class:'multiSelectMenu' });
@@ -7020,7 +7023,7 @@ main{padding:14px;overflow-x:hidden}
       respAllocStartEditor.value = rid ? (respStartById.get(rid) || ini.value || demandStartForAlloc) : '';
       respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value || demandEndForAlloc) : '';
     };
-    respAllocPick.addEventListener('change', syncRespAllocEditor);
+    respAllocPick.addEventListener('change', () => { syncRespAllocEditor(); refreshAllocationPreview(); });
     respAllocStartEditor.addEventListener('input', () => {
       const rid = String(respAllocPick.value || '');
       if (!rid) return;
@@ -7144,34 +7147,41 @@ main{padding:14px;overflow-x:hidden}
       'Se você preencher, a justificativa será registrada no histórico (events) do app para rastreabilidade.'
     ]);
     const allocationDiffPreview = el('div', { class:'hint', style:'display:none' });
-    const originalAllocationSnapshot = allocationAuditSnapshot(demand);
-    const allocationPreviewSnapshot = () => {
-      const nextStatus = normalizeStatus(status.value);
-      const respIds = nextStatus === 'Mapeada' ? [] : selectedResponsaveis();
-      const allocations = buildEditedDemandAllocations(demand, respIds, respHoursById, nextStatus, ini.value || demandStartForAlloc, fim.value || demandEndForAlloc)
-        .map(a => {
-          const rid = String(a.resourceId || '').trim();
-          return {
-            ...a,
-            data_inicio: normalizeDateLikeToISO(respStartById.get(rid) || '') || ini.value || demandStartForAlloc,
-            data_fim: normalizeDateLikeToISO(respEndById.get(rid) || '') || fim.value || demandEndForAlloc,
-            daily_hours: normalizeAllocationDailyHours(respDailyById.get(rid) || {}),
-          };
-        });
-      return allocationAuditSnapshot({ ...demand, data_inicio: ini.value || demand.data_inicio || '', data_fim: fim.value || demand.data_fim || '', allocations });
+    const selectedAllocationPreviewState = () => {
+      const rid = String(respAllocPick.value || '').trim();
+      if (!rid || !selectedRespIds.has(rid) || normalizeStatus(status.value) === 'Mapeada') return null;
+      return {
+        rid,
+        name:getRespName(rid),
+        before:{
+          inicio: normalizeDateLikeToISO(originalRespStartById.get(rid) || '') || demandStartForAlloc,
+          fim: normalizeDateLikeToISO(originalRespEndById.get(rid) || '') || demandEndForAlloc,
+          horas: roundDemandHours(originalRespHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])),
+        },
+        after:{
+          inicio: normalizeDateLikeToISO(respAllocStartEditor.value || respStartById.get(rid) || '') || ini.value || demandStartForAlloc,
+          fim: normalizeDateLikeToISO(respAllocEndEditor.value || respEndById.get(rid) || '') || fim.value || demandEndForAlloc,
+          horas: roundDemandHours(parseHoursInput(respAllocHoursEditor.value) ?? respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])),
+        }
+      };
     };
     refreshAllocationPreview = () => {
-      const nextSnapshot = allocationPreviewSnapshot();
-      const changed = JSON.stringify(originalAllocationSnapshot) !== JSON.stringify(nextSnapshot);
-      allocationDiffPreview.style.display = changed ? '' : 'none';
+      const statePreview = selectedAllocationPreviewState();
+      const lines = [];
+      if (statePreview) {
+        if (statePreview.before.inicio !== statePreview.after.inicio) lines.push(`Início da atuação: ${formatDateBR(statePreview.before.inicio)} → ${formatDateBR(statePreview.after.inicio)}`);
+        if (statePreview.before.fim !== statePreview.after.fim) lines.push(`Data de atuação final: ${formatDateBR(statePreview.before.fim)} → ${formatDateBR(statePreview.after.fim)}`);
+        if (statePreview.before.horas !== statePreview.after.horas) lines.push(`Horas/dia: ${decimalHoursToHHMM(statePreview.before.horas)} → ${decimalHoursToHHMM(statePreview.after.horas)}`);
+      }
+      const changed = lines.length > 0;
       allocationDiffPreview.innerHTML = '';
+      allocationDiffPreview.style.display = changed ? '' : 'none';
       if (!changed) return;
-      allocationDiffPreview.appendChild(el('b', {}, ['Alterações detectadas na alocação']));
-      const lines = buildAllocationAuditDetails(originalAllocationSnapshot, nextSnapshot);
+      allocationDiffPreview.appendChild(el('b', {}, [`Alterações detectadas na alocação de ${statePreview.name}`]));
       allocationDiffPreview.appendChild(el('ul', { class:'tiny', style:'margin:8px 0 0 18px;padding:0' }, [
-        ...(lines.length ? lines : ['Alocação alterada.']).map(line => el('li', {}, [line])),
-        el('li', {}, [`Inicial: ${originalAllocationSnapshot.length ? originalAllocationSnapshot.map(allocationAuditLine).join(' | ') : '-'}`]),
-        el('li', {}, [`Alterado: ${nextSnapshot.length ? nextSnapshot.map(allocationAuditLine).join(' | ') : '-'}`]),
+        ...lines.map(line => el('li', {}, [line])),
+        el('li', {}, [`Inicial: ${formatDateBR(statePreview.before.inicio)} até ${formatDateBR(statePreview.before.fim)} • ${decimalHoursToHHMM(statePreview.before.horas)}/dia`]),
+        el('li', {}, [`Alterado: ${formatDateBR(statePreview.after.inicio)} até ${formatDateBR(statePreview.after.fim)} • ${decimalHoursToHHMM(statePreview.after.horas)}/dia`]),
       ]));
     };
     ini.addEventListener('input', refreshAllocationPreview);
