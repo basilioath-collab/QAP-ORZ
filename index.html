@@ -877,6 +877,39 @@ main{padding:14px;overflow-x:hidden}
   gap:10px;
   align-items:end;
 }
+#demandEditModalBody .demandPercField .respAllocEditor.allocSummaryMode{
+  display:block;
+}
+#demandEditModalBody .allocHeaderPremium{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;
+}
+#demandEditModalBody .allocIconBtn{
+  width:38px;height:38px;border-radius:14px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:17px;
+}
+#demandEditModalBody .allocSummaryGrid{
+  display:flex;flex-direction:column;gap:10px;margin-top:0!important;
+}
+#demandEditModalBody .allocResourcePicker{display:grid;grid-template-columns:minmax(180px,360px) 1fr;gap:10px;align-items:end}
+#demandEditModalBody .allocResourcePicker label{font-size:11px;font-weight:950;color:var(--muted);margin:0 0 6px}
+@media (max-width:760px){#demandEditModalBody .allocResourcePicker{grid-template-columns:1fr}}
+#demandEditModalBody .allocSummaryDetails{
+  border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,#fff,var(--surface));box-shadow:0 10px 28px rgba(15,23,42,.04);overflow:hidden;
+}
+#demandEditModalBody .allocSummaryDetails summary{
+  list-style:none;cursor:pointer;padding:11px 12px;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;
+}
+#demandEditModalBody .allocSummaryDetails summary::-webkit-details-marker{display:none}
+#demandEditModalBody .allocSummaryDetails[open] summary{border-bottom:1px solid var(--border);background:var(--primary-wash)}
+#demandEditModalBody .allocSummaryNameWrap{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+#demandEditModalBody .allocSummaryChevron{font-size:12px;color:var(--muted);transition:transform .16s ease}
+#demandEditModalBody .allocSummaryDetails[open] .allocSummaryChevron{transform:rotate(90deg)}
+#demandEditModalBody .allocSummaryName{font-weight:950;color:var(--text)}
+#demandEditModalBody .allocSummaryRange{font-size:11px;color:var(--muted);font-weight:800}
+#demandEditModalBody .allocSummaryBadge{border:1px solid var(--primary-light);background:var(--primary-soft);color:var(--primary);border-radius:999px;padding:4px 8px;font-size:10px;font-weight:950;white-space:nowrap}
+#demandEditModalBody .allocSegmentList{display:flex;flex-wrap:wrap;gap:6px;padding:10px 12px 12px}
+#demandEditModalBody .allocSegmentChip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:5px 8px;font-size:11px;font-weight:850;color:var(--text)}
+#demandEditModalBody .allocDailyModalGrid{display:grid;grid-template-columns:1.2fr repeat(3, minmax(120px,.7fr));gap:10px;align-items:end}
+@media (max-width:760px){#demandEditModalBody .allocDailyModalGrid{grid-template-columns:1fr}}
 #demandsFormCard .respAllocEditorField,
 #demandEditModalBody .respAllocEditorField{
   display:flex;
@@ -7014,38 +7047,139 @@ main{padding:14px;overflow-x:hidden}
       }
     };
     const respAllocList = el('div', { class:'respAllocList' });
-    const respAllocPick = el('select');
-    const respAllocStartEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação inicial do responsável' });
-    const respAllocEndEditor = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31`, title:'Data de atuação final do responsável' });
-    const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas alocadas por dia para o responsável' });
-    const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Responsável']), respAllocPick]),
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início da atuação / alteração de carga']), respAllocStartEditor]),
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação final']), respAllocEndEditor]),
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Horas alocadas']), respAllocHoursEditor]),
-    ]);
+    const respAllocPick = el('select', { title:'Selecione o responsável para ver a alocação configurada' });
+    const respAllocStartEditor = el('input', { type:'date', style:'display:none' });
+    const respAllocEndEditor = el('input', { type:'date', style:'display:none' });
+    const respAllocHoursEditor = el('input', { type:'text', style:'display:none' });
+    const respAllocSummary = el('div', { class:'respAllocList' });
     const syncRespAllocEditor = () => {
       const rid = String(respAllocPick.value || '');
       respAllocHoursEditor.value = rid ? decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])) : '';
       respAllocStartEditor.value = rid ? (respStartById.get(rid) || ini.value || demandStartForAlloc) : '';
       respAllocEndEditor.value = rid ? (respEndById.get(rid) || fim.value || demandEndForAlloc) : '';
     };
-    respAllocPick.addEventListener('change', () => { syncRespAllocEditor(); refreshAllocationPreview(); });
-    respAllocStartEditor.addEventListener('input', () => {
-      const rid = String(respAllocPick.value || '');
-      if (!rid) return;
-      respStartById.set(rid, normalizeDateLikeToISO(respAllocStartEditor.value || '') || respAllocStartEditor.value || '');
-      renderApontamentos();
-      refreshAllocationPreview();
-    });
-    respAllocEndEditor.addEventListener('input', () => { const rid = String(respAllocPick.value || ''); if (!rid) return; respEndById.set(rid, respAllocEndEditor.value); renderApontamentos(); refreshAllocationPreview(); });
-    respAllocHoursEditor.addEventListener('input', () => {
-      const rid = String(respAllocPick.value || '');
-      if (!rid) return;
-      applyAllocationHoursFromDate({ rid, changeFrom: respAllocStartEditor.value, nextHours: parseHoursInput(respAllocHoursEditor.value), respHoursById, respStartById, respEndById, respDailyById, fallbackStart: ini.value || demandStartForAlloc, fallbackEnd: fim.value || demandEndForAlloc, originalStartOverride: originalRespStartById.get(rid) || demandStartForAlloc });
-      renderApontamentos();
-      refreshAllocationPreview();
-    });
+    const compactDailySegmentsForSummary = (rid, start='', end='') => {
+      const daily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
+      const entries = Object.entries(daily).filter(([date]) => (!start || date >= start) && (!end || date <= end)).sort(([a],[b]) => a.localeCompare(b));
+      if (!entries.length) return [{ start, end, hours:roundDemandHours(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || [])), custom:false }];
+      const segments = [];
+      for (const [date, hoursRaw] of entries) {
+        const hours = roundDemandHours(hoursRaw);
+        const last = segments.at(-1);
+        if (last && last.hours === hours && addDaysISO(last.end, 1) === date) {
+          last.end = date;
+        } else {
+          segments.push({ start:date, end:date, hours, custom:true });
+        }
+      }
+      return segments;
+    };
+    const renderRespAllocSummary = () => {
+      respAllocSummary.innerHTML = '';
+      const ids = selectedResponsaveis();
+      respAllocSummary.classList.add('allocSummaryGrid');
+      if (!ids.length) {
+        respAllocSummary.appendChild(el('div', { class:'respAllocEmpty' }, ['Adicione um responsável para configurar atuação e horas alocadas.']));
+        return;
+      }
+      const current = ids.includes(respAllocPick.value) ? respAllocPick.value : ids[0];
+      respAllocPick.value = current;
+      const rid = current;
+      const start = normalizeDateLikeToISO(respStartById.get(rid) || '') || ini.value || demandStartForAlloc;
+      const end = normalizeDateLikeToISO(respEndById.get(rid) || '') || fim.value || demandEndForAlloc;
+      const segments = compactDailySegmentsForSummary(rid, start, end);
+      const visibleSegments = segments.slice(0, 8);
+      const extraCount = Math.max(0, segments.length - visibleSegments.length);
+      respAllocSummary.appendChild(el('div', { class:'allocResourcePicker' }, [
+        el('div', { class:'field' }, [el('label', {}, ['Responsável']), respAllocPick]),
+        el('div', { class:'tiny muted' }, ['Selecione um responsável para revisar as horas cadastradas sem ocupar espaço com todos na tela.'])
+      ]));
+      respAllocSummary.appendChild(el('details', { class:'allocSummaryDetails', open:'' }, [
+        el('summary', { title:'Clique para recolher/abrir as horas cadastradas' }, [
+          el('div', { class:'allocSummaryNameWrap' }, [
+            el('span', { class:'allocSummaryChevron' }, ['▶']),
+            el('span', { class:'allocSummaryName' }, [getRespName(rid)]),
+            el('span', { class:'allocSummaryRange' }, [`${formatDateBR(start)} até ${formatDateBR(end)}`])
+          ]),
+          el('span', { class:'allocSummaryBadge' }, [segments.length > 1 ? `${segments.length} trechos` : 'padrão'])
+        ]),
+        el('div', { class:'allocSegmentList' }, [
+          ...visibleSegments.map(seg => el('span', { class:'allocSegmentChip', title:`${formatDateBR(seg.start)} até ${formatDateBR(seg.end)}` }, [`${formatDateBR(seg.start)}-${formatDateBR(seg.end)} • ${decimalHoursToHHMM(seg.hours)}`])),
+          extraCount ? el('span', { class:'allocSegmentChip' }, [`+${extraCount} trecho(s)`]) : el('span', { style:'display:none' }, [])
+        ])
+      ]));
+    };
+    respAllocPick.addEventListener('change', renderRespAllocSummary);
+    const ensureDailyHoursCoversAllocation = (rid, start='', end='') => {
+      const resourceId = String(rid || '').trim();
+      if (!resourceId || !start || !end) return;
+      let daily = normalizeAllocationDailyHours(respDailyById.get(resourceId) || {});
+      const fallbackHours = roundDemandHours(respHoursById.get(resourceId) ?? resourceHoursById(resourceId, state.resources || []));
+      let cursor = start;
+      let guard = 0;
+      while (cursor && cursor <= end && guard < 8000) {
+        if (!Object.prototype.hasOwnProperty.call(daily, cursor)) daily[cursor] = fallbackHours;
+        cursor = addDaysISO(cursor, 1);
+        guard++;
+      }
+      respDailyById.set(resourceId, daily);
+    };
+    const openDailyAllocationModal = () => {
+      if (!selectedRespIds.size) { toast('Adicione um responsável antes de alterar a alocação diária.'); return; }
+      if (!window.confirm('Deseja alterar a alocação diária?')) return;
+      const modal = document.createElement('dialog');
+      modal.className = 'modal';
+      const pick = el('select');
+      for (const rid of selectedResponsaveis()) pick.appendChild(el('option', { value:rid }, [getRespName(rid)]));
+      if (selectedResponsaveis().includes(respAllocPick.value)) pick.value = respAllocPick.value;
+      const startInput = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+      const endInput = el('input', { type:'date', min:`${MIN_APP_YEAR}-01-01`, max:`${MAX_APP_YEAR}-12-31` });
+      const hoursInput = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30 ou 3' });
+      const fill = () => {
+        const rid = String(pick.value || '');
+        startInput.value = normalizeDateLikeToISO(respStartById.get(rid) || '') || ini.value || demandStartForAlloc;
+        endInput.value = normalizeDateLikeToISO(respEndById.get(rid) || '') || fim.value || demandEndForAlloc;
+        hoursInput.value = decimalHoursToHHMM(respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []));
+      };
+      pick.addEventListener('change', fill);
+      fill();
+      const saveDaily = () => {
+        const rid = String(pick.value || '');
+        const changeFrom = normalizeDateLikeToISO(startInput.value || '') || '';
+        const changeTo = normalizeDateLikeToISO(endInput.value || '') || '';
+        const nextHours = parseHoursInput(hoursInput.value);
+        if (!rid) { toast('Selecione um responsável.'); return; }
+        if (!changeFrom || !changeTo || changeTo < changeFrom) { toast('Informe um período válido para a alteração diária.'); return; }
+        if (!Number.isFinite(nextHours) || nextHours < 0) { toast('Informe horas válidas para a alteração diária.'); return; }
+        if (nextHours > resourceHoursById(rid, state.resources || [])) { toast(`Horas não podem passar de ${decimalHoursToHHMM(resourceHoursById(rid, state.resources || []))} por dia.`); return; }
+        const allocStart = normalizeDateLikeToISO(respStartById.get(rid) || '') || ini.value || demandStartForAlloc;
+        const allocEnd = normalizeDateLikeToISO(respEndById.get(rid) || '') || fim.value || demandEndForAlloc;
+        respEndById.set(rid, allocEnd);
+        ensureDailyHoursCoversAllocation(rid, allocStart, allocEnd);
+        let daily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
+        daily = fillDailyHoursRange(daily, changeFrom, changeTo, nextHours);
+        respDailyById.set(rid, daily);
+        renderRespAllocSummary();
+        renderApontamentos();
+        refreshAllocationPreview();
+        closeDialog(modal);
+        modal.remove();
+        toast('Alteração diária cadastrada. Salve a demanda para persistir.');
+      };
+      modal.appendChild(el('div', { class:'modalCard', style:'max-width:720px' }, [
+        el('div', { class:'modalHd' }, [el('div', {}, [el('h2', {}, ['Alterar alocação diária']), el('div', { class:'sub' }, ['Recadastre o período e as horas. O heatmap passa a usar essa agenda diária.'])]), button('Fechar', '', () => { closeDialog(modal); modal.remove(); })]),
+        el('div', { class:'modalBd' }, [el('div', { class:'grid' }, [
+          el('div', { class:'allocDailyModalGrid' }, [el('div', { class:'field' }, [el('label', {}, ['Responsável']), pick]), el('div', { class:'field' }, [el('label', {}, ['De']), startInput]), el('div', { class:'field' }, [el('label', {}, ['Até']), endInput]), el('div', { class:'field' }, [el('label', {}, ['Horas/dia']), hoursInput])]),
+          el('div', { class:'hint' }, ['Exemplo: 01 a 07 = 03:00, depois 08 a 10 = 02:00, depois 11 a 15 = 06:00. Cada salvamento adiciona/atualiza esse trecho na alocação do responsável.']),
+          el('div', { class:'row', style:'justify-content:flex-end' }, [button('Salvar alteração diária', 'primary', saveDaily)])
+        ])])
+      ]));
+      document.body.appendChild(modal);
+      openDialog(modal);
+    };
+    const respAllocEditor = el('div', { class:'respAllocEditor allocSummaryMode is-empty' }, [respAllocSummary]);
+    const allocationChangeBtn = el('button', { type:'button', class:'btn small ghost allocIconBtn', title:'Alterar alocação diária', 'aria-label':'Alterar alocação diária' }, ['✎']);
+    allocationChangeBtn.addEventListener('click', openDailyAllocationModal);
     const renderRespChips = () => {
       respChips.innerHTML = '';
       respAllocList.innerHTML = '';
@@ -7069,6 +7203,7 @@ main{padding:14px;overflow-x:hidden}
         respAllocEndEditor.value = '';
       }
       syncRespAllocEditor();
+      renderRespAllocSummary();
       refreshAllocationPreview();
       for (const rid of selectedRespIds) {
         const chip = el('span', { class:'multiSelectChip', 'data-rid': rid }, [
@@ -7085,6 +7220,7 @@ main{padding:14px;overflow-x:hidden}
           respDailyById.delete(rid);
           if (!selectedRespIds.size) status.value = 'Mapeada';
           syncMapeada();
+          renderRespAllocSummary();
           refreshAllocationPreview();
         });
         respChips.appendChild(chip);
@@ -7101,6 +7237,7 @@ main{padding:14px;overflow-x:hidden}
       respSearch.value = '';
       if (normalizeStatus(status.value) === 'Mapeada') status.value = 'Em andamento';
       syncMapeada();
+      renderRespAllocSummary();
       refreshAllocationPreview();
       openRespMenu();
     };
@@ -7191,8 +7328,8 @@ main{padding:14px;overflow-x:hidden}
         el('li', {}, [`Alterado: ${formatDateBR(statePreview.after.inicio)} até ${formatDateBR(statePreview.after.fim)} • ${decimalHoursToHHMM(statePreview.after.horas)}/dia`]),
       ]));
     };
-    ini.addEventListener('input', refreshAllocationPreview);
-    fim.addEventListener('input', refreshAllocationPreview);
+    ini.addEventListener('input', () => { renderRespAllocSummary(); refreshAllocationPreview(); });
+    fim.addEventListener('input', () => { renderRespAllocSummary(); refreshAllocationPreview(); });
     status.addEventListener('change', refreshAllocationPreview);
 
     // v0.2.2 ? Apontamentos reais com timeline visual por demanda.
@@ -7244,7 +7381,12 @@ main{padding:14px;overflow-x:hidden}
 
       const allocationsForMetrics = (normalizeStatus(status.value) === 'Mapeada')
         ? []
-        : selectedResponsaveis().map(rid => makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []));
+        : selectedResponsaveis().map(rid => ({
+          ...makeDemandAllocation(rid, respHoursById.get(rid) ?? resourceHoursById(rid, state.resources || []), state.resources || []),
+          data_inicio: normalizeDateLikeToISO(respStartById.get(rid) || '') || ini.value || demandStartForAlloc,
+          data_fim: normalizeDateLikeToISO(respEndById.get(rid) || '') || fim.value || demandEndForAlloc,
+          daily_hours: normalizeAllocationDailyHours(respDailyById.get(rid) || {}),
+        }));
       const demandForMetrics = {
         ...demand,
         data_inicio: String(ini.value || demand.data_inicio || '').trim(),
@@ -7628,7 +7770,7 @@ main{padding:14px;overflow-x:hidden}
         sectionTitle(3, 'Responsáveis e dedicação'),
         el('div', { class:'demandCreateGrid' }, [
           el('div', { class:'field demandCreateField demandRespField span-8' }, [el('label', {}, ['Responsável(is)']), responsavel]),
-          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('label', {}, ['Alocação do responsável']), allocationDiffPreview, respAllocEditor, respAllocList]),
+          el('div', { class:'field demandCreateField demandPercField demandAllocSummaryField span-12' }, [el('div', { class:'allocHeaderPremium' }, [el('label', {}, ['Alocação do responsável']), allocationChangeBtn]), respAllocEditor, respAllocList]),
         ])
       ]),
       el('div', { class:'demandCreateSection' }, [
