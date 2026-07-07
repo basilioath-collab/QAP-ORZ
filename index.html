@@ -6821,6 +6821,37 @@ main{padding:14px;overflow-x:hidden}
 
   const allocationAuditLine = (a={}) => `${a.recurso || a.resourceId || '-'}: ${formatDateBR(a.data_inicio)} até ${formatDateBR(a.data_fim)} • ${decimalHoursToHHMM(a.horas || 0)}/dia`;
 
+  const demandAuditValue = (field, value) => {
+    if (field === 'data_inicio' || field === 'data_fim') return value ? formatDateBR(value) : '-';
+    if (field === 'horas_planejadas_dia') return decimalHoursToHHMM(Number(value || 0));
+    if (field === 'percentual_diario') return `${Number(value || 0)}%`;
+    if (field === 'responsavel_id') return value ? (resourceById()[value]?.nome || value) : '-';
+    return String(value ?? '').trim() || '-';
+  };
+
+  const buildDemandFieldAuditDetails = (before={}, after={}) => {
+    const labels = {
+      titulo:'Título',
+      predio:'Prédio',
+      focal:'Focal',
+      responsavel_id:'Responsável principal',
+      data_inicio:'Início da demanda',
+      data_fim:'Fim da demanda',
+      prioridade:'Prioridade',
+      status:'Status',
+      observacoes:'Descrição'
+    };
+    const details = [];
+    for (const [field, label] of Object.entries(labels)) {
+      const b = before?.[field] ?? '';
+      const a = after?.[field] ?? '';
+      if (String(b ?? '') !== String(a ?? '')) {
+        details.push(`${label}: ${demandAuditValue(field, b)} → ${demandAuditValue(field, a)}`);
+      }
+    }
+    return details;
+  };
+
   const demandAuditEventId = (event={}) => {
     const p = event?.payload || {};
     return String(p.demand_id || p.demandId || p.id || p.demanda_id || p.reprogramming?.demanda_id || p.reprogramming?.demandId || '').trim();
@@ -6838,13 +6869,13 @@ main{padding:14px;overflow-x:hidden}
       const beforeAlloc = p.before?.allocations || [];
       const afterAlloc = p.after?.allocations || [];
       const allocationChanged = JSON.stringify(beforeAlloc) !== JSON.stringify(afterAlloc);
-      const details = [];
-      if (p.before?.status || p.after?.status) details.push(`Status: ${p.before?.status || '-'} → ${p.after?.status || '-'}`);
+      const details = buildDemandFieldAuditDetails(p.before || {}, p.after || {});
       if (allocationChanged) {
-        details.push('Atuação alterada:');
+        details.push('Alocação/atuação alterada:');
         details.push(`Antes: ${beforeAlloc.length ? beforeAlloc.map(allocationAuditLine).join(' | ') : '-'}`);
         details.push(`Depois: ${afterAlloc.length ? afterAlloc.map(allocationAuditLine).join(' | ') : '-'}`);
       }
+      if (!details.length) details.push('A demanda foi salva sem alteração material nos campos auditados.');
       add({ title: type === 'EDIT_DEMAND' ? 'Edição de demanda' : type, timestamp:ev.timestamp, actor:ev.user || '', reason:p.justification || ev.justification || '', details });
     }
     for (const t of transferHistoryEntries(demand)) {
@@ -6946,7 +6977,7 @@ main{padding:14px;overflow-x:hidden}
     const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas alocadas por dia para o responsável' });
     const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Responsável']), respAllocPick]),
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início / nova carga a partir de']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início da atuação / alteração de carga']), respAllocStartEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação final']), respAllocEndEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Horas alocadas']), respAllocHoursEditor]),
     ]);
@@ -10329,7 +10360,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       const respAllocHoursEditor = el('input', { type:'text', inputmode:'decimal', placeholder:'Ex: 03:30', title:'Horas alocadas por dia para o responsável', 'data-demand-create-field':'horasValor' });
       const respAllocEditor = el('div', { class:'respAllocEditor is-empty' }, [
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Responsável']), respAllocPick]),
-      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início / nova carga a partir de']), respAllocStartEditor]),
+      el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Início da atuação / alteração de carga']), respAllocStartEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Data de atuação final']), respAllocEndEditor]),
       el('div', { class:'respAllocEditorField' }, [el('label', {}, ['Horas alocadas']), respAllocHoursEditor]),
     ]);
@@ -10766,17 +10797,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         const respNames = respIds.length
           ? respIds.map(id => resMap[id]?.nome || id)
           : ['-'];
-        const timelineLabels = dedupeDemandAllocationLabels(groupItems.flatMap(item => demandAllocationTimelineLabels(item)));
         const primaryDemand = groupItems[0] || d;
         const tr = el('tr');
         if (effectiveStatus(d) === 'Atrasada') tr.classList.add('overdueRow');
-        tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [d.titulo]), el('div', { class:'tiny' }, [d.observacoes||''])]));
+        tr.appendChild(el('td', {}, [el('div', { style:'font-weight:950' }, [d.titulo])]));
         tr.appendChild(el('td', {}, [d.predio||'-']));
         tr.appendChild(el('td', {}, [d.focal||'-']));
-        tr.appendChild(el('td', {}, [
-          ...respNames.map((name, idx) => el('div', {}, [idx === respNames.length - 1 ? name : `${name},`])),
-          timelineLabels.length ? el('div', { class:'tiny muted', title:'Historico de atuacao por periodo' }, [timelineLabels.join(' | ')]) : null
-        ].filter(Boolean)));
+        tr.appendChild(el('td', {}, respNames.map((name, idx) => el('div', {}, [idx === respNames.length - 1 ? name : `${name},`]))));
         tr.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]));
         const allocLabels = activeDemandAllocations(d)
           .map(a => `${resMap[String(a.resourceId || '').trim()]?.nome || String(a.resourceId || '').trim() || '-'}: ${decimalHoursToHHMM(a.horas_planejadas_dia || a.horas_dia || 0)}`);
