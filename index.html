@@ -4723,6 +4723,34 @@ main{padding:14px;overflow-x:hidden}
     return '';
   };
 
+
+
+  const focalUserOptions = () => {
+    const names = [];
+    const add = (value) => {
+      const name = String(value || '').trim();
+      if (name) names.push(name);
+    };
+    add(userName);
+    for (const u of (scannedEventUsers || [])) add(u?.displayName || u?.name || u?.userName);
+    for (const r of (state.resources || [])) add(r?.nome || r?.name);
+    for (const ev of (state.events || [])) {
+      add(ev?.user || ev?.usuario || ev?.user_name);
+      const payload = ev?.payload || {};
+      add(payload.user || payload.usuario || payload.user_name || payload.created_by || payload.createdBy);
+    }
+    return [...new Set(names)].sort((a,b) => a.localeCompare(b, 'pt-BR'));
+  };
+
+  const createFocalInput = ({ value='', draftField=false } = {}) => {
+    const listId = generateId('focal-users');
+    const attrs = { value, placeholder:'Selecione ou digite o focal', maxlength:String(INPUT_LIMITS.focal), list:listId };
+    if (draftField) attrs['data-demand-create-field'] = 'focal';
+    const input = el('input', attrs);
+    const datalist = el('datalist', { id:listId }, focalUserOptions().map(name => el('option', { value:name }, [])));
+    return { input, datalist };
+  };
+
   const validateDemandFields = ({ titulo='', predio='', focal='', data_inicio='', data_fim='', observacoes='', status='Mapeada' } = {}) => {
     const textRules = [
       ['Título', titulo, INPUT_LIMITS.demandTitle, true],
@@ -6674,7 +6702,7 @@ main{padding:14px;overflow-x:hidden}
 
     const titulo = el('input', { value: demand.titulo || '', placeholder:'Ex: PQ Sistema X', maxlength:String(INPUT_LIMITS.demandTitle) });
     const predio = el('input', { value: demand.predio || '', placeholder:'Ex: Prédio A', maxlength:String(INPUT_LIMITS.building) });
-    const focal = el('input', { value: demand.focal || '', placeholder:'Ex: Fulano (Focal)', maxlength:String(INPUT_LIMITS.focal) });
+    const { input: focal, datalist: focalDatalist } = createFocalInput({ value: demand.focal || '' });
 
     const selectedRespIds = new Set();
     const respHoursById = new Map();
@@ -7255,7 +7283,7 @@ main{padding:14px;overflow-x:hidden}
           el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Título']), titulo]),
           el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prioridade']), prioridade]),
           el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prédio']), predio]),
-          el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal]),
+          el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal, focalDatalist, el('div', { class:'tiny muted' }, ['Busque usuários cadastrados para evitar nomes digitados aleatoriamente.'])]),
         ])
       ]),
       el('div', { class:'demandCreateSection' }, [
@@ -9203,9 +9231,22 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         ...STATUS.map(s => el('option', { value:s, selected: uiFilters.demandStatus === s }, [s]))
       ]);
       status.addEventListener('change', () => { uiFilters.demandStatus = status.value; uiPagination.evaluationPage = 1; render(); });
+      const resource = el('select', {}, [
+        el('option', { value:'' }, ['Todos os recursos']),
+        el('option', { value:'__NONE__' }, ['Sem responsável (Mapeada)']),
+        ...(state.resources || []).map(r => el('option', { value:r.id, selected: uiFilters.demandResourceId === r.id }, [r.nome || r.id]))
+      ]);
+      resource.addEventListener('change', () => { uiFilters.demandResourceId = resource.value; uiPagination.evaluationPage = 1; render(); });
+      const dateStart = el('input', { type:'date', value:uiFilters.demandDateStart || '' });
+      const dateEnd = el('input', { type:'date', value:uiFilters.demandDateEnd || '' });
+      dateStart.addEventListener('change', () => { uiFilters.demandDateStart = dateStart.value; uiPagination.evaluationPage = 1; render(); });
+      dateEnd.addEventListener('change', () => { uiFilters.demandDateEnd = dateEnd.value; uiPagination.evaluationPage = 1; render(); });
       return el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;align-items:end' }, [
         el('div', { class:'field', style:'min-width:220px;flex:1' }, [el('label', {}, ['Título / status']), title]),
         el('div', { class:'field', style:'min-width:180px' }, [el('label', {}, ['Status']), status]),
+        el('div', { class:'field', style:'min-width:220px' }, [el('label', {}, ['Recurso']), resource]),
+        el('div', { class:'field', style:'min-width:150px' }, [el('label', {}, ['De']), dateStart]),
+        el('div', { class:'field', style:'min-width:150px' }, [el('label', {}, ['Até']), dateEnd]),
       ]);
     })();
 
@@ -10031,7 +10072,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     const form = (() => {
       const titulo = el('input', { placeholder:'Ex: PQ Sistema X', maxlength:String(INPUT_LIMITS.demandTitle), 'data-demand-create-field':'titulo' });
       const predio = el('input', { placeholder:'Ex: Prédio A', maxlength:String(INPUT_LIMITS.building), 'data-demand-create-field':'predio' });
-      const focal = el('input', { placeholder:'Ex: Fulano (Focal)', maxlength:String(INPUT_LIMITS.focal), 'data-demand-create-field':'focal' });
+      const { input: focal, datalist: focalDatalist } = createFocalInput({ draftField:true });
 
       // Responsáveis: busca + chips (mais intuitivo que select multiple/Ctrl)
       const selectedRespIds = new Set();
@@ -10415,7 +10456,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
             el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Título']), titulo]),
             el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prioridade']), prioridade]),
             el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Prédio']), predio]),
-            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal]),
+            el('div', { class:'field demandCreateField span-6' }, [el('label', {}, ['Focal']), focal, focalDatalist, el('div', { class:'tiny muted' }, ['Busque usuários cadastrados para evitar nomes digitados aleatoriamente.'])]),
           ])
         ]),
         el('div', { class:'demandCreateSection' }, [
