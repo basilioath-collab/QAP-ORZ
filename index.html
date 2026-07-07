@@ -6750,6 +6750,96 @@ main{padding:14px;overflow-x:hidden}
     openDialog(dlg);
   };
 
+  const demandAuditEventDemandId = (event={}) => {
+    const p = event?.payload || {};
+    return String(p.demand_id || p.demandId || p.id || p.demanda_id || p.reprogramming?.demanda_id || p.reprogramming?.demandId || '').trim();
+  };
+
+  const demandAuditTimestampLabel = (timestamp) => {
+    const n = Number(timestamp || 0);
+    if (!n) return '-';
+    try { return new Date(n).toLocaleString('pt-BR'); } catch { return '-'; }
+  };
+
+  const demandAuditDiffRows = (before={}, after={}) => {
+    const labels = {
+      titulo:'Título', predio:'Prédio', focal:'Focal', responsavel_id:'Responsável principal', data_inicio:'Início', data_fim:'Fim',
+      percentual_diario:'% diário', horas_planejadas_dia:'Horas planejadas/dia', prioridade:'Prioridade', status:'Status', observacoes:'Observações', apontamentos:'Apontamentos'
+    };
+    return Object.keys(labels).filter(key => JSON.stringify(before?.[key] ?? '') !== JSON.stringify(after?.[key] ?? '')).map(key => ({ label:labels[key], before:before?.[key], after:after?.[key] }));
+  };
+
+  const demandAuditEntries = (demand={}) => {
+    const did = String(demand?.id || '').trim();
+    const entries = [];
+    const add = (entry) => entries.push({ timestamp:Number(entry.timestamp || 0), ...entry });
+    if (demand?.createdAt || demand?.created_at) {
+      add({ type:'created', title:'Demanda criada', timestamp:demand.createdAt || demand.created_at, actor:demand.createdBy || demand.created_by || '', details:[`Status inicial: ${normalizeStatus(demand.status)}`, `Período: ${formatDateBR(demand.data_inicio)} até ${formatDateBR(demand.data_fim)}`] });
+    }
+    for (const ev of (state.events || [])) {
+      if (demandAuditEventDemandId(ev) !== did) continue;
+      const p = ev.payload || {};
+      const type = String(ev.type || '').trim();
+      if (type === 'EDIT_DEMAND') {
+        add({ type, title:'Edição de demanda', timestamp:ev.timestamp, actor:ev.user || p.user || '', reason:p.justification || ev.justification || '', changes:demandAuditDiffRows(p.before || {}, p.after || {}) });
+      } else if (type === 'CHANGE_DEMAND_STATUS') {
+        add({ type, title:'Alteração de situação', timestamp:ev.timestamp, actor:ev.user || '', reason:p.justification || ev.justification || '', details:[`${p.before?.status || '-'} → ${p.after?.status || '-'}`, p.after?.action_date ? `Data da ação: ${formatDateBR(p.after.action_date)}` : ''] });
+      } else if (type === 'REPROGRAM_DEMAND') {
+        const rp = p.reprogramming || {};
+        add({ type, title:'Reprogramação de prazo', timestamp:ev.timestamp || rp.createdAt, actor:ev.user || rp.createdBy || '', reason:rp.motivo || p.justification || '', details:[`Novo prazo: ${formatDateBR(rp.novo_fim || rp.novo_prazo || '')}`] });
+      } else if (type === 'TRANSFER_DEMAND_ALLOCATION') {
+        add({ type, title:'Transferência de atuação', timestamp:ev.timestamp, actor:ev.user || '', reason:p.justification || '', details:[`${resourceById()[p.fromResourceId]?.nome || p.fromResourceId || '-'} → ${resourceById()[p.toResourceId]?.nome || p.toResourceId || '-'}`, `Data: ${formatDateBR(p.transferDate)}`, `Horas/dia: ${decimalHoursToHHMM(p.horas_planejadas_dia || p.horas_dia || 0)}`] });
+      } else if (type === 'UPDATE_DEMAND') {
+        add({ type, title:'Atualização sincronizada', timestamp:ev.timestamp || p.updatedAt || p.last_edit_at, actor:ev.user || p.updatedBy || p.last_edit_by || '', reason:p.last_edit_justification || '', details:[`Status: ${normalizeStatus(p.status || demand.status)}`] });
+      } else if (type === 'ADD_DEMAND') {
+        add({ type, title:'Cadastro registrado em eventos', timestamp:ev.timestamp || p.createdAt, actor:ev.user || p.createdBy || '', details:[`Status: ${normalizeStatus(p.status || demand.status)}`] });
+      }
+    }
+    for (const rp of relatedDemandReprogrammings(demand, state.reprogrammings || [])) {
+      add({ type:'reprogramming-record', title:'Registro de reprogramação', timestamp:rp.createdAt || rp.timestamp || 0, actor:rp.createdBy || rp.user || '', reason:rp.motivo || rp.justificativa || '', details:[`Prazo anterior: ${formatDateBR(rp.fim_anterior || rp.prazo_anterior || '')}`, `Novo prazo: ${formatDateBR(rp.novo_fim || rp.novo_prazo || '')}`] });
+    }
+    for (const t of transferHistoryEntries(demand)) {
+      add({ type:'transfer-history', title:'Histórico de transferência', timestamp:t.timestamp || 0, actor:t.user || '', reason:t.justification || '', details:[`${resourceById()[t.fromResourceId]?.nome || t.fromResourceId || '-'} → ${resourceById()[t.toResourceId]?.nome || t.toResourceId || '-'}`, `Data: ${formatDateBR(t.transferDate)}`, `Horas/dia: ${decimalHoursToHHMM(t.horas_planejadas_dia || t.horas_dia || 0)}`] });
+    }
+    if (demand?.last_edit_at && !entries.some(e => Math.abs(Number(e.timestamp || 0) - Number(demand.last_edit_at || 0)) < 1000)) {
+      add({ type:'last-edit', title:'Última edição registrada', timestamp:demand.last_edit_at, actor:demand.last_edit_by || '', reason:demand.last_edit_justification || '', details:[`Status atual: ${effectiveStatus(demand)}`] });
+    }
+    return entries.sort((a,b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  };
+
+  const renderDemandAuditTrail = (demand={}) => {
+    const entries = demandAuditEntries(demand);
+    const wrap = el('div', { class:'grid', style:'gap:12px' });
+    wrap.appendChild(el('div', { class:'hint' }, [
+      el('b', {}, ['Trilha de Auditoria']),
+      el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Histórico consolidado a partir dos eventos, reprogramações, transferências e metadados da demanda.'])
+    ]));
+    if (!entries.length) {
+      wrap.appendChild(el('div', { style:'padding:16px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:var(--surface)' }, ['Nenhum evento de auditoria encontrado para esta demanda.']));
+      return wrap;
+    }
+    const list = el('div', { style:'display:flex;flex-direction:column;gap:10px' });
+    for (const entry of entries) {
+      const details = (entry.details || []).filter(Boolean);
+      const changes = entry.changes || [];
+      list.appendChild(el('div', { style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff;box-shadow:0 8px 18px rgba(15,23,42,.04)' }, [
+        el('div', { style:'display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap' }, [
+          el('div', {}, [el('div', { style:'font-weight:950' }, [entry.title || entry.type || 'Evento']), el('div', { class:'tiny muted' }, [`${demandAuditTimestampLabel(entry.timestamp)}${entry.actor ? ' • ' + entry.actor : ''}`])]),
+          el('span', { class:'tag' }, [entry.type || 'evento'])
+        ]),
+        entry.reason ? el('div', { class:'tiny', style:'margin-top:8px;white-space:pre-wrap' }, [`Justificativa: ${entry.reason}`]) : el('div', { style:'display:none' }, []),
+        details.length ? el('ul', { class:'tiny muted', style:'margin:8px 0 0 18px;padding:0' }, details.map(d => el('li', {}, [d]))) : el('div', { style:'display:none' }, []),
+        changes.length ? el('div', { style:'margin-top:8px;display:grid;gap:6px' }, changes.map(ch => el('div', { class:'tiny', style:'border:1px solid var(--border);border-radius:10px;padding:7px;background:var(--surface)' }, [
+          el('b', {}, [ch.label]),
+          el('div', { class:'muted', style:'margin-top:3px;white-space:pre-wrap;word-break:break-word' }, [`Antes: ${typeof ch.before === 'object' ? JSON.stringify(ch.before) : (ch.before || '-')}`]),
+          el('div', { class:'muted', style:'white-space:pre-wrap;word-break:break-word' }, [`Depois: ${typeof ch.after === 'object' ? JSON.stringify(ch.after) : (ch.after || '-')}`])
+        ]))) : el('div', { style:'display:none' }, [])
+      ]));
+    }
+    wrap.appendChild(list);
+    return wrap;
+  };
+
   const openDemandEditModal = (demand, { viewOnly=false, targetStatus='' } = {}) => {
     const isFinalView = viewOnly || ['Concluída','Cancelada'].includes(effectiveStatus(demand));
     const dlg = qs('#demandEditModal');
@@ -7330,7 +7420,23 @@ main{padding:14px;overflow-x:hidden}
     ]);
 
     const sectionTitle = (num, text) => el('div', { class:'demandCreateSectionTitle' }, [el('span', { class:'step' }, [String(num)]), text]);
-    body.appendChild(el('div', { class:'demandCreateForm' }, [
+    const editPanel = el('div', { class:'demandEditTabPanel' });
+    const auditPanel = el('div', { class:'demandEditTabPanel', style:'display:none' }, [renderDemandAuditTrail(demand)]);
+    const editTabBtn = button('Edição de demanda', 'primary small', () => setDemandEditTab('edit'));
+    const auditTabBtn = button('Trilha de Auditoria', 'small', () => setDemandEditTab('audit'));
+    const setDemandEditTab = (tab) => {
+      const isAudit = tab === 'audit';
+      editPanel.style.display = isAudit ? 'none' : '';
+      auditPanel.style.display = isAudit ? '' : 'none';
+      editTabBtn.className = isAudit ? 'btn small' : 'btn primary small';
+      auditTabBtn.className = isAudit ? 'btn primary small' : 'btn small';
+    };
+    body.appendChild(el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'row', style:'gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px' }, [editTabBtn, auditTabBtn]),
+      editPanel,
+      auditPanel,
+    ]));
+    editPanel.appendChild(el('div', { class:'demandCreateForm' }, [
       el('div', { class:'demandCreateIntro' }, [
         el('div', {}, [
           el('strong', {}, [isFinalView ? 'Visualização de demanda' : 'Edição de demanda']),
@@ -7374,7 +7480,7 @@ main{padding:14px;overflow-x:hidden}
 
     if (isFinalView) {
       footer.querySelectorAll('button').forEach(btn => btn.setAttribute('data-final-view-action', 'true'));
-      body.querySelectorAll('input, textarea, select, button').forEach(ctrl => {
+      editPanel.querySelectorAll('input, textarea, select, button').forEach(ctrl => {
         if (ctrl.matches('[data-final-view-editable=\"true\"], [data-final-view-action=\"true\"]')) return;
         ctrl.disabled = true;
         ctrl.setAttribute('aria-disabled', 'true');
