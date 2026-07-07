@@ -6659,6 +6659,75 @@ main{padding:14px;overflow-x:hidden}
     openDialog(dlg);
   };
 
+  const auditDateTimeBR = (timestamp) => {
+    const n = Number(timestamp || 0);
+    if (!n) return '-';
+    try { return new Date(n).toLocaleString('pt-BR'); } catch { return '-'; }
+  };
+
+  const allocationAuditSnapshot = (demand={}) => demandAllocations(demand).map(a => ({
+    resourceId: String(a.resourceId || '').trim(),
+    recurso: resourceById()[String(a.resourceId || '').trim()]?.nome || String(a.resourceId || '').trim() || '-',
+    data_inicio: normalizeDateLikeToISO(a.data_inicio || a.dataInicio || a.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '') || '',
+    data_fim: normalizeDateLikeToISO(a.data_fim || a.dataFim || a.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '') || '',
+    horas: roundDemandHours(firstHoursLike(a.horas_planejadas_dia, a.horas_dia, a.horas, demand.horas_planejadas_dia, demand.horas_dia) ?? 0),
+  })).sort((a,b) => `${a.resourceId}|${a.data_inicio}|${a.data_fim}`.localeCompare(`${b.resourceId}|${b.data_inicio}|${b.data_fim}`));
+
+  const allocationAuditLine = (a={}) => `${a.recurso || a.resourceId || '-'}: ${formatDateBR(a.data_inicio)} até ${formatDateBR(a.data_fim)} • ${decimalHoursToHHMM(a.horas || 0)}/dia`;
+
+  const demandAuditEventId = (event={}) => {
+    const p = event?.payload || {};
+    return String(p.demand_id || p.demandId || p.id || p.demanda_id || p.reprogramming?.demanda_id || p.reprogramming?.demandId || '').trim();
+  };
+
+  const buildDemandAuditTrail = (demand={}) => {
+    const did = String(demand.id || '').trim();
+    const rows = [];
+    const add = (row) => rows.push({ timestamp:Number(row.timestamp || 0), ...row });
+    if (demand.createdAt || demand.created_at) add({ title:'Demanda criada', timestamp:demand.createdAt || demand.created_at, actor:demand.createdBy || demand.created_by || '', details:[`Status inicial: ${normalizeStatus(demand.status)}`] });
+    for (const ev of (state.events || [])) {
+      if (demandAuditEventId(ev) !== did) continue;
+      const p = ev.payload || {};
+      const type = String(ev.type || 'EVENTO');
+      const beforeAlloc = p.before?.allocations || [];
+      const afterAlloc = p.after?.allocations || [];
+      const allocationChanged = JSON.stringify(beforeAlloc) !== JSON.stringify(afterAlloc);
+      const details = [];
+      if (p.before?.status || p.after?.status) details.push(`Status: ${p.before?.status || '-'} → ${p.after?.status || '-'}`);
+      if (allocationChanged) {
+        details.push('Atuação alterada:');
+        details.push(`Antes: ${beforeAlloc.length ? beforeAlloc.map(allocationAuditLine).join(' | ') : '-'}`);
+        details.push(`Depois: ${afterAlloc.length ? afterAlloc.map(allocationAuditLine).join(' | ') : '-'}`);
+      }
+      add({ title: type === 'EDIT_DEMAND' ? 'Edição de demanda' : type, timestamp:ev.timestamp, actor:ev.user || '', reason:p.justification || ev.justification || '', details });
+    }
+    for (const t of transferHistoryEntries(demand)) {
+      add({ title:'Transferência de atuação', timestamp:t.timestamp || 0, actor:t.user || '', reason:t.justification || '', details:[`${resourceById()[t.fromResourceId]?.nome || t.fromResourceId || '-'} → ${resourceById()[t.toResourceId]?.nome || t.toResourceId || '-'}`, `Data da ação: ${formatDateBR(t.transferDate)}`, `Horas/dia: ${decimalHoursToHHMM(t.horas_planejadas_dia || t.horas_dia || 0)}`] });
+    }
+    return rows.sort((a,b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  };
+
+  const renderDemandAuditTrail = (demand={}) => {
+    const rows = buildDemandAuditTrail(demand);
+    const box = el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'hint' }, [el('b', {}, ['Trilha de Auditoria']), el('div', { class:'tiny muted', style:'margin-top:4px' }, ['Mostra data/hora da ação, autor, justificativa e alterações de atuação registradas para esta demanda.'])])
+    ]);
+    if (!rows.length) {
+      box.appendChild(el('div', { style:'padding:16px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:16px;background:var(--surface)' }, ['Nenhuma ação registrada para esta demanda.']));
+      return box;
+    }
+    for (const row of rows) {
+      box.appendChild(el('div', { style:'border:1px solid var(--border);border-radius:16px;padding:12px;background:#fff' }, [
+        el('div', { style:'display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap' }, [
+          el('div', {}, [el('div', { style:'font-weight:950' }, [row.title || 'Ação']), el('div', { class:'tiny muted' }, [`Data/hora da ação: ${auditDateTimeBR(row.timestamp)}${row.actor ? ' • ' + row.actor : ''}`])]),
+        ]),
+        row.reason ? el('div', { class:'tiny', style:'margin-top:8px;white-space:pre-wrap' }, [`Justificativa: ${row.reason}`]) : el('div', { style:'display:none' }, []),
+        row.details?.length ? el('ul', { class:'tiny muted', style:'margin:8px 0 0 18px;padding:0' }, row.details.filter(Boolean).map(d => el('li', {}, [d]))) : el('div', { style:'display:none' }, []),
+      ]));
+    }
+    return box;
+  };
+
   const openDemandEditModal = (demand, { viewOnly=false, targetStatus='' } = {}) => {
     const isFinalView = viewOnly || ['Concluída','Cancelada'].includes(effectiveStatus(demand));
     const dlg = qs('#demandEditModal');
@@ -7126,6 +7195,7 @@ main{padding:14px;overflow-x:hidden}
       prioridade: demand.prioridade,
       status: demand.status,
       observacoes: demand.observacoes,
+      allocations: allocationAuditSnapshot(demand),
       apontamentos: normalizeDemandApontamentos(demand)
     };
 
@@ -7224,9 +7294,10 @@ main{padding:14px;overflow-x:hidden}
         prioridade: next.prioridade,
         status: next.status,
         observacoes: next.observacoes,
+        allocations: allocationAuditSnapshot(next),
         apontamentos: normalizeDemandApontamentos(next)
       };
-      state.events = [...state.events, { id: generateId('event'), type:'EDIT_DEMAND', payload:{ demand_id: demand.id, before, after, justification }, timestamp: Date.now(), user: userName, user_id: userId || '' }];
+      state.events = [...state.events, { id: generateId('event'), type:'EDIT_DEMAND', payload:{ demand_id: demand.id, action_at: Date.now(), before, after, justification }, timestamp: Date.now(), user: userName, user_id: userId || '' }];
 
       dispatch('UPDATE_DEMAND', next);
       try { dlg.close(); } catch { dlg.removeAttribute('open'); }
@@ -7241,7 +7312,25 @@ main{padding:14px;overflow-x:hidden}
     ]);
 
     const sectionTitle = (num, text) => el('div', { class:'demandCreateSectionTitle' }, [el('span', { class:'step' }, [String(num)]), text]);
-    body.appendChild(el('div', { class:'demandCreateForm' }, [
+    const editPanel = el('div');
+    const auditPanel = el('div', { style:'display:none' }, [renderDemandAuditTrail(demand)]);
+    let editTabBtn = null;
+    let auditTabBtn = null;
+    const setDemandModalTab = (tab) => {
+      const audit = tab === 'audit';
+      editPanel.style.display = audit ? 'none' : '';
+      auditPanel.style.display = audit ? '' : 'none';
+      if (editTabBtn) editTabBtn.className = audit ? 'btn small' : 'btn primary small';
+      if (auditTabBtn) auditTabBtn.className = audit ? 'btn primary small' : 'btn small';
+    };
+    editTabBtn = button('Edição de demanda', 'primary small', () => setDemandModalTab('edit'));
+    auditTabBtn = button('Trilha de Auditoria', 'small', () => setDemandModalTab('audit'));
+    body.appendChild(el('div', { class:'grid', style:'gap:12px' }, [
+      el('div', { class:'row', style:'gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:10px' }, [editTabBtn, auditTabBtn]),
+      editPanel,
+      auditPanel,
+    ]));
+    editPanel.appendChild(el('div', { class:'demandCreateForm' }, [
       el('div', { class:'demandCreateIntro' }, [
         el('div', {}, [
           el('strong', {}, [isFinalView ? 'Visualização de demanda' : 'Edição de demanda']),
@@ -7285,7 +7374,7 @@ main{padding:14px;overflow-x:hidden}
 
     if (isFinalView) {
       footer.querySelectorAll('button').forEach(btn => btn.setAttribute('data-final-view-action', 'true'));
-      body.querySelectorAll('input, textarea, select, button').forEach(ctrl => {
+      editPanel.querySelectorAll('input, textarea, select, button').forEach(ctrl => {
         if (ctrl.matches('[data-final-view-editable=\"true\"], [data-final-view-action=\"true\"]')) return;
         ctrl.disabled = true;
         ctrl.setAttribute('aria-disabled', 'true');
