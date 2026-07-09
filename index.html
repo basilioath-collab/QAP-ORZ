@@ -1719,16 +1719,22 @@ main{padding:14px;overflow-x:hidden}
   const demandAllocationHoursForDate = (allocation={}, resourceId='', dateObj=null, resources=[]) => {
     const rid = String(resourceId || allocation.resourceId || '').trim();
     const pct = Number(allocation.percentual_diario ?? allocation.dailyPercent ?? allocation.percent);
-    const fixedHours = Number(allocation.horas_planejadas_dia ?? allocation.horas_dia ?? 0);
+    const explicitHours = firstHoursLike(
+      allocation.horas_planejadas_dia,
+      allocation.horas_dia,
+      allocation.horas,
+      allocation.hours_per_day
+    );
     const dateStr = dateObj ? formatDate(dateObj) : '';
     const dailyOverride = allocationDailyHoursForDate(allocation, dateStr);
     if (dailyOverride !== null) return dailyOverride;
+    if (explicitHours !== null) return roundDemandHours(explicitHours);
     const res = resourceByIdFromList(rid, resources);
     const baseForDate = getResourceHoursForDate(res, dateObj);
     if (Number.isFinite(pct) && pct >= 0 && baseForDate > 0) {
       return roundDemandHours((pct / 100) * baseForDate);
     }
-    return roundDemandHours(fixedHours);
+    return 0;
   };
   const demandAllocationActiveOnDate = (allocation={}, demand={}, dateStr='') => {
     const date = String(dateStr || '').trim();
@@ -1866,6 +1872,19 @@ main{padding:14px;overflow-x:hidden}
     if (!date) return null;
     const daily = normalizeAllocationDailyHours(allocation.daily_hours || allocation.dailyHours || allocation.horas_por_dia || {});
     return Object.prototype.hasOwnProperty.call(daily, date) ? daily[date] : null;
+  };
+
+  const allocationRepresentativeDate = (allocation={}, demand={}) => {
+    const start = normalizeDateLikeToISO(allocation.data_inicio || allocation.dataInicio || allocation.start_date || '') || normalizeDateLikeToISO(demand.data_inicio || '') || '';
+    const end = normalizeDateLikeToISO(allocation.data_fim || allocation.dataFim || allocation.end_date || '') || normalizeDateLikeToISO(demand.data_fim || '') || '';
+    const today = todayISO();
+    if ((!start || today >= start) && (!end || today <= end)) return today;
+    return start || end || today;
+  };
+
+  const demandAllocationDisplayHours = (allocation={}, demand={}, resources=state.resources || []) => {
+    const dateStr = allocationRepresentativeDate(allocation, demand);
+    return demandAllocationHoursForDate(allocation, allocation.resourceId || demand.responsavel_id || '', isoToLocalMidnight(dateStr), resources);
   };
 
 
@@ -4654,7 +4673,7 @@ main{padding:14px;overflow-x:hidden}
         const rid = String(a.resourceId || '').trim();
         const name = resMap[rid]?.nome || rid || '-';
         const period = demandAllocationPeriodLabel(a, demand);
-        const hours = decimalHoursToHHMM(a.horas_planejadas_dia ?? a.horas_dia ?? 0);
+        const hours = decimalHoursToHHMM(demandAllocationDisplayHours(a, demand, resources));
         return `${name}${period ? ` (${period})` : ''}: ${hours}`;
       });
   };
@@ -7045,7 +7064,7 @@ main{padding:14px;overflow-x:hidden}
       const rid = String(a.resourceId || '').trim();
       if (!rid) continue;
       selectedRespIds.add(rid);
-      respHoursById.set(rid, Number(a.horas_planejadas_dia ?? a.horas_dia ?? percentToDemandHours(a.percentual_diario ?? demand.percentual_diario ?? 100, rid, state.resources || [])));
+      respHoursById.set(rid, demandAllocationDisplayHours(a, demand, state.resources || []));
       respStartById.set(rid, normalizeDateLikeToISO(a.data_inicio || a.dataInicio || a.start_date || '') || demandStartForAlloc);
       respEndById.set(rid, normalizeDateLikeToISO(a.data_fim || a.dataFim || a.end_date || '') || demandEndForAlloc);
       respDailyById.set(rid, normalizeAllocationDailyHours(a.daily_hours || a.dailyHours || a.horas_por_dia || {}));
@@ -7619,7 +7638,7 @@ main{padding:14px;overflow-x:hidden}
               const rid = String(a.resourceId || '').trim();
               if (!rid) continue;
               selectedRespIds.add(rid);
-              if (!respHoursById.has(rid)) respHoursById.set(rid, Number(a.horas_planejadas_dia ?? a.horas_dia ?? percentToDemandHours(a.percentual_diario ?? demand.percentual_diario ?? 100, rid, state.resources || [])));
+              if (!respHoursById.has(rid)) respHoursById.set(rid, demandAllocationDisplayHours(a, demand, state.resources || []));
             }
             if (!selectedRespIds.size && demand.responsavel_id) {
               selectedRespIds.add(demand.responsavel_id);
@@ -11082,7 +11101,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
         tr.appendChild(el('td', {}, respNames.map((name, idx) => el('div', {}, [idx === respNames.length - 1 ? name : `${name},`]))));
         tr.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]));
         const allocLabels = activeDemandAllocations(d)
-          .map(a => `${resMap[String(a.resourceId || '').trim()]?.nome || String(a.resourceId || '').trim() || '-'}: ${decimalHoursToHHMM(a.horas_planejadas_dia || a.horas_dia || 0)}`);
+          .map(a => `${resMap[String(a.resourceId || '').trim()]?.nome || String(a.resourceId || '').trim() || '-'}: ${decimalHoursToHHMM(demandAllocationDisplayHours(a, d, state.resources || []))}`);
         tr.appendChild(el('td', {}, [allocLabels.length ? allocLabels.join(' | ') : decimalHoursToHHMM(d.horas_planejadas_dia ?? d.horas_dia ?? 0)]));
         tr.appendChild(el('td', {}, [d.prioridade]));
         tr.appendChild(el('td', {}, [statusPill(d)]));
