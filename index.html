@@ -2741,6 +2741,7 @@ main{padding:14px;overflow-x:hidden}
     clearOrizonLocalStorage();
     resetRuntimeStateAfterClear();
     state = defaultState();
+    invalidateDashboardCapacityCache();
     userName = '';
     userId = '';
     try {
@@ -2827,6 +2828,7 @@ main{padding:14px;overflow-x:hidden}
       next.holidays = mergeHolidaysNonDestructive(next.holidays, currentHolidays);
     }
     state = next;
+    invalidateDashboardCapacityCache();
     const prevSuppress = suppressDbAutoSave;
     suppressDbAutoSave = true;
     try { persist({ skipAutoSave:true }); } finally { suppressDbAutoSave = prevSuppress; }
@@ -3896,6 +3898,18 @@ main{padding:14px;overflow-x:hidden}
     // o marcador leve evita erro de quota, mas não tenta restaurar dados incompletos.
     return defaultState();
   })();
+
+  // Cache de capacidade usado pelos gráficos da dashboard.
+  // A chave usa uma versão simples, invalidada sempre que o estado operacional
+  // muda. Isso evita recalcular recurso x dia x mês a cada renderização da tela.
+  let dashboardCapacityCacheVersion = 0;
+  const dashboardCapacityMonthCache = new Map();
+  const dashboardCapacityYearCache = new Map();
+  const invalidateDashboardCapacityCache = () => {
+    dashboardCapacityCacheVersion += 1;
+    dashboardCapacityMonthCache.clear();
+    dashboardCapacityYearCache.clear();
+  };
 
   /* migrate demands */
   try {
@@ -5431,6 +5445,8 @@ main{padding:14px;overflow-x:hidden}
       return;
     }
 
+    invalidateDashboardCapacityCache();
+
     const event = { id: generateId('event'), type, payload: eventPayload, timestamp: Date.now(), user: userName, user_id: userId || '' };
     state.events = [...state.events, event];
 
@@ -5491,6 +5507,7 @@ main{padding:14px;overflow-x:hidden}
     }
 
     state = rebuilt;
+    invalidateDashboardCapacityCache();
     persist();
     render();
   };
@@ -6214,6 +6231,7 @@ main{padding:14px;overflow-x:hidden}
       const events = mergeEventListsUnique(sharedEvents, loadLocalEventOutbox());
       const { merged, pending, newPending } = buildStateFromSnapshotAndEvents(snapshot, events);
       state = normalizeImportedState(merged);
+      invalidateDashboardCapacityCache();
       capviewEventMode.lastReadAt = new Date().toISOString();
       capviewEventMode.pendingReadCount = newPending.length;
       const pendingUsers = [...new Set(newPending.map(e => e.user || e.user_id || e.sourceFile || 'usuário').filter(Boolean))].slice(0,3);
@@ -6277,6 +6295,7 @@ main{padding:14px;overflow-x:hidden}
       }
 
       state = normalizeImportedState(merged);
+      invalidateDashboardCapacityCache();
       capviewEventMode.lastReadAt = new Date().toISOString();
       capviewEventMode.pendingReadCount = 0;
       const archiveText = archiveSummary?.archiveFolder
@@ -8809,6 +8828,12 @@ main{padding:14px;overflow-x:hidden}
   /* === Capacidade VSC helpers (global) === */
 /* === Capacidade VSC helpers (global) === */
 function buildConsolidatedMonthTotals(year, m0) {
+  const y = Number(year);
+  const m = Number(m0);
+  const cacheKey = `${dashboardCapacityCacheVersion}|${y}|${m}`;
+  const cached = dashboardCapacityMonthCache.get(cacheKey);
+  if (cached) return { ...cached };
+
   const resources = (state.resources || []);
   let cap = 0;
   let alloc = 0;
@@ -8872,9 +8897,15 @@ function buildConsolidatedMonthTotals(year, m0) {
 
   const usagePct = cap > 0 ? (alloc / cap) * 100 : 0;
   const overHH = Math.max(0, alloc - cap);
-  return { cap, alloc, free, usagePct, overHH, overResources, totalResources: resources.length };
+  const result = { cap, alloc, free, usagePct, overHH, overResources, totalResources: resources.length };
+  dashboardCapacityMonthCache.set(cacheKey, result);
+  return { ...result };
 }
 function buildConsolidatedYearSeries(year) {
+    const y = Number(year);
+    const cacheKey = `${dashboardCapacityCacheVersion}|${y}`;
+    const cached = dashboardCapacityYearCache.get(cacheKey);
+    if (cached) return cached.map(p => ({ ...p }));
     const labels = Array.from({ length: 12 }, (_, m0) =>
       new Date(year, m0, 1).toLocaleString('pt-BR', { month: 'short' }).replace('.', '')
     );
@@ -8883,7 +8914,8 @@ function buildConsolidatedYearSeries(year) {
       const t = buildConsolidatedMonthTotals(year, m0);
       points.push({ m0, label: labels[m0], ...t });
     }
-    return points;
+    dashboardCapacityYearCache.set(cacheKey, points);
+    return points.map(p => ({ ...p }));
   }
   function serializeSvg(svgEl) {
     const clone = svgEl.cloneNode(true);
@@ -12892,6 +12924,7 @@ return el('div', { class:'grid' }, [
         }
 
         state = latestObj;
+        invalidateDashboardCapacityCache();
         suppressDbAutoSave = true;
         try { persist({ skipAutoSave:true }); }
         finally { suppressDbAutoSave = false; }
@@ -13065,6 +13098,7 @@ return el('div', { class:'grid' }, [
               suppressDbAutoSave = true;
               try {
                 state = remoteObj;
+                invalidateDashboardCapacityCache();
                 persist({ skipAutoSave:true });
               } finally { suppressDbAutoSave = false; }
               setDbBinding({
