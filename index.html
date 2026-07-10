@@ -3908,6 +3908,7 @@ main{padding:14px;overflow-x:hidden}
   let capacityIndexCache = null;
   let capacityIndexCacheVersion = -1;
   const capacityFreeHoursInfoCache = new Map();
+  const capacityMonthlyWindowCache = new Map();
   const cloneFreeHoursInfo = (info) => info ? ({
     ...info,
     overtime: info.overtime ? { ...info.overtime, items:[...(info.overtime.items || [])] } : info.overtime
@@ -3984,6 +3985,7 @@ main{padding:14px;overflow-x:hidden}
     dashboardCapacityMonthCache.clear();
     dashboardCapacityYearCache.clear();
     capacityFreeHoursInfoCache.clear();
+    capacityMonthlyWindowCache.clear();
     capacityIndexCache = null;
     capacityIndexCacheVersion = -1;
   };
@@ -11621,6 +11623,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
   };
 
   const monthlyWindow = (resourceId, y, m0) => {
+    const cacheKey = `${dashboardCapacityCacheVersion}|${String(resourceId || '')}|${Number(y)}|${Number(m0)}`;
+    const cached = capacityMonthlyWindowCache.get(cacheKey);
+    if (cached) return { ...cached };
+    const remember = (result) => {
+      capacityMonthlyWindowCache.set(cacheKey, result);
+      return { ...result };
+    };
     const days = getDaysInMonth(y, m0);
     let cap = 0;
     let alloc = 0;
@@ -11657,7 +11666,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       const monthEnd = `${y}-${String(m0+1).padStart(2,'0')}-${lastDay}`;
       return demandAppearsInHeatmapRange(d, monthStart, monthEnd);
     }).length;
-    return {
+    return remember({
       y, m0,
       key: monthKey(y, m0),
       label: fmtMonthLabel(y, m0),
@@ -11670,7 +11679,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       blockingsCount,
       daysZero,
       daysOver,
-    };
+    });
   };
 
   const heatClassFor = (m, view='occupation') => {
