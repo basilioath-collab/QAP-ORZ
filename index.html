@@ -2741,6 +2741,7 @@ main{padding:14px;overflow-x:hidden}
     clearOrizonLocalStorage();
     resetRuntimeStateAfterClear();
     state = defaultState();
+    invalidateDashboardCapacityCache();
     userName = '';
     userId = '';
     try {
@@ -2827,6 +2828,7 @@ main{padding:14px;overflow-x:hidden}
       next.holidays = mergeHolidaysNonDestructive(next.holidays, currentHolidays);
     }
     state = next;
+    invalidateDashboardCapacityCache();
     const prevSuppress = suppressDbAutoSave;
     suppressDbAutoSave = true;
     try { persist({ skipAutoSave:true }); } finally { suppressDbAutoSave = prevSuppress; }
@@ -3896,6 +3898,18 @@ main{padding:14px;overflow-x:hidden}
     // o marcador leve evita erro de quota, mas não tenta restaurar dados incompletos.
     return defaultState();
   })();
+
+  // Cache de capacidade usado pelos gráficos da dashboard.
+  // A chave usa uma versão simples, invalidada sempre que o estado operacional
+  // muda. Isso evita recalcular recurso x dia x mês a cada renderização da tela.
+  let dashboardCapacityCacheVersion = 0;
+  const dashboardCapacityMonthCache = new Map();
+  const dashboardCapacityYearCache = new Map();
+  const invalidateDashboardCapacityCache = () => {
+    dashboardCapacityCacheVersion += 1;
+    dashboardCapacityMonthCache.clear();
+    dashboardCapacityYearCache.clear();
+  };
 
   /* migrate demands */
   try {
@@ -5431,6 +5445,8 @@ main{padding:14px;overflow-x:hidden}
       return;
     }
 
+    invalidateDashboardCapacityCache();
+
     const event = { id: generateId('event'), type, payload: eventPayload, timestamp: Date.now(), user: userName, user_id: userId || '' };
     state.events = [...state.events, event];
 
@@ -5491,6 +5507,7 @@ main{padding:14px;overflow-x:hidden}
     }
 
     state = rebuilt;
+    invalidateDashboardCapacityCache();
     persist();
     render();
   };
@@ -6214,6 +6231,7 @@ main{padding:14px;overflow-x:hidden}
       const events = mergeEventListsUnique(sharedEvents, loadLocalEventOutbox());
       const { merged, pending, newPending } = buildStateFromSnapshotAndEvents(snapshot, events);
       state = normalizeImportedState(merged);
+      invalidateDashboardCapacityCache();
       capviewEventMode.lastReadAt = new Date().toISOString();
       capviewEventMode.pendingReadCount = newPending.length;
       const pendingUsers = [...new Set(newPending.map(e => e.user || e.user_id || e.sourceFile || 'usuário').filter(Boolean))].slice(0,3);
@@ -6277,6 +6295,7 @@ main{padding:14px;overflow-x:hidden}
       }
 
       state = normalizeImportedState(merged);
+      invalidateDashboardCapacityCache();
       capviewEventMode.lastReadAt = new Date().toISOString();
       capviewEventMode.pendingReadCount = 0;
       const archiveText = archiveSummary?.archiveFolder
@@ -8809,6 +8828,12 @@ main{padding:14px;overflow-x:hidden}
   /* === Capacidade VSC helpers (global) === */
 /* === Capacidade VSC helpers (global) === */
 function buildConsolidatedMonthTotals(year, m0) {
+  const y = Number(year);
+  const m = Number(m0);
+  const cacheKey = `${dashboardCapacityCacheVersion}|${y}|${m}`;
+  const cached = dashboardCapacityMonthCache.get(cacheKey);
+  if (cached) return { ...cached };
+
   const resources = (state.resources || []);
   let cap = 0;
   let alloc = 0;
@@ -8872,9 +8897,15 @@ function buildConsolidatedMonthTotals(year, m0) {
 
   const usagePct = cap > 0 ? (alloc / cap) * 100 : 0;
   const overHH = Math.max(0, alloc - cap);
-  return { cap, alloc, free, usagePct, overHH, overResources, totalResources: resources.length };
+  const result = { cap, alloc, free, usagePct, overHH, overResources, totalResources: resources.length };
+  dashboardCapacityMonthCache.set(cacheKey, result);
+  return { ...result };
 }
 function buildConsolidatedYearSeries(year) {
+    const y = Number(year);
+    const cacheKey = `${dashboardCapacityCacheVersion}|${y}`;
+    const cached = dashboardCapacityYearCache.get(cacheKey);
+    if (cached) return cached.map(p => ({ ...p }));
     const labels = Array.from({ length: 12 }, (_, m0) =>
       new Date(year, m0, 1).toLocaleString('pt-BR', { month: 'short' }).replace('.', '')
     );
@@ -8883,7 +8914,8 @@ function buildConsolidatedYearSeries(year) {
       const t = buildConsolidatedMonthTotals(year, m0);
       points.push({ m0, label: labels[m0], ...t });
     }
-    return points;
+    dashboardCapacityYearCache.set(cacheKey, points);
+    return points.map(p => ({ ...p }));
   }
   function serializeSvg(svgEl) {
     const clone = svgEl.cloneNode(true);
@@ -9458,14 +9490,14 @@ function buildConsolidatedYearSeries(year) {
       ]);
     })();
 
-    return el('div', { class:'grid' }, [
-      el('div', { class:'kpi' }, [
+    return el('div', { class:'grid', 'data-view':'dashboard' }, [
+      el('div', { class:'kpi', 'data-dashboard-section':'kpis' }, [
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Recursos (total)']), el('div', { class:'val' }, [String(totalResources)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Recursos (ativos)']), el('div', { class:'val' }, [String(activeResources)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Demandas (total)']), el('div', { class:'val' }, [String(totalDemands)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Demandas (abertas)']), el('div', { class:'val' }, [String(openDemands)])]),
       ]),
-      el('div', { class:'split' }, [
+      el('div', { class:'split', 'data-dashboard-section':'demand-summary' }, [
         card('Demandas (Geral)', null, el('div', { class:'grid' }, [dashFiltersBar, donutNode])),
         card('Por Recurso (mês)', null, perResource)
       ]),
@@ -9518,9 +9550,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           el('div', { style:'max-width:100%;overflow:auto' }, [svg])
         ].filter(Boolean));
 
-        return card('Ocupação Consolidada - Ano', rightNode, bodyNode);
+        const node = card('Ocupação Consolidada - Ano', rightNode, bodyNode);
+        node.setAttribute('data-dashboard-section', 'capacity-year');
+        return node;
       })(),
-      card('Visão Geral', el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center' }, [right, badgeLegend()]), tableBlock)
+      (() => {
+        const node = card('Visão Geral', el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center' }, [right, badgeLegend()]), tableBlock);
+        node.setAttribute('data-dashboard-section', 'overview');
+        return node;
+      })()
     ]);
   };
 
@@ -11663,6 +11701,17 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     body.appendChild(dowRow);
 
     const grid = el('div', { class:'monthGrid' });
+    grid.addEventListener('click', (ev) => {
+      const target = ev.target?.closest ? ev.target : ev.target?.parentElement;
+      const cell = target?.closest?.('[data-month-date]');
+      if (!cell || !grid.contains(cell)) return;
+      const dateStr = cell.getAttribute('data-month-date');
+      const day = isoToLocalMidnight(dateStr);
+      if (!day) return;
+      // Fecha este drilldown e abre detalhes do dia (com CTA de cadastrar demanda)
+      try{ modal.close(); }catch{ modal.removeAttribute('open'); }
+      openDayDetails(resourceId, day);
+    });
     const days = getDaysInMonth(y, m0);
     const firstDow = days[0].getDay(); // 0=Dom
     for (let i=0;i<firstDow;i++) grid.appendChild(el('div', { class:'monthBlank' }, ['']));
@@ -11722,11 +11771,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       const cell = el('div', {
         class: cls,
         title: tipLines.join('\n'),
-        onclick: () => {
-          // Fecha este drilldown e abre detalhes do dia (com CTA de cadastrar demanda)
-          try{ modal.close(); }catch{ modal.removeAttribute('open'); }
-          openDayDetails(resourceId, d);
-        }
+        'data-month-date': dateStr
       }, [
         el('div', { class:'d mono' }, [String(d.getDate()).padStart(2,'0')]),
         el('div', { class:'hh mono' }, [hhTxt]),
@@ -11864,6 +11909,16 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
 
     const heatTable = (() => {
       const t = el('table', { class:'calTable' });
+      t.addEventListener('click', (ev) => {
+        const target = ev.target?.closest ? ev.target : ev.target?.parentElement;
+        const cell = target?.closest?.('[data-heat-resource-id]');
+        if (!cell || !t.contains(cell)) return;
+        openMonthModal({
+          resourceId: cell.getAttribute('data-heat-resource-id'),
+          y: Number(cell.getAttribute('data-heat-year')),
+          m0: Number(cell.getAttribute('data-heat-month'))
+        });
+      });
       const thead = el('thead');
       const trh = el('tr');
       trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso']));
@@ -11894,7 +11949,13 @@ Status: ${label}
 Ocupação: ${Math.max(0,m.occPct).toFixed(0)}% (${m.alloc.toFixed(1)}h alocadas / ${m.cap.toFixed(1)}h cap.)
 Livre: ${m.free.toFixed(1)}h (${Math.max(0,m.pct).toFixed(0)}%)
 Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
-          tr.appendChild(el('td', { class:`cell clickable heatCell ${cls}`, title, onclick: () => openMonthModal({ resourceId: rr.r.id, y:m.y, m0:m.m0 }) }, [
+          tr.appendChild(el('td', {
+            class:`cell clickable heatCell ${cls}`,
+            title,
+            'data-heat-resource-id': rr.r.id,
+            'data-heat-year': String(m.y),
+            'data-heat-month': String(m.m0)
+          }, [
             el('div', { class:'top' }, [heatMainTextFor(m, mode)]),
             el('div', { class:'sub' }, [heatSubTextFor(m, mode)])
           ]));
@@ -12892,6 +12953,7 @@ return el('div', { class:'grid' }, [
         }
 
         state = latestObj;
+        invalidateDashboardCapacityCache();
         suppressDbAutoSave = true;
         try { persist({ skipAutoSave:true }); }
         finally { suppressDbAutoSave = false; }
@@ -13065,6 +13127,7 @@ return el('div', { class:'grid' }, [
               suppressDbAutoSave = true;
               try {
                 state = remoteObj;
+                invalidateDashboardCapacityCache();
                 persist({ skipAutoSave:true });
               } finally { suppressDbAutoSave = false; }
               setDbBinding({
@@ -13534,7 +13597,7 @@ return el('div', { class:'grid' }, [
     if (txt) txt.textContent = status.label;
   };
 
-  const renderDbReconnectBanner = () => el('div', { class:'globalDbWarn', style:'margin-bottom:14px' }, [
+  const renderDbReconnectBanner = () => el('div', { class:'globalDbWarn', style:'margin-bottom:14px', 'data-db-reconnect-banner':'true' }, [
     el('div', { style:'font-weight:950' }, ['BD JSON direto desconectado ou vínculo inválido']),
     el('span', { class:'tiny', style:'display:block;margin-top:4px' }, [
       'O autosync do BD JSON foi pausado. Para o fluxo recomendado, conecte a pasta ORIZONData; para manutenção, selecione novamente o JSON oficial.',
@@ -13548,12 +13611,42 @@ return el('div', { class:'grid' }, [
     ].filter(Boolean))
   ].filter(Boolean));
 
+  const patchDashboardView = (root, nextView, nextBanner=null) => {
+    const currentView = qs('[data-view="dashboard"]', root);
+    if (!currentView) return false;
+
+    const hasCurrentBanner = !!qs('[data-db-reconnect-banner="true"]', root);
+    const hasNextBanner = !!nextBanner;
+    if (hasCurrentBanner !== hasNextBanner) return false;
+
+    const currentBanner = qs('[data-db-reconnect-banner="true"]', root);
+    if (currentBanner && nextBanner) currentBanner.replaceWith(nextBanner);
+
+    currentView.className = nextView.className;
+    currentView.setAttribute('data-view', 'dashboard');
+    const nextStyle = nextView.getAttribute('style');
+    if (nextStyle) currentView.setAttribute('style', nextStyle);
+    else currentView.removeAttribute('style');
+
+    const nextSections = qsa('[data-dashboard-section]', nextView);
+    const nextKeys = new Set(nextSections.map(section => section.getAttribute('data-dashboard-section')));
+    for (const nextSection of nextSections) {
+      const key = nextSection.getAttribute('data-dashboard-section');
+      const currentSection = qs(`[data-dashboard-section="${key}"]`, currentView);
+      if (currentSection) currentSection.replaceWith(nextSection);
+      else currentView.appendChild(nextSection);
+    }
+    qsa('[data-dashboard-section]', currentView).forEach(section => {
+      if (!nextKeys.has(section.getAttribute('data-dashboard-section'))) section.remove();
+    });
+    return true;
+  };
+
   const render = () => {
     renderTabs();
     updateEventFolderHeaderStatus();
     updateNotificationsBell();
     const root = qs('#app');
-    root.innerHTML = '';
 
     let view;
     if (activeTab === 'dashboard') view = viewDashboard();
@@ -13568,10 +13661,16 @@ return el('div', { class:'grid' }, [
     else if (activeTab === 'consolidation') view = viewConsolidation();
     else view = el('div', {}, ['Aba inválida.']);
 
-    if (sharedFolderReady() && hasDbReconnectNeeded()) {
-      root.appendChild(renderDbReconnectBanner());
+    const reconnectBanner = sharedFolderReady() && hasDbReconnectNeeded()
+      ? renderDbReconnectBanner()
+      : null;
+
+    if (activeTab === 'dashboard' && patchDashboardView(root, view, reconnectBanner)) {
+      return;
     }
 
+    root.innerHTML = '';
+    if (reconnectBanner) root.appendChild(reconnectBanner);
     root.appendChild(view);
   };
 
