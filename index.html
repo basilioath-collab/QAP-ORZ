@@ -2741,6 +2741,7 @@ main{padding:14px;overflow-x:hidden}
     clearOrizonLocalStorage();
     resetRuntimeStateAfterClear();
     state = defaultState();
+    invalidateDashboardCapacityCache();
     userName = '';
     userId = '';
     try {
@@ -2827,6 +2828,7 @@ main{padding:14px;overflow-x:hidden}
       next.holidays = mergeHolidaysNonDestructive(next.holidays, currentHolidays);
     }
     state = next;
+    invalidateDashboardCapacityCache();
     const prevSuppress = suppressDbAutoSave;
     suppressDbAutoSave = true;
     try { persist({ skipAutoSave:true }); } finally { suppressDbAutoSave = prevSuppress; }
@@ -3896,6 +3898,99 @@ main{padding:14px;overflow-x:hidden}
     // o marcador leve evita erro de quota, mas não tenta restaurar dados incompletos.
     return defaultState();
   })();
+
+  // Cache de capacidade usado pelos gráficos da dashboard.
+  // A chave usa uma versão simples, invalidada sempre que o estado operacional
+  // muda. Isso evita recalcular recurso x dia x mês a cada renderização da tela.
+  let dashboardCapacityCacheVersion = 0;
+  const dashboardCapacityMonthCache = new Map();
+  const dashboardCapacityYearCache = new Map();
+  let capacityIndexCache = null;
+  let capacityIndexCacheVersion = -1;
+  const capacityFreeHoursInfoCache = new Map();
+  const capacityMonthlyWindowCache = new Map();
+  const capacityNextWindowCache = new Map();
+  const cloneFreeHoursInfo = (info) => info ? ({
+    ...info,
+    overtime: info.overtime ? { ...info.overtime, items:[...(info.overtime.items || [])] } : info.overtime
+  }) : info;
+  const pushMapList = (map, key, item) => {
+    const k = String(key || '').trim();
+    if (!k) return;
+    if (!map.has(k)) map.set(k, []);
+    map.get(k).push(item);
+  };
+  const buildCapacityIndexes = () => {
+    const resourcesById = new Map((state.resources || []).map(r => [String(r.id || ''), r]));
+    const holidaysByDate = new Set((state.holidays || []).map(h => String(h.data || '').trim()).filter(Boolean));
+    const blockingsByResourceId = new Map();
+    const blockingsByResourceDate = new Map();
+    const globalBlockingsByDate = new Map();
+    const globalBlockings = [];
+    for (const b of (state.blockings || [])) {
+      const rawIds = Array.isArray(b.ids) ? b.ids : [b.recurso_id || b.resourceId || b.resource_id || '__ALL__'];
+      const ids = rawIds.map(String).filter(Boolean);
+      const start = blockingStartDate(b);
+      const end = blockingEndDate(b) || start;
+      for (const id of ids) {
+        const isGlobal = id === '__ALL__';
+        if (isGlobal) globalBlockings.push(b);
+        else pushMapList(blockingsByResourceId, id, b);
+        if (start && end) {
+          let cursor = start;
+          let guard = 0;
+          while (cursor && cursor <= end && guard < 3660) {
+            if (isGlobal) pushMapList(globalBlockingsByDate, cursor, b);
+            else pushMapList(blockingsByResourceDate, `${id}|${cursor}`, b);
+            cursor = addDaysISO(cursor, 1);
+            guard++;
+          }
+        }
+      }
+    }
+    const overtimesByResourceDate = new Map();
+    const globalOvertimesByDate = new Map();
+    for (const o of (state.overtimes || [])) {
+      const date = String(o.date ?? o.data ?? '').trim();
+      if (!date) continue;
+      const rid = String(o.resourceId ?? o.recurso_id ?? '__ALL__');
+      if (rid === '__ALL__') pushMapList(globalOvertimesByDate, date, o);
+      else pushMapList(overtimesByResourceDate, `${rid}|${date}`, o);
+    }
+    const demandEntriesByResourceId = new Map();
+    const demandsByResourceId = new Map();
+    for (const demand of (state.demands || [])) {
+      const allocs = demandAllocations(demand);
+      const allocsByResourceId = new Map();
+      for (const a of allocs) {
+        const rid = String(a.resourceId || '').trim();
+        if (!rid) continue;
+        pushMapList(allocsByResourceId, rid, a);
+      }
+      for (const [rid, resourceAllocs] of allocsByResourceId.entries()) {
+        pushMapList(demandEntriesByResourceId, rid, { demand, allocations:resourceAllocs });
+        pushMapList(demandsByResourceId, rid, demand);
+      }
+    }
+    return { resourcesById, holidaysByDate, blockingsByResourceId, blockingsByResourceDate, globalBlockingsByDate, globalBlockings, overtimesByResourceDate, globalOvertimesByDate, demandEntriesByResourceId, demandsByResourceId };
+  };
+  const getCapacityIndexes = () => {
+    if (!capacityIndexCache || capacityIndexCacheVersion !== dashboardCapacityCacheVersion) {
+      capacityIndexCache = buildCapacityIndexes();
+      capacityIndexCacheVersion = dashboardCapacityCacheVersion;
+    }
+    return capacityIndexCache;
+  };
+  const invalidateDashboardCapacityCache = () => {
+    dashboardCapacityCacheVersion += 1;
+    dashboardCapacityMonthCache.clear();
+    dashboardCapacityYearCache.clear();
+    capacityFreeHoursInfoCache.clear();
+    capacityMonthlyWindowCache.clear();
+    capacityNextWindowCache.clear();
+    capacityIndexCache = null;
+    capacityIndexCacheVersion = -1;
+  };
 
   /* migrate demands */
   try {
@@ -5431,6 +5526,8 @@ main{padding:14px;overflow-x:hidden}
       return;
     }
 
+    invalidateDashboardCapacityCache();
+
     const event = { id: generateId('event'), type, payload: eventPayload, timestamp: Date.now(), user: userName, user_id: userId || '' };
     state.events = [...state.events, event];
 
@@ -5491,6 +5588,7 @@ main{padding:14px;overflow-x:hidden}
     }
 
     state = rebuilt;
+    invalidateDashboardCapacityCache();
     persist();
     render();
   };
@@ -6214,6 +6312,7 @@ main{padding:14px;overflow-x:hidden}
       const events = mergeEventListsUnique(sharedEvents, loadLocalEventOutbox());
       const { merged, pending, newPending } = buildStateFromSnapshotAndEvents(snapshot, events);
       state = normalizeImportedState(merged);
+      invalidateDashboardCapacityCache();
       capviewEventMode.lastReadAt = new Date().toISOString();
       capviewEventMode.pendingReadCount = newPending.length;
       const pendingUsers = [...new Set(newPending.map(e => e.user || e.user_id || e.sourceFile || 'usuário').filter(Boolean))].slice(0,3);
@@ -6277,6 +6376,7 @@ main{padding:14px;overflow-x:hidden}
       }
 
       state = normalizeImportedState(merged);
+      invalidateDashboardCapacityCache();
       capviewEventMode.lastReadAt = new Date().toISOString();
       capviewEventMode.pendingReadCount = 0;
       const archiveText = archiveSummary?.archiveFolder
@@ -6398,21 +6498,30 @@ main{padding:14px;overflow-x:hidden}
   // Mantém wrappers legados abaixo para não alterar chamadas existentes nem visual.
   const CapacityEngine = {
     isHoliday(dateStr) {
-      return (state.holidays || []).some(h => h.data === dateStr);
+      return getCapacityIndexes().holidaysByDate.has(String(dateStr || ''));
     },
 
     blockingFor(resourceId, dateStr) {
-      return (state.blockings || []).find(b => blockingCoversDate(b, resourceId, dateStr));
+      const idx = getCapacityIndexes();
+      const direct = [
+        ...(idx.blockingsByResourceDate.get(`${String(resourceId || '')}|${String(dateStr || '')}`) || []),
+        ...(idx.globalBlockingsByDate.get(String(dateStr || '')) || [])
+      ].find(b => blockingCoversDate(b, resourceId, dateStr) || String(b.recurso_id || b.resourceId || b.resource_id || '') === '__ALL__');
+      if (direct) return direct;
+      const list = [
+        ...(idx.blockingsByResourceId.get(String(resourceId || '')) || []),
+        ...(idx.globalBlockings || [])
+      ];
+      return list.find(b => blockingCoversDate(b, resourceId, dateStr));
     },
 
     overtimeInfo(resourceId, dateStr) {
-      const list = Array.isArray(state.overtimes) ? state.overtimes : [];
-      const items = list.filter(o => {
-        const rid = (o.resourceId ?? o.recurso_id ?? '__ALL__');
-        const dt = (o.date ?? o.data ?? '');
-        if (!dt || dt !== dateStr) return false;
-        return rid === '__ALL__' || rid === resourceId;
-      }).map(o => ({
+      const idx = getCapacityIndexes();
+      const list = [
+        ...(idx.globalOvertimesByDate.get(String(dateStr || '')) || []),
+        ...(idx.overtimesByResourceDate.get(`${String(resourceId || '')}|${String(dateStr || '')}`) || [])
+      ];
+      const items = list.map(o => ({
         id: o.id,
         horas: Number(o.horas || 0) || 0,
         motivo: (o.motivo || '').trim(),
@@ -6453,7 +6562,7 @@ main{padding:14px;overflow-x:hidden}
         if (String(blk.tipo || '').trim().toLowerCase() === 'férias') return { code: -4, label: 'FÉR' };
         return { code: -1, label: 'BLOQ' };
       }
-      const res = (state.resources || []).find(r => r.id === resourceId);
+      const res = getCapacityIndexes().resourcesById.get(String(resourceId || ''));
       if (this.isThirdPartyOff(res, dateStr)) return { code: -3, label: 'OFF' };
       return null;
     },
@@ -6461,7 +6570,7 @@ main{padding:14px;overflow-x:hidden}
     baseCapacityForDay(resourceId, dateObj) {
       const reason = this.nonWorkingReasonForDay(resourceId, dateObj);
       if (reason) return 0;
-      const res = (state.resources || []).find(r => r.id === resourceId);
+      const res = getCapacityIndexes().resourcesById.get(String(resourceId || ''));
       return getResourceHoursForDate(res, dateObj);
     },
 
@@ -6482,11 +6591,12 @@ main{padding:14px;overflow-x:hidden}
       if (reason) return 0;
 
       let total = 0;
-      for (const dem of (state.demands || [])) {
+      const entries = getCapacityIndexes().demandEntriesByResourceId.get(String(resourceId || '')) || [];
+      for (const entry of entries) {
+        const dem = entry.demand;
         if (!demandCountsInAllocationOnDate(dem, dateStr)) continue;
         if (!demandHistoricalWindowContainsDate(dem, dateStr)) continue;
-        const allocHours = demandAllocations(dem)
-          .filter(a => String(a.resourceId || '') === String(resourceId || ''))
+        const allocHours = (entry.allocations || [])
           .filter(a => demandAllocationActiveOnDate(a, dem, dateStr))
           .reduce((acc, a) => acc + demandAllocationHoursForDate(a, resourceId, dateObj, state.resources || []), 0);
         total += allocHours;
@@ -6497,7 +6607,7 @@ main{padding:14px;overflow-x:hidden}
     dailyPercentAllocated(resourceId, dateObj) {
       const reason = this.nonWorkingReasonForDay(resourceId, dateObj);
       if (reason) return reason.code;
-      const res = (state.resources || []).find(r => r.id === resourceId);
+      const res = getCapacityIndexes().resourcesById.get(String(resourceId || ''));
       const base = getResourceHoursForDate(res, dateObj);
       if (!base) return 0;
       return Math.round((this.dailyDemandHoursAllocated(resourceId, dateObj) / base) * 1000) / 10;
@@ -6505,18 +6615,25 @@ main{padding:14px;overflow-x:hidden}
 
     freeHoursInfo(resourceId, dateObj) {
       const dateStr = formatDate(dateObj);
+      const cacheKey = `${dashboardCapacityCacheVersion}|${String(resourceId || '')}|${dateStr}`;
+      const cached = capacityFreeHoursInfoCache.get(cacheKey);
+      if (cached) return cloneFreeHoursInfo(cached);
+      const remember = (info) => {
+        capacityFreeHoursInfoCache.set(cacheKey, info);
+        return cloneFreeHoursInfo(info);
+      };
       const otInfo = this.overtimeInfo(resourceId, dateStr);
       const otHours = Math.max(0, Number(otInfo.total || 0));
-      const res = (state.resources || []).find(r => r.id === resourceId);
+      const res = getCapacityIndexes().resourcesById.get(String(resourceId || ''));
       const blk = this.blockingFor(resourceId, dateStr);
       const isVac = blk && String(blk.tipo || '').trim().toLowerCase() === 'férias';
       const blockedNoHe = isWeekend(dateObj) || this.isHoliday(dateStr) || !!blk || this.isThirdPartyOff(res, dateStr);
 
       if (blockedNoHe && otHours <= 0) {
-        if (this.isHoliday(dateStr)) return { dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FER', cls: 'bg-holiday', eligible: false, overtime: otInfo };
-        if (isWeekend(dateObj)) return { dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FDS', cls: 'bg-wknd', eligible: false, overtime: otInfo };
-        if (blk) return { dateStr, capacity: 0, allocated: 0, free: 0, tag: isVac ? 'FÉRIAS' : 'BLOQ', cls: isVac ? 'bg-vac' : 'bg-block', eligible: false, overtime: otInfo };
-        return { dateStr, capacity: 0, allocated: 0, free: 0, tag: 'OFF', cls: 'bg-off', eligible: false, overtime: otInfo };
+        if (this.isHoliday(dateStr)) return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FER', cls: 'bg-holiday', eligible: false, overtime: otInfo });
+        if (isWeekend(dateObj)) return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FDS', cls: 'bg-wknd', eligible: false, overtime: otInfo });
+        if (blk) return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: isVac ? 'FÉRIAS' : 'BLOQ', cls: isVac ? 'bg-vac' : 'bg-block', eligible: false, overtime: otInfo });
+        return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: 'OFF', cls: 'bg-off', eligible: false, overtime: otInfo });
       }
 
       const base = blockedNoHe ? 0 : getResourceHoursForDate(res, dateObj);
@@ -6539,7 +6656,7 @@ main{padding:14px;overflow-x:hidden}
       const tag = this.isHoliday(dateStr) ? 'FER' :
         ((isWeekend(dateObj) && otHours > 0) ? `HE ${otHours}h` : (perc > 0 ? `-${allocated.toFixed(1)}h` : 'livre'));
 
-      return { dateStr, capacity, allocated, allocatedFromDemandsHH, allocatedFromInternalHH, free, tag, cls, eligible: true, overtime: otInfo };
+      return remember({ dateStr, capacity, allocated, allocatedFromDemandsHH, allocatedFromInternalHH, free, tag, cls, eligible: true, overtime: otInfo });
     }
   };
 
@@ -6570,12 +6687,13 @@ main{padding:14px;overflow-x:hidden}
   // Detalhes por dia (modal)
   // ----------------------
   const demandsForResourceOnDate = (resourceId, dateStr) => {
-    return (state.demands||[]).filter(d => {
-      const hasResource = demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId || '') && demandAllocationActiveOnDate(a, d, dateStr));
+    return (getCapacityIndexes().demandEntriesByResourceId.get(String(resourceId || '')) || []).filter(entry => {
+      const d = entry.demand;
+      const hasResource = (entry.allocations || []).some(a => demandAllocationActiveOnDate(a, d, dateStr));
       if (!hasResource) return false;
       if (!demandHistoricalWindowContainsDate(d, dateStr)) return false;
       return demandAppearsInHeatmapOnDate(d, dateStr);
-    });
+    }).map(entry => entry.demand);
   };
 
   const openDayDetails = (resourceId, dateObj) => {
@@ -8674,6 +8792,12 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const button = (label, cls, onClick, attrs={}) => el('button', { class:'btn '+(cls||''), type:'button', onclick:onClick, ...(attrs || {}) }, [label]);
+  const barNode = (pct, title='', tone='') => {
+    const width = Math.min(100, Math.max(0, Number(pct || 0))).toFixed(0);
+    return el('div', { class:`bar${tone ? ' ' + tone : ''}`, title }, [
+      el('span', { style:`width:${width}%` })
+    ]);
+  };
   const iconButton = (label, icon, cls, onClick) => el('button', {
     class:'btn iconBtn '+(cls||''),
     type:'button',
@@ -8809,6 +8933,12 @@ main{padding:14px;overflow-x:hidden}
   /* === Capacidade VSC helpers (global) === */
 /* === Capacidade VSC helpers (global) === */
 function buildConsolidatedMonthTotals(year, m0) {
+  const y = Number(year);
+  const m = Number(m0);
+  const cacheKey = `${dashboardCapacityCacheVersion}|${y}|${m}`;
+  const cached = dashboardCapacityMonthCache.get(cacheKey);
+  if (cached) return { ...cached };
+
   const resources = (state.resources || []);
   let cap = 0;
   let alloc = 0;
@@ -8872,9 +9002,15 @@ function buildConsolidatedMonthTotals(year, m0) {
 
   const usagePct = cap > 0 ? (alloc / cap) * 100 : 0;
   const overHH = Math.max(0, alloc - cap);
-  return { cap, alloc, free, usagePct, overHH, overResources, totalResources: resources.length };
+  const result = { cap, alloc, free, usagePct, overHH, overResources, totalResources: resources.length };
+  dashboardCapacityMonthCache.set(cacheKey, result);
+  return { ...result };
 }
 function buildConsolidatedYearSeries(year) {
+    const y = Number(year);
+    const cacheKey = `${dashboardCapacityCacheVersion}|${y}`;
+    const cached = dashboardCapacityYearCache.get(cacheKey);
+    if (cached) return cached.map(p => ({ ...p }));
     const labels = Array.from({ length: 12 }, (_, m0) =>
       new Date(year, m0, 1).toLocaleString('pt-BR', { month: 'short' }).replace('.', '')
     );
@@ -8883,7 +9019,8 @@ function buildConsolidatedYearSeries(year) {
       const t = buildConsolidatedMonthTotals(year, m0);
       points.push({ m0, label: labels[m0], ...t });
     }
-    return points;
+    dashboardCapacityYearCache.set(cacheKey, points);
+    return points.map(p => ({ ...p }));
   }
   function serializeSvg(svgEl) {
     const clone = svgEl.cloneNode(true);
@@ -9270,27 +9407,32 @@ function buildConsolidatedYearSeries(year) {
         const total = realTotal;
         let acc = 0;
         const stops = [];
-        for (const k of order) {
+        const activeStatuses = order.filter(k => (statusCounts[k] || 0) > 0);
+        activeStatuses.forEach((k, idx) => {
           const v = (statusCounts[k]||0);
           const pct = (v/total)*100;
           const start = acc;
-          acc += pct;
+          acc = idx === activeStatuses.length - 1 ? 100 : acc + pct;
           stops.push(`${colors[k]} ${start.toFixed(2)}% ${acc.toFixed(2)}%`);
-        }
+        });
         donut = el('div', { class:'donut', style:`background:conic-gradient(${stops.join(',')});` });
       }
       const legend = el('div', { class:'legend' }, order.map(k =>
         el('div', {
           class:'item',
           title:`Filtrar demandas: ${k}`,
-          onclick: () => {
-            openDonutModal(k);
-          }
+          'data-donut-status': k
         }, [
           el('span', { class:'sw', style:`background:${colors[k]}` }),
           `${k}: ${statusCounts[k]||0}`
         ])
       ));
+      legend.addEventListener('click', (ev) => {
+        const target = ev.target?.closest ? ev.target : ev.target?.parentElement;
+        const item = target?.closest?.('[data-donut-status]');
+        if (!item || !legend.contains(item)) return;
+        openDonutModal(item.getAttribute('data-donut-status'));
+      });
       return el('div', { class:'donutWrap' }, [donut, legend]);
     })();
 
@@ -9345,9 +9487,7 @@ function buildConsolidatedYearSeries(year) {
         tr.appendChild(el('td', {}, [`${avg.toFixed(0)}%`]));
         tr.appendChild(el('td', {}, [`${peak.toFixed(0)}%`]));
         tr.appendChild(el('td', {}, [
-          el('div', { class:'bar', title:`Média ${avg.toFixed(0)}%` }, [
-            el('span', { style:`width:${Math.min(100, Math.max(0, avg)).toFixed(0)}%` })
-          ])
+          barNode(avg, `Média ${avg.toFixed(0)}%`)
         ]));
         tb.appendChild(tr);
       }
@@ -9458,14 +9598,14 @@ function buildConsolidatedYearSeries(year) {
       ]);
     })();
 
-    return el('div', { class:'grid' }, [
-      el('div', { class:'kpi' }, [
+    return el('div', { class:'grid', 'data-view':'dashboard' }, [
+      el('div', { class:'kpi', 'data-dashboard-section':'kpis' }, [
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Recursos (total)']), el('div', { class:'val' }, [String(totalResources)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Recursos (ativos)']), el('div', { class:'val' }, [String(activeResources)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Demandas (total)']), el('div', { class:'val' }, [String(totalDemands)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Demandas (abertas)']), el('div', { class:'val' }, [String(openDemands)])]),
       ]),
-      el('div', { class:'split' }, [
+      el('div', { class:'split', 'data-dashboard-section':'demand-summary' }, [
         card('Demandas (Geral)', null, el('div', { class:'grid' }, [dashFiltersBar, donutNode])),
         card('Por Recurso (mês)', null, perResource)
       ]),
@@ -9518,9 +9658,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           el('div', { style:'max-width:100%;overflow:auto' }, [svg])
         ].filter(Boolean));
 
-        return card('Ocupação Consolidada - Ano', rightNode, bodyNode);
+        const node = card('Ocupação Consolidada - Ano', rightNode, bodyNode);
+        node.setAttribute('data-dashboard-section', 'capacity-year');
+        return node;
       })(),
-      card('Visão Geral', el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center' }, [right, badgeLegend()]), tableBlock)
+      (() => {
+        const node = card('Visão Geral', el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center' }, [right, badgeLegend()]), tableBlock);
+        node.setAttribute('data-dashboard-section', 'overview');
+        return node;
+      })()
     ]);
   };
 
@@ -9650,13 +9796,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint])
     ]);
 
-    const progressBar = (pct, title, tone='') => el('div', { class:`bar${tone ? ' ' + tone : ''}`, title }, [
-      el('span', { style:`width:${clamp(pct).toFixed(0)}%` })
-    ]);
     const progressRow = (label, pct, subtitle, title, tone='') => el('div', { class:'grid', style:'gap:4px' }, [
       el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, [label]), el('div', { class:'tiny mono' }, [pctText(pct)])]),
       subtitle ? el('div', { class:'tiny muted' }, [subtitle]) : null,
-      progressBar(pct, title, tone)
+      barNode(pct, title, tone)
     ]);
 
     const projectCard = (p) => {
@@ -11482,6 +11625,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
   };
 
   const monthlyWindow = (resourceId, y, m0) => {
+    const cacheKey = `${dashboardCapacityCacheVersion}|${String(resourceId || '')}|${Number(y)}|${Number(m0)}`;
+    const cached = capacityMonthlyWindowCache.get(cacheKey);
+    if (cached) return { ...cached };
+    const remember = (result) => {
+      capacityMonthlyWindowCache.set(cacheKey, result);
+      return { ...result };
+    };
     const days = getDaysInMonth(y, m0);
     let cap = 0;
     let alloc = 0;
@@ -11512,14 +11662,13 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
 
     const pct = cap > 0 ? (free / cap) * 100 : 0;
     const occPct = cap > 0 ? (alloc / cap) * 100 : 0;
-    const demandsCount = (state.demands||[]).filter(d => {
-      if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(resourceId))) return false;
+    const demandsCount = (getCapacityIndexes().demandsByResourceId.get(String(resourceId || '')) || []).filter(d => {
       const monthStart = `${y}-${String(m0+1).padStart(2,'0')}-01`;
       const lastDay = String(new Date(y, m0+1, 0).getDate()).padStart(2,'0');
       const monthEnd = `${y}-${String(m0+1).padStart(2,'0')}-${lastDay}`;
       return demandAppearsInHeatmapRange(d, monthStart, monthEnd);
     }).length;
-    return {
+    return remember({
       y, m0,
       key: monthKey(y, m0),
       label: fmtMonthLabel(y, m0),
@@ -11532,7 +11681,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       blockingsCount,
       daysZero,
       daysOver,
-    };
+    });
   };
 
   const heatClassFor = (m, view='occupation') => {
@@ -11663,6 +11812,17 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
     body.appendChild(dowRow);
 
     const grid = el('div', { class:'monthGrid' });
+    grid.addEventListener('click', (ev) => {
+      const target = ev.target?.closest ? ev.target : ev.target?.parentElement;
+      const cell = target?.closest?.('[data-month-date]');
+      if (!cell || !grid.contains(cell)) return;
+      const dateStr = cell.getAttribute('data-month-date');
+      const day = isoToLocalMidnight(dateStr);
+      if (!day) return;
+      // Fecha este drilldown e abre detalhes do dia (com CTA de cadastrar demanda)
+      try{ modal.close(); }catch{ modal.removeAttribute('open'); }
+      openDayDetails(resourceId, day);
+    });
     const days = getDaysInMonth(y, m0);
     const firstDow = days[0].getDay(); // 0=Dom
     for (let i=0;i<firstDow;i++) grid.appendChild(el('div', { class:'monthBlank' }, ['']));
@@ -11722,11 +11882,7 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       const cell = el('div', {
         class: cls,
         title: tipLines.join('\n'),
-        onclick: () => {
-          // Fecha este drilldown e abre detalhes do dia (com CTA de cadastrar demanda)
-          try{ modal.close(); }catch{ modal.removeAttribute('open'); }
-          openDayDetails(resourceId, d);
-        }
+        'data-month-date': dateStr
       }, [
         el('div', { class:'d mono' }, [String(d.getDate()).padStart(2,'0')]),
         el('div', { class:'hh mono' }, [hhTxt]),
@@ -11745,15 +11901,23 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
   const findNextWindow = (resourceId) => {
     const start = toDate(w.start);
     const minFree = Math.max(0, Number(w.minFree||0));
+    const cacheKey = `${dashboardCapacityCacheVersion}|${String(resourceId || '')}|${formatDate(start)}|${minFree}`;
+    if (capacityNextWindowCache.has(cacheKey)) {
+      const cached = capacityNextWindowCache.get(cacheKey);
+      return cached ? { ...cached } : null;
+    }
     const MAX_LOOKAHEAD = 3650; // ~10 anos ("sem limite" na prática, sem travar)
     for (let i=0;i<MAX_LOOKAHEAD;i++) {
       const d = addDays(start, i);
       const info = freeHoursInfo(resourceId, d);
       // s? considera dias com janela de verdade
       if (info.eligible && info.capacity > 0 && info.free >= minFree) {
-        return { date: info.dateStr, free: info.free };
+        const result = { date: info.dateStr, free: info.free };
+        capacityNextWindowCache.set(cacheKey, result);
+        return { ...result };
       }
     }
+    capacityNextWindowCache.set(cacheKey, null);
     return null;
   };
 
@@ -11864,6 +12028,16 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
 
     const heatTable = (() => {
       const t = el('table', { class:'calTable' });
+      t.addEventListener('click', (ev) => {
+        const target = ev.target?.closest ? ev.target : ev.target?.parentElement;
+        const cell = target?.closest?.('[data-heat-resource-id]');
+        if (!cell || !t.contains(cell)) return;
+        openMonthModal({
+          resourceId: cell.getAttribute('data-heat-resource-id'),
+          y: Number(cell.getAttribute('data-heat-year')),
+          m0: Number(cell.getAttribute('data-heat-month'))
+        });
+      });
       const thead = el('thead');
       const trh = el('tr');
       trh.appendChild(el('th', { class:'stickyCol', style:'min-width:240px' }, ['Recurso']));
@@ -11894,7 +12068,13 @@ Status: ${label}
 Ocupação: ${Math.max(0,m.occPct).toFixed(0)}% (${m.alloc.toFixed(1)}h alocadas / ${m.cap.toFixed(1)}h cap.)
 Livre: ${m.free.toFixed(1)}h (${Math.max(0,m.pct).toFixed(0)}%)
 Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
-          tr.appendChild(el('td', { class:`cell clickable heatCell ${cls}`, title, onclick: () => openMonthModal({ resourceId: rr.r.id, y:m.y, m0:m.m0 }) }, [
+          tr.appendChild(el('td', {
+            class:`cell clickable heatCell ${cls}`,
+            title,
+            'data-heat-resource-id': rr.r.id,
+            'data-heat-year': String(m.y),
+            'data-heat-month': String(m.m0)
+          }, [
             el('div', { class:'top' }, [heatMainTextFor(m, mode)]),
             el('div', { class:'sub' }, [heatSubTextFor(m, mode)])
           ]));
@@ -11940,19 +12120,21 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       button('Hoje', '', () => { w.start = formatDate(new Date()); uiPagination.windowsNextPage = 1; render(); }),
     ]);
 
-    const allRes = (state.resources||[]).map(r => ({ r, found: findNextWindow(r.id) }))
+    const NEXT_PAGE_SIZE = 10;
+    const allResources = (state.resources || []).slice()
+      .sort((a,b) => String(a.nome || '').localeCompare(String(b.nome || '')));
+    let nextPage = Math.max(1, Number(uiPagination.windowsNextPage||1));
+    const nextTotalPages = Math.max(1, Math.ceil(allResources.length / NEXT_PAGE_SIZE));
+    nextPage = Math.min(nextPage, nextTotalPages);
+    uiPagination.windowsNextPage = nextPage;
+    const pageResources = allResources.slice((nextPage-1)*NEXT_PAGE_SIZE, nextPage*NEXT_PAGE_SIZE);
+    const resPage = pageResources.map(r => ({ r, found: findNextWindow(r.id) }))
       .sort((a,b) => {
         if (a.found && b.found) return String(a.found.date).localeCompare(String(b.found.date)) || String(a.r.nome||'').localeCompare(String(b.r.nome||''));
         if (a.found) return -1;
         if (b.found) return 1;
         return String(a.r.nome||'').localeCompare(String(b.r.nome||''));
       });
-    const NEXT_PAGE_SIZE = 10;
-    let nextPage = Math.max(1, Number(uiPagination.windowsNextPage||1));
-    const nextTotalPages = Math.max(1, Math.ceil(allRes.length / NEXT_PAGE_SIZE));
-    nextPage = Math.min(nextPage, nextTotalPages);
-    uiPagination.windowsNextPage = nextPage;
-    const resPage = allRes.slice((nextPage-1)*NEXT_PAGE_SIZE, nextPage*NEXT_PAGE_SIZE);
 
     const tableWrap = el('div', { class:'scrollX' });
     const tbl = el('table', { class:'demandsTable' });
@@ -11985,8 +12167,8 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     tbl.appendChild(tbody);
     tableWrap.appendChild(tbl);
     const pager = (() => {
-      if (allRes.length <= NEXT_PAGE_SIZE) return null;
-      const total = allRes.length;
+      if (allResources.length <= NEXT_PAGE_SIZE) return null;
+      const total = allResources.length;
       const totalPages = nextTotalPages;
       const startIdx = (uiPagination.windowsNextPage-1) * NEXT_PAGE_SIZE;
       const shown = Math.min(NEXT_PAGE_SIZE, Math.max(0, total - startIdx));
@@ -12892,6 +13074,7 @@ return el('div', { class:'grid' }, [
         }
 
         state = latestObj;
+        invalidateDashboardCapacityCache();
         suppressDbAutoSave = true;
         try { persist({ skipAutoSave:true }); }
         finally { suppressDbAutoSave = false; }
@@ -13065,6 +13248,7 @@ return el('div', { class:'grid' }, [
               suppressDbAutoSave = true;
               try {
                 state = remoteObj;
+                invalidateDashboardCapacityCache();
                 persist({ skipAutoSave:true });
               } finally { suppressDbAutoSave = false; }
               setDbBinding({
@@ -13534,7 +13718,7 @@ return el('div', { class:'grid' }, [
     if (txt) txt.textContent = status.label;
   };
 
-  const renderDbReconnectBanner = () => el('div', { class:'globalDbWarn', style:'margin-bottom:14px' }, [
+  const renderDbReconnectBanner = () => el('div', { class:'globalDbWarn', style:'margin-bottom:14px', 'data-db-reconnect-banner':'true' }, [
     el('div', { style:'font-weight:950' }, ['BD JSON direto desconectado ou vínculo inválido']),
     el('span', { class:'tiny', style:'display:block;margin-top:4px' }, [
       'O autosync do BD JSON foi pausado. Para o fluxo recomendado, conecte a pasta ORIZONData; para manutenção, selecione novamente o JSON oficial.',
@@ -13548,12 +13732,42 @@ return el('div', { class:'grid' }, [
     ].filter(Boolean))
   ].filter(Boolean));
 
+  const patchDashboardView = (root, nextView, nextBanner=null) => {
+    const currentView = qs('[data-view="dashboard"]', root);
+    if (!currentView) return false;
+
+    const hasCurrentBanner = !!qs('[data-db-reconnect-banner="true"]', root);
+    const hasNextBanner = !!nextBanner;
+    if (hasCurrentBanner !== hasNextBanner) return false;
+
+    const currentBanner = qs('[data-db-reconnect-banner="true"]', root);
+    if (currentBanner && nextBanner) currentBanner.replaceWith(nextBanner);
+
+    currentView.className = nextView.className;
+    currentView.setAttribute('data-view', 'dashboard');
+    const nextStyle = nextView.getAttribute('style');
+    if (nextStyle) currentView.setAttribute('style', nextStyle);
+    else currentView.removeAttribute('style');
+
+    const nextSections = qsa('[data-dashboard-section]', nextView);
+    const nextKeys = new Set(nextSections.map(section => section.getAttribute('data-dashboard-section')));
+    for (const nextSection of nextSections) {
+      const key = nextSection.getAttribute('data-dashboard-section');
+      const currentSection = qs(`[data-dashboard-section="${key}"]`, currentView);
+      if (currentSection) currentSection.replaceWith(nextSection);
+      else currentView.appendChild(nextSection);
+    }
+    qsa('[data-dashboard-section]', currentView).forEach(section => {
+      if (!nextKeys.has(section.getAttribute('data-dashboard-section'))) section.remove();
+    });
+    return true;
+  };
+
   const render = () => {
     renderTabs();
     updateEventFolderHeaderStatus();
     updateNotificationsBell();
     const root = qs('#app');
-    root.innerHTML = '';
 
     let view;
     if (activeTab === 'dashboard') view = viewDashboard();
@@ -13568,10 +13782,16 @@ return el('div', { class:'grid' }, [
     else if (activeTab === 'consolidation') view = viewConsolidation();
     else view = el('div', {}, ['Aba inválida.']);
 
-    if (sharedFolderReady() && hasDbReconnectNeeded()) {
-      root.appendChild(renderDbReconnectBanner());
+    const reconnectBanner = sharedFolderReady() && hasDbReconnectNeeded()
+      ? renderDbReconnectBanner()
+      : null;
+
+    if (activeTab === 'dashboard' && patchDashboardView(root, view, reconnectBanner)) {
+      return;
     }
 
+    root.innerHTML = '';
+    if (reconnectBanner) root.appendChild(reconnectBanner);
     root.appendChild(view);
   };
 
