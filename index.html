@@ -8693,6 +8693,12 @@ main{padding:14px;overflow-x:hidden}
   };
 
   const button = (label, cls, onClick, attrs={}) => el('button', { class:'btn '+(cls||''), type:'button', onclick:onClick, ...(attrs || {}) }, [label]);
+  const barNode = (pct, title='', tone='') => {
+    const width = Math.min(100, Math.max(0, Number(pct || 0))).toFixed(0);
+    return el('div', { class:`bar${tone ? ' ' + tone : ''}`, title }, [
+      el('span', { style:`width:${width}%` })
+    ]);
+  };
   const iconButton = (label, icon, cls, onClick) => el('button', {
     class:'btn iconBtn '+(cls||''),
     type:'button',
@@ -9302,27 +9308,32 @@ function buildConsolidatedYearSeries(year) {
         const total = realTotal;
         let acc = 0;
         const stops = [];
-        for (const k of order) {
+        const activeStatuses = order.filter(k => (statusCounts[k] || 0) > 0);
+        activeStatuses.forEach((k, idx) => {
           const v = (statusCounts[k]||0);
           const pct = (v/total)*100;
           const start = acc;
-          acc += pct;
+          acc = idx === activeStatuses.length - 1 ? 100 : acc + pct;
           stops.push(`${colors[k]} ${start.toFixed(2)}% ${acc.toFixed(2)}%`);
-        }
+        });
         donut = el('div', { class:'donut', style:`background:conic-gradient(${stops.join(',')});` });
       }
       const legend = el('div', { class:'legend' }, order.map(k =>
         el('div', {
           class:'item',
           title:`Filtrar demandas: ${k}`,
-          onclick: () => {
-            openDonutModal(k);
-          }
+          'data-donut-status': k
         }, [
           el('span', { class:'sw', style:`background:${colors[k]}` }),
           `${k}: ${statusCounts[k]||0}`
         ])
       ));
+      legend.addEventListener('click', (ev) => {
+        const target = ev.target?.closest ? ev.target : ev.target?.parentElement;
+        const item = target?.closest?.('[data-donut-status]');
+        if (!item || !legend.contains(item)) return;
+        openDonutModal(item.getAttribute('data-donut-status'));
+      });
       return el('div', { class:'donutWrap' }, [donut, legend]);
     })();
 
@@ -9377,9 +9388,7 @@ function buildConsolidatedYearSeries(year) {
         tr.appendChild(el('td', {}, [`${avg.toFixed(0)}%`]));
         tr.appendChild(el('td', {}, [`${peak.toFixed(0)}%`]));
         tr.appendChild(el('td', {}, [
-          el('div', { class:'bar', title:`Média ${avg.toFixed(0)}%` }, [
-            el('span', { style:`width:${Math.min(100, Math.max(0, avg)).toFixed(0)}%` })
-          ])
+          barNode(avg, `Média ${avg.toFixed(0)}%`)
         ]));
         tb.appendChild(tr);
       }
@@ -9688,13 +9697,10 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
       el('div', { class:'tiny muted', style:'margin-top:3px' }, [hint])
     ]);
 
-    const progressBar = (pct, title, tone='') => el('div', { class:`bar${tone ? ' ' + tone : ''}`, title }, [
-      el('span', { style:`width:${clamp(pct).toFixed(0)}%` })
-    ]);
     const progressRow = (label, pct, subtitle, title, tone='') => el('div', { class:'grid', style:'gap:4px' }, [
       el('div', { class:'row', style:'justify-content:space-between' }, [el('div', { class:'tiny muted' }, [label]), el('div', { class:'tiny mono' }, [pctText(pct)])]),
       subtitle ? el('div', { class:'tiny muted' }, [subtitle]) : null,
-      progressBar(pct, title, tone)
+      barNode(pct, title, tone)
     ]);
 
     const projectCard = (p) => {
