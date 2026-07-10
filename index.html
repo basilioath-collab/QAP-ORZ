@@ -3922,19 +3922,38 @@ main{padding:14px;overflow-x:hidden}
     const resourcesById = new Map((state.resources || []).map(r => [String(r.id || ''), r]));
     const holidaysByDate = new Set((state.holidays || []).map(h => String(h.data || '').trim()).filter(Boolean));
     const blockingsByResourceId = new Map();
+    const blockingsByResourceDate = new Map();
+    const globalBlockingsByDate = new Map();
     const globalBlockings = [];
     for (const b of (state.blockings || [])) {
       const rawIds = Array.isArray(b.ids) ? b.ids : [b.recurso_id || b.resourceId || b.resource_id || '__ALL__'];
       const ids = rawIds.map(String).filter(Boolean);
+      const start = blockingStartDate(b);
+      const end = blockingEndDate(b) || start;
       for (const id of ids) {
-        if (id === '__ALL__') globalBlockings.push(b);
+        const isGlobal = id === '__ALL__';
+        if (isGlobal) globalBlockings.push(b);
         else pushMapList(blockingsByResourceId, id, b);
+        if (start && end) {
+          let cursor = start;
+          let guard = 0;
+          while (cursor && cursor <= end && guard < 3660) {
+            if (isGlobal) pushMapList(globalBlockingsByDate, cursor, b);
+            else pushMapList(blockingsByResourceDate, `${id}|${cursor}`, b);
+            cursor = addDaysISO(cursor, 1);
+            guard++;
+          }
+        }
       }
     }
-    const overtimesByDate = new Map();
+    const overtimesByResourceDate = new Map();
+    const globalOvertimesByDate = new Map();
     for (const o of (state.overtimes || [])) {
       const date = String(o.date ?? o.data ?? '').trim();
-      if (date) pushMapList(overtimesByDate, date, o);
+      if (!date) continue;
+      const rid = String(o.resourceId ?? o.recurso_id ?? '__ALL__');
+      if (rid === '__ALL__') pushMapList(globalOvertimesByDate, date, o);
+      else pushMapList(overtimesByResourceDate, `${rid}|${date}`, o);
     }
     const demandEntriesByResourceId = new Map();
     const demandsByResourceId = new Map();
@@ -3951,7 +3970,7 @@ main{padding:14px;overflow-x:hidden}
         pushMapList(demandsByResourceId, rid, demand);
       }
     }
-    return { resourcesById, holidaysByDate, blockingsByResourceId, globalBlockings, overtimesByDate, demandEntriesByResourceId, demandsByResourceId };
+    return { resourcesById, holidaysByDate, blockingsByResourceId, blockingsByResourceDate, globalBlockingsByDate, globalBlockings, overtimesByResourceDate, globalOvertimesByDate, demandEntriesByResourceId, demandsByResourceId };
   };
   const getCapacityIndexes = () => {
     if (!capacityIndexCache || capacityIndexCacheVersion !== dashboardCapacityCacheVersion) {
@@ -6480,6 +6499,11 @@ main{padding:14px;overflow-x:hidden}
 
     blockingFor(resourceId, dateStr) {
       const idx = getCapacityIndexes();
+      const direct = [
+        ...(idx.blockingsByResourceDate.get(`${String(resourceId || '')}|${String(dateStr || '')}`) || []),
+        ...(idx.globalBlockingsByDate.get(String(dateStr || '')) || [])
+      ].find(b => blockingCoversDate(b, resourceId, dateStr) || String(b.recurso_id || b.resourceId || b.resource_id || '') === '__ALL__');
+      if (direct) return direct;
       const list = [
         ...(idx.blockingsByResourceId.get(String(resourceId || '')) || []),
         ...(idx.globalBlockings || [])
@@ -6488,11 +6512,12 @@ main{padding:14px;overflow-x:hidden}
     },
 
     overtimeInfo(resourceId, dateStr) {
-      const list = getCapacityIndexes().overtimesByDate.get(String(dateStr || '')) || [];
-      const items = list.filter(o => {
-        const rid = String(o.resourceId ?? o.recurso_id ?? '__ALL__');
-        return rid === '__ALL__' || rid === String(resourceId || '');
-      }).map(o => ({
+      const idx = getCapacityIndexes();
+      const list = [
+        ...(idx.globalOvertimesByDate.get(String(dateStr || '')) || []),
+        ...(idx.overtimesByResourceDate.get(`${String(resourceId || '')}|${String(dateStr || '')}`) || [])
+      ];
+      const items = list.map(o => ({
         id: o.id,
         horas: Number(o.horas || 0) || 0,
         motivo: (o.motivo || '').trim(),
