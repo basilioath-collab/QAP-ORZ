@@ -3909,6 +3909,7 @@ main{padding:14px;overflow-x:hidden}
   let capacityIndexCacheVersion = -1;
   const capacityFreeHoursInfoCache = new Map();
   const capacityMonthlyWindowCache = new Map();
+  const capacityNextWindowCache = new Map();
   const cloneFreeHoursInfo = (info) => info ? ({
     ...info,
     overtime: info.overtime ? { ...info.overtime, items:[...(info.overtime.items || [])] } : info.overtime
@@ -3986,6 +3987,7 @@ main{padding:14px;overflow-x:hidden}
     dashboardCapacityYearCache.clear();
     capacityFreeHoursInfoCache.clear();
     capacityMonthlyWindowCache.clear();
+    capacityNextWindowCache.clear();
     capacityIndexCache = null;
     capacityIndexCacheVersion = -1;
   };
@@ -11899,15 +11901,23 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
   const findNextWindow = (resourceId) => {
     const start = toDate(w.start);
     const minFree = Math.max(0, Number(w.minFree||0));
+    const cacheKey = `${dashboardCapacityCacheVersion}|${String(resourceId || '')}|${formatDate(start)}|${minFree}`;
+    if (capacityNextWindowCache.has(cacheKey)) {
+      const cached = capacityNextWindowCache.get(cacheKey);
+      return cached ? { ...cached } : null;
+    }
     const MAX_LOOKAHEAD = 3650; // ~10 anos ("sem limite" na prática, sem travar)
     for (let i=0;i<MAX_LOOKAHEAD;i++) {
       const d = addDays(start, i);
       const info = freeHoursInfo(resourceId, d);
       // s? considera dias com janela de verdade
       if (info.eligible && info.capacity > 0 && info.free >= minFree) {
-        return { date: info.dateStr, free: info.free };
+        const result = { date: info.dateStr, free: info.free };
+        capacityNextWindowCache.set(cacheKey, result);
+        return { ...result };
       }
     }
+    capacityNextWindowCache.set(cacheKey, null);
     return null;
   };
 
@@ -12110,19 +12120,21 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
       button('Hoje', '', () => { w.start = formatDate(new Date()); uiPagination.windowsNextPage = 1; render(); }),
     ]);
 
-    const allRes = (state.resources||[]).map(r => ({ r, found: findNextWindow(r.id) }))
+    const NEXT_PAGE_SIZE = 10;
+    const allResources = (state.resources || []).slice()
+      .sort((a,b) => String(a.nome || '').localeCompare(String(b.nome || '')));
+    let nextPage = Math.max(1, Number(uiPagination.windowsNextPage||1));
+    const nextTotalPages = Math.max(1, Math.ceil(allResources.length / NEXT_PAGE_SIZE));
+    nextPage = Math.min(nextPage, nextTotalPages);
+    uiPagination.windowsNextPage = nextPage;
+    const pageResources = allResources.slice((nextPage-1)*NEXT_PAGE_SIZE, nextPage*NEXT_PAGE_SIZE);
+    const resPage = pageResources.map(r => ({ r, found: findNextWindow(r.id) }))
       .sort((a,b) => {
         if (a.found && b.found) return String(a.found.date).localeCompare(String(b.found.date)) || String(a.r.nome||'').localeCompare(String(b.r.nome||''));
         if (a.found) return -1;
         if (b.found) return 1;
         return String(a.r.nome||'').localeCompare(String(b.r.nome||''));
       });
-    const NEXT_PAGE_SIZE = 10;
-    let nextPage = Math.max(1, Number(uiPagination.windowsNextPage||1));
-    const nextTotalPages = Math.max(1, Math.ceil(allRes.length / NEXT_PAGE_SIZE));
-    nextPage = Math.min(nextPage, nextTotalPages);
-    uiPagination.windowsNextPage = nextPage;
-    const resPage = allRes.slice((nextPage-1)*NEXT_PAGE_SIZE, nextPage*NEXT_PAGE_SIZE);
 
     const tableWrap = el('div', { class:'scrollX' });
     const tbl = el('table', { class:'demandsTable' });
@@ -12155,8 +12167,8 @@ Dias 0h: ${m.daysZero} - Dias excedidos: ${m.daysOver}`;
     tbl.appendChild(tbody);
     tableWrap.appendChild(tbl);
     const pager = (() => {
-      if (allRes.length <= NEXT_PAGE_SIZE) return null;
-      const total = allRes.length;
+      if (allResources.length <= NEXT_PAGE_SIZE) return null;
+      const total = allResources.length;
       const totalPages = nextTotalPages;
       const startIdx = (uiPagination.windowsNextPage-1) * NEXT_PAGE_SIZE;
       const shown = Math.min(NEXT_PAGE_SIZE, Math.max(0, total - startIdx));
