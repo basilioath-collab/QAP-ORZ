@@ -3907,6 +3907,11 @@ main{padding:14px;overflow-x:hidden}
   const dashboardCapacityYearCache = new Map();
   let capacityIndexCache = null;
   let capacityIndexCacheVersion = -1;
+  const capacityFreeHoursInfoCache = new Map();
+  const cloneFreeHoursInfo = (info) => info ? ({
+    ...info,
+    overtime: info.overtime ? { ...info.overtime, items:[...(info.overtime.items || [])] } : info.overtime
+  }) : info;
   const pushMapList = (map, key, item) => {
     const k = String(key || '').trim();
     if (!k) return;
@@ -3959,6 +3964,7 @@ main{padding:14px;overflow-x:hidden}
     dashboardCapacityCacheVersion += 1;
     dashboardCapacityMonthCache.clear();
     dashboardCapacityYearCache.clear();
+    capacityFreeHoursInfoCache.clear();
     capacityIndexCache = null;
     capacityIndexCacheVersion = -1;
   };
@@ -6580,6 +6586,13 @@ main{padding:14px;overflow-x:hidden}
 
     freeHoursInfo(resourceId, dateObj) {
       const dateStr = formatDate(dateObj);
+      const cacheKey = `${dashboardCapacityCacheVersion}|${String(resourceId || '')}|${dateStr}`;
+      const cached = capacityFreeHoursInfoCache.get(cacheKey);
+      if (cached) return cloneFreeHoursInfo(cached);
+      const remember = (info) => {
+        capacityFreeHoursInfoCache.set(cacheKey, info);
+        return cloneFreeHoursInfo(info);
+      };
       const otInfo = this.overtimeInfo(resourceId, dateStr);
       const otHours = Math.max(0, Number(otInfo.total || 0));
       const res = getCapacityIndexes().resourcesById.get(String(resourceId || ''));
@@ -6588,10 +6601,10 @@ main{padding:14px;overflow-x:hidden}
       const blockedNoHe = isWeekend(dateObj) || this.isHoliday(dateStr) || !!blk || this.isThirdPartyOff(res, dateStr);
 
       if (blockedNoHe && otHours <= 0) {
-        if (this.isHoliday(dateStr)) return { dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FER', cls: 'bg-holiday', eligible: false, overtime: otInfo };
-        if (isWeekend(dateObj)) return { dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FDS', cls: 'bg-wknd', eligible: false, overtime: otInfo };
-        if (blk) return { dateStr, capacity: 0, allocated: 0, free: 0, tag: isVac ? 'FÉRIAS' : 'BLOQ', cls: isVac ? 'bg-vac' : 'bg-block', eligible: false, overtime: otInfo };
-        return { dateStr, capacity: 0, allocated: 0, free: 0, tag: 'OFF', cls: 'bg-off', eligible: false, overtime: otInfo };
+        if (this.isHoliday(dateStr)) return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FER', cls: 'bg-holiday', eligible: false, overtime: otInfo });
+        if (isWeekend(dateObj)) return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: 'FDS', cls: 'bg-wknd', eligible: false, overtime: otInfo });
+        if (blk) return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: isVac ? 'FÉRIAS' : 'BLOQ', cls: isVac ? 'bg-vac' : 'bg-block', eligible: false, overtime: otInfo });
+        return remember({ dateStr, capacity: 0, allocated: 0, free: 0, tag: 'OFF', cls: 'bg-off', eligible: false, overtime: otInfo });
       }
 
       const base = blockedNoHe ? 0 : getResourceHoursForDate(res, dateObj);
@@ -6614,7 +6627,7 @@ main{padding:14px;overflow-x:hidden}
       const tag = this.isHoliday(dateStr) ? 'FER' :
         ((isWeekend(dateObj) && otHours > 0) ? `HE ${otHours}h` : (perc > 0 ? `-${allocated.toFixed(1)}h` : 'livre'));
 
-      return { dateStr, capacity, allocated, allocatedFromDemandsHH, allocatedFromInternalHH, free, tag, cls, eligible: true, overtime: otInfo };
+      return remember({ dateStr, capacity, allocated, allocatedFromDemandsHH, allocatedFromInternalHH, free, tag, cls, eligible: true, overtime: otInfo });
     }
   };
 
