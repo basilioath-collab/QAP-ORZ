@@ -9490,14 +9490,14 @@ function buildConsolidatedYearSeries(year) {
       ]);
     })();
 
-    return el('div', { class:'grid' }, [
-      el('div', { class:'kpi' }, [
+    return el('div', { class:'grid', 'data-view':'dashboard' }, [
+      el('div', { class:'kpi', 'data-dashboard-section':'kpis' }, [
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Recursos (total)']), el('div', { class:'val' }, [String(totalResources)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Recursos (ativos)']), el('div', { class:'val' }, [String(activeResources)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Demandas (total)']), el('div', { class:'val' }, [String(totalDemands)])]),
         el('div', { class:'k' }, [el('div', { class:'lbl' }, ['Demandas (abertas)']), el('div', { class:'val' }, [String(openDemands)])]),
       ]),
-      el('div', { class:'split' }, [
+      el('div', { class:'split', 'data-dashboard-section':'demand-summary' }, [
         card('Demandas (Geral)', null, el('div', { class:'grid' }, [dashFiltersBar, donutNode])),
         card('Por Recurso (mês)', null, perResource)
       ]),
@@ -9550,9 +9550,15 @@ const svg = buildCapacityVsPlannedSvg({ title: 'Ocupação Consolidada - Ano (de
           el('div', { style:'max-width:100%;overflow:auto' }, [svg])
         ].filter(Boolean));
 
-        return card('Ocupação Consolidada - Ano', rightNode, bodyNode);
+        const node = card('Ocupação Consolidada - Ano', rightNode, bodyNode);
+        node.setAttribute('data-dashboard-section', 'capacity-year');
+        return node;
       })(),
-      card('Visão Geral', el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center' }, [right, badgeLegend()]), tableBlock)
+      (() => {
+        const node = card('Visão Geral', el('div', { class:'row', style:'gap:10px;flex-wrap:wrap;justify-content:flex-end;align-items:center' }, [right, badgeLegend()]), tableBlock);
+        node.setAttribute('data-dashboard-section', 'overview');
+        return node;
+      })()
     ]);
   };
 
@@ -13568,7 +13574,7 @@ return el('div', { class:'grid' }, [
     if (txt) txt.textContent = status.label;
   };
 
-  const renderDbReconnectBanner = () => el('div', { class:'globalDbWarn', style:'margin-bottom:14px' }, [
+  const renderDbReconnectBanner = () => el('div', { class:'globalDbWarn', style:'margin-bottom:14px', 'data-db-reconnect-banner':'true' }, [
     el('div', { style:'font-weight:950' }, ['BD JSON direto desconectado ou vínculo inválido']),
     el('span', { class:'tiny', style:'display:block;margin-top:4px' }, [
       'O autosync do BD JSON foi pausado. Para o fluxo recomendado, conecte a pasta ORIZONData; para manutenção, selecione novamente o JSON oficial.',
@@ -13582,12 +13588,42 @@ return el('div', { class:'grid' }, [
     ].filter(Boolean))
   ].filter(Boolean));
 
+  const patchDashboardView = (root, nextView, nextBanner=null) => {
+    const currentView = qs('[data-view="dashboard"]', root);
+    if (!currentView) return false;
+
+    const hasCurrentBanner = !!qs('[data-db-reconnect-banner="true"]', root);
+    const hasNextBanner = !!nextBanner;
+    if (hasCurrentBanner !== hasNextBanner) return false;
+
+    const currentBanner = qs('[data-db-reconnect-banner="true"]', root);
+    if (currentBanner && nextBanner) currentBanner.replaceWith(nextBanner);
+
+    currentView.className = nextView.className;
+    currentView.setAttribute('data-view', 'dashboard');
+    const nextStyle = nextView.getAttribute('style');
+    if (nextStyle) currentView.setAttribute('style', nextStyle);
+    else currentView.removeAttribute('style');
+
+    const nextSections = qsa('[data-dashboard-section]', nextView);
+    const nextKeys = new Set(nextSections.map(section => section.getAttribute('data-dashboard-section')));
+    for (const nextSection of nextSections) {
+      const key = nextSection.getAttribute('data-dashboard-section');
+      const currentSection = qs(`[data-dashboard-section="${key}"]`, currentView);
+      if (currentSection) currentSection.replaceWith(nextSection);
+      else currentView.appendChild(nextSection);
+    }
+    qsa('[data-dashboard-section]', currentView).forEach(section => {
+      if (!nextKeys.has(section.getAttribute('data-dashboard-section'))) section.remove();
+    });
+    return true;
+  };
+
   const render = () => {
     renderTabs();
     updateEventFolderHeaderStatus();
     updateNotificationsBell();
     const root = qs('#app');
-    root.innerHTML = '';
 
     let view;
     if (activeTab === 'dashboard') view = viewDashboard();
@@ -13602,10 +13638,16 @@ return el('div', { class:'grid' }, [
     else if (activeTab === 'consolidation') view = viewConsolidation();
     else view = el('div', {}, ['Aba inválida.']);
 
-    if (sharedFolderReady() && hasDbReconnectNeeded()) {
-      root.appendChild(renderDbReconnectBanner());
+    const reconnectBanner = sharedFolderReady() && hasDbReconnectNeeded()
+      ? renderDbReconnectBanner()
+      : null;
+
+    if (activeTab === 'dashboard' && patchDashboardView(root, view, reconnectBanner)) {
+      return;
     }
 
+    root.innerHTML = '';
+    if (reconnectBanner) root.appendChild(reconnectBanner);
     root.appendChild(view);
   };
 
