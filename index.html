@@ -2957,7 +2957,10 @@ main{padding:14px;overflow-x:hidden}
       tr.appendChild(el('td', {}, [
         el('div', {}, [respName])
       ]));
-      tr.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]));
+      tr.appendChild(el('td', { class:'mono tiny' }, [
+        el('div', {}, [`Demanda: ${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]),
+        timelineLabels.length ? el('div', { class:'muted' }, [`Atuação: ${timelineLabels.map(x => (x.match(/\(([^)]+)\)/)?.[1] || '')).filter(Boolean).join(' | ') || '-'}`]) : null
+      ].filter(Boolean)));
       tr.appendChild(el('td', { class:'mono' }, [timelineLabels.length ? timelineLabels.map(x => x.split(': ').pop()).join(' | ') : decimalHoursToHHMM(primaryAlloc.horas_planejadas_dia ?? d.horas_planejadas_dia ?? d.horas_dia ?? 0)]));
       tr.appendChild(el('td', {}, [d.prioridade || '-']));
       const st = effectiveStatus(d);
@@ -4775,6 +4778,22 @@ main{padding:14px;overflow-x:hidden}
         const hours = decimalHoursToHHMM(demandAllocationDisplayHours(a, demand, resources));
         return `${name}${period ? ` (${period})` : ''}: ${hours}`;
       });
+  };
+
+
+  const demandAllocationPeriodsForResource = (demand={}, resourceId='', dateStr='') => {
+    const rid = String(resourceId || '').trim();
+    if (!rid) return [];
+    return demandAllocations(demand)
+      .filter(a => String(a.resourceId || '').trim() === rid)
+      .filter(a => !dateStr || demandAllocationActiveOnDate(a, demand, dateStr))
+      .map(a => demandAllocationPeriodLabel(a, demand))
+      .filter(Boolean);
+  };
+
+  const demandAllocationPeriodsTextForResource = (demand={}, resourceId='', dateStr='') => {
+    const periods = demandAllocationPeriodsForResource(demand, resourceId, dateStr);
+    return periods.length ? periods.join(' | ') : '-';
   };
 
   const demandAllocationOverlapsRange = (allocation={}, demand={}, rangeStart='', rangeEnd='') => {
@@ -6812,7 +6831,7 @@ main{padding:14px;overflow-x:hidden}
         el('th', {}, ['Prédio']),
         el('th', {}, ['Focal']),
         el('th', {}, ['Responsável']),
-        el('th', {}, ['Período']),
+        el('th', {}, ['Períodos']),
       ])]));
       const tb = el('tbody');
       if (pageItems.length === 0 && heInfo.items.length === 0) {
@@ -6835,8 +6854,12 @@ main{padding:14px;overflow-x:hidden}
           tr.appendChild(el('td', { class:'mono' }, [decimalHoursToHHMM(Math.max(0, allocHoursForResource))]));
           tr.appendChild(el('td', {}, [d.predio||'-']));
           tr.appendChild(el('td', {}, [d.focal||'-']));
-          tr.appendChild(el('td', {}, [resourceById()[d.responsavel_id]?.nome || '-']));
-          tr.appendChild(el('td', { class:'mono tiny' }, [`${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]));
+          const actingPeriod = demandAllocationPeriodsTextForResource(d, resourceId, dateStr);
+          tr.appendChild(el('td', {}, [resourceById()[resourceId]?.nome || resourceById()[d.responsavel_id]?.nome || '-']));
+          tr.appendChild(el('td', { class:'mono tiny' }, [
+            el('div', {}, [`Demanda: ${formatDateBR(d.data_inicio)} - ${formatDateBR(d.data_fim)}`]),
+            el('div', { class:'muted' }, [`Atuação: ${actingPeriod}`])
+          ]));
           tb.appendChild(tr);
         }
 
@@ -9477,12 +9500,17 @@ function buildConsolidatedYearSeries(year) {
           if (!demandAllocations(d).some(a => String(a.resourceId || '') === String(r.id))) return false;
           const st = effectiveStatus(d);
           if (st === 'Mapeada' || st === 'Concluída' || st === 'Cancelada') return false;
-          // overlap com o mês
-          const start = demandHistoricalStart(d) || d.data_inicio;
-          const end = demandHistoricalEnd(d) || d.data_fim;
+          // Conta demanda ativa no mês somente se a atuação deste recurso
+          // cruza o mês exibido. A janela da demanda pode ser maior que a
+          // janela do responsável, então usar só data_inicio/data_fim confunde.
           const monthStart = formatDate(daysInMonth[0]);
           const monthEnd = formatDate(daysInMonth[daysInMonth.length-1]);
-          return !(end < monthStart || start > monthEnd);
+          return demandAllocations(d).some(a => {
+            if (String(a.resourceId || '') !== String(r.id)) return false;
+            const allocStart = normalizeDateLikeToISO(a.data_inicio || a.dataInicio || a.start_date || '') || normalizeDateLikeToISO(d.data_inicio || '') || '';
+            const allocEnd = normalizeDateLikeToISO(a.data_fim || a.dataFim || a.end_date || '') || normalizeDateLikeToISO(d.data_fim || '') || '';
+            return overlapsRange(allocStart, allocEnd, monthStart, monthEnd);
+          });
         }).length;
 
         // % medio/pico alocado considerando apenas dias úteis disponíveis; FDS/feriado só entram com HE
