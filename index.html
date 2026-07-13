@@ -2931,7 +2931,7 @@ main{padding:14px;overflow-x:hidden}
     });
   };
 
-  const renderDemandsTable = (demands, { compact=false } = {}) => {
+  const renderDemandsTable = (demands, { compact=false, resourceId='' } = {}) => {
     const resMap = resourceById();
     const t = el('table');
     t.appendChild(el('thead', {}, [el('tr', {}, [
@@ -2952,8 +2952,14 @@ main{padding:14px;overflow-x:hidden}
         el('div', { style:'font-weight:950' }, [d.titulo]),
         d.predio || d.focal ? el('div', { class:'tiny' }, [`${(d.predio||'').trim()}${d.predio && d.focal ? ' ? ' : ''}${(d.focal||'').trim()}`.trim()]) : el('div', { class:'tiny', style:'display:none' }, [''])
       ].filter(Boolean)));
-      const respName = (d.responsavel_id||'') ? (resMap[d.responsavel_id]?.nome || '-') : '-';
-      const primaryAlloc = demandAllocations(d).find(a => String(a.resourceId || '') === String(d.responsavel_id || '')) || demandAllocations(d)[0] || {};
+      const contextRid = String(resourceId || '').trim();
+      const allocs = demandAllocations(d);
+      const contextAlloc = contextRid && contextRid !== '__NONE__'
+        ? allocs.find(a => String(a.resourceId || '') === contextRid)
+        : null;
+      const displayRid = contextAlloc ? contextRid : String(d.responsavel_id || allocs[0]?.resourceId || '').trim();
+      const respName = displayRid ? (resMap[displayRid]?.nome || displayRid || '-') : '-';
+      const primaryAlloc = contextAlloc || allocs.find(a => String(a.resourceId || '') === String(d.responsavel_id || '')) || allocs[0] || {};
       tr.appendChild(el('td', {}, [
         el('div', {}, [respName])
       ]));
@@ -3031,7 +3037,7 @@ main{padding:14px;overflow-x:hidden}
       const startIdx = (uiPagination.donutModalPage - 1) * MODAL_DEMANDS_PAGE_SIZE;
       const pageItems = list.slice(startIdx, startIdx + MODAL_DEMANDS_PAGE_SIZE);
 
-      body.appendChild(renderDemandsTable(pageItems, { compact:true }));
+      body.appendChild(renderDemandsTable(pageItems, { compact:true, resourceId:uiFilters.demandResourceId }));
 
       if (total > MODAL_DEMANDS_PAGE_SIZE) {
         body.appendChild(buildPager({
