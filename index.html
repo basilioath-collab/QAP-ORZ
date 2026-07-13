@@ -5446,6 +5446,7 @@ main{padding:14px;overflow-x:hidden}
         const prev = (state.demands||[]).find(d => d.id === payload.demandId);
         if (!prev) { didMutate = false; break; }
         const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
+        const transferEnd = normalizeDateLikeToISO(payload.transferEnd || payload.endDate || '') || '';
         const previousEnd = addDaysISO(transferDate, -1) || transferDate;
         const nextStart = transferDate;
         const fromId = String(payload.fromResourceId || prev.responsavel_id || '').trim();
@@ -5457,7 +5458,7 @@ main{padding:14px;overflow-x:hidden}
             : a);
         const nextAlloc = makeDemandAllocation(toId, hours, state.resources || []);
         nextAlloc.data_inicio = nextStart;
-        nextAlloc.data_fim = prev.data_fim || '';
+        nextAlloc.data_fim = transferEnd || prev.data_fim || '';
         nextAlloc.created_at = Date.now();
         allocations.push(nextAlloc);
         const stamped = applyUpdateMeta({
@@ -5473,6 +5474,7 @@ main{padding:14px;overflow-x:hidden}
               transferDate,
               previousEnd,
               nextStart,
+              transferEnd,
               horas_planejadas_dia: roundDemandHours(hours),
               justification: String(payload.justification || '').trim(),
               timestamp: Date.now(),
@@ -6133,6 +6135,7 @@ main{padding:14px;overflow-x:hidden}
         target.demands = (target.demands || []).map(d => {
           if (String(d.id || '') !== demandId) return d;
           const transferDate = normalizeDateLikeToISO(payload.transferDate || todayISO()) || todayISO();
+          const transferEnd = normalizeDateLikeToISO(payload.transferEnd || payload.endDate || '') || '';
           const previousEnd = addDaysISO(transferDate, -1) || transferDate;
           const nextStart = transferDate;
           const fromId = String(payload.fromResourceId || d.responsavel_id || '').trim();
@@ -6145,7 +6148,7 @@ main{padding:14px;overflow-x:hidden}
               : a);
           const nextAlloc = makeDemandAllocation(toId, hours, target.resources || []);
           nextAlloc.data_inicio = nextStart;
-          nextAlloc.data_fim = d.data_fim || '';
+          nextAlloc.data_fim = transferEnd || d.data_fim || '';
           nextAlloc.created_at = Number(event.timestamp || Date.now());
           allocations.push(nextAlloc);
           return normalizeDemandBaseline({
@@ -6161,6 +6164,7 @@ main{padding:14px;overflow-x:hidden}
                 transferDate,
                 previousEnd,
                 nextStart,
+                transferEnd,
                 horas_planejadas_dia: roundDemandHours(hours),
                 justification: String(payload.justification || '').trim(),
                 timestamp: Number(event.timestamp || Date.now()),
@@ -7128,7 +7132,7 @@ main{padding:14px;overflow-x:hidden}
       add({ title: type === 'EDIT_DEMAND' ? 'Edição de demanda' : type, timestamp:ev.timestamp, actor:ev.user || '', reason:p.justification || ev.justification || '', details });
     }
     for (const t of transferHistoryEntries(demand)) {
-      add({ title:'Transferência de atuação', timestamp:t.timestamp || 0, actor:t.user || '', reason:t.justification || '', details:[`${resourceById()[t.fromResourceId]?.nome || t.fromResourceId || '-'} → ${resourceById()[t.toResourceId]?.nome || t.toResourceId || '-'}`, `Data da ação: ${formatDateBR(t.transferDate)}`, `Horas/dia: ${decimalHoursToHHMM(t.horas_planejadas_dia || t.horas_dia || 0)}`] });
+      add({ title:'Transferência de atuação', timestamp:t.timestamp || 0, actor:t.user || '', reason:t.justification || '', details:[`${resourceById()[t.fromResourceId]?.nome || t.fromResourceId || '-'} → ${resourceById()[t.toResourceId]?.nome || t.toResourceId || '-'}`, `Data inicial: ${formatDateBR(t.transferDate)}`, `Data final: ${formatDateBR(t.transferEnd || t.data_fim || '') || '-'}`, `Horas/dia: ${decimalHoursToHHMM(t.horas_planejadas_dia || t.horas_dia || 0)}`] });
     }
     return rows.sort((a,b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
   };
@@ -7329,13 +7333,16 @@ main{padding:14px;overflow-x:hidden}
         if (!changeFrom || !changeTo || changeTo < changeFrom) { toast('Informe um período válido para a alteração diária.'); return; }
         if (!Number.isFinite(nextHours) || nextHours < 0) { toast('Informe horas válidas para a alteração diária.'); return; }
         if (nextHours > resourceHoursById(rid, state.resources || [])) { toast(`Horas não podem passar de ${decimalHoursToHHMM(resourceHoursById(rid, state.resources || []))} por dia.`); return; }
-        const allocStart = normalizeDateLikeToISO(respStartById.get(rid) || '') || ini.value || demandStartForAlloc;
-        const allocEnd = normalizeDateLikeToISO(respEndById.get(rid) || '') || fim.value || demandEndForAlloc;
-        respEndById.set(rid, allocEnd);
-        ensureDailyHoursCoversAllocation(rid, allocStart, allocEnd);
-        let daily = normalizeAllocationDailyHours(respDailyById.get(rid) || {});
+        const demandStartLimit = normalizeDateLikeToISO(ini.value || demandStartForAlloc || '') || '';
+        const demandEndLimit = normalizeDateLikeToISO(fim.value || demandEndForAlloc || '') || '';
+        if (demandStartLimit && changeFrom < demandStartLimit) { toast('O início da atuação precisa estar dentro do período da demanda.'); return; }
+        if (demandEndLimit && changeTo > demandEndLimit) { toast('O fim da atuação precisa estar dentro do período da demanda.'); return; }
+        respStartById.set(rid, changeFrom);
+        respEndById.set(rid, changeTo);
+        let daily = {};
         daily = fillDailyHoursRange(daily, changeFrom, changeTo, nextHours);
         respDailyById.set(rid, daily);
+        respHoursById.set(rid, roundDemandHours(nextHours));
         renderRespAllocSummary();
         renderApontamentos();
         refreshAllocationPreview();
@@ -8165,6 +8172,7 @@ main{padding:14px;overflow-x:hidden}
     let dlg = qs('#demandTransferModal');
     if (dlg) dlg.remove();
     const transferDate = el('input', { type:'date', value:todayISO(), min:demand.data_inicio || `${MIN_APP_YEAR}-01-01`, max:demand.data_fim || `${MAX_APP_YEAR}-12-31` });
+    const transferEnd = el('input', { type:'date', value:demand.data_fim || '', min:demand.data_inicio || `${MIN_APP_YEAR}-01-01`, max:demand.data_fim || `${MAX_APP_YEAR}-12-31` });
     const fromSel = el('select', {}, currentAllocs.map(a => {
       const rid = String(a.resourceId || '').trim();
       return el('option', { value:rid, selected:rid === currentRid }, [resourceById()[rid]?.nome || rid || '-']);
@@ -8177,14 +8185,17 @@ main{padding:14px;overflow-x:hidden}
       const dateVal = normalizeDateLikeToISO(transferDate.value);
       const fromId = String(fromSel.value || '').trim();
       const toId = String(toSel.value || '').trim();
+      const endVal = normalizeDateLikeToISO(transferEnd.value || '') || '';
       const h = firstHoursLike(hours.value);
       const text = String(justification.value || '').trim();
       if (!dateVal) { status.textContent = 'Informe uma data de transferência válida.'; status.style.color = 'var(--danger)'; return; }
       if (demand.data_fim && dateVal > demand.data_fim) { status.textContent = 'A data da transferência precisa estar dentro do período da demanda.'; status.style.color = 'var(--danger)'; return; }
+      if (endVal && endVal < dateVal) { status.textContent = 'A data final da atuação precisa ser igual ou posterior à transferência.'; status.style.color = 'var(--danger)'; return; }
+      if (demand.data_fim && endVal && endVal > demand.data_fim) { status.textContent = 'A data final da atuação precisa estar dentro do período da demanda.'; status.style.color = 'var(--danger)'; return; }
       if (!fromId || !toId || fromId === toId) { status.textContent = 'Selecione recursos de origem e destino diferentes.'; status.style.color = 'var(--danger)'; return; }
       if (h === null || h <= 0) { status.textContent = 'Informe horas/dia válidas para o novo responsável.'; status.style.color = 'var(--danger)'; return; }
       if (!text) { status.textContent = 'Informe a justificativa da transferência.'; status.style.color = 'var(--danger)'; return; }
-      dispatch('TRANSFER_DEMAND_ALLOCATION', { demandId:demand.id, fromResourceId:fromId, toResourceId:toId, transferDate:dateVal, horas_planejadas_dia:h, justification:text });
+      dispatch('TRANSFER_DEMAND_ALLOCATION', { demandId:demand.id, fromResourceId:fromId, toResourceId:toId, transferDate:dateVal, transferEnd:endVal, horas_planejadas_dia:h, justification:text });
       closeDialog(dlg);
       toast('Atuação transferida com histórico preservado.');
     };
@@ -8198,7 +8209,8 @@ main{padding:14px;overflow-x:hidden}
           el('div', { class:'grid', style:'grid-template-columns:repeat(2,minmax(0,1fr));gap:10px' }, [
             el('div', { class:'field' }, [el('label', {}, ['Sai de']), fromSel]),
             el('div', { class:'field' }, [el('label', {}, ['Vai para']), toSel]),
-            el('div', { class:'field' }, [el('label', {}, ['Data da transferência']), transferDate]),
+            el('div', { class:'field' }, [el('label', {}, ['Data inicial da atuação']), transferDate]),
+            el('div', { class:'field' }, [el('label', {}, ['Data final da atuação']), transferEnd]),
             el('div', { class:'field' }, [el('label', {}, ['Horas/dia no novo recurso']), hours]),
           ]),
           el('div', { class:'field', style:'margin-top:10px' }, [el('label', {}, ['Justificativa obrigatória']), justification]),
