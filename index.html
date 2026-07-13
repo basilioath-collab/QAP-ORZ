@@ -1954,7 +1954,11 @@ main{padding:14px;overflow-x:hidden}
     }
     const directRid = String(demand?.responsavel_id || demand?.resourceId || '').trim();
     const hasDirectAllocation = directRid && sourceAllocations.some(a => String(a?.resourceId || a?.responsavel_id || '').trim() === directRid);
-    if (!hasDirectAllocation) add(directRid, demand);
+    // Regra de negócio: alocação conta somente para responsáveis explícitos.
+    // Se a demanda já possui `allocations`, não promovemos campos legados
+    // (`responsavel_id`/`resourceId`) a uma alocação extra, pois em bases antigas
+    // esses campos podem carregar metadados como focal/criador e duplicar carga.
+    if (!sourceAllocations.length && !hasDirectAllocation) add(directRid, demand);
     const deduped = [];
     const seen = new Set();
     for (const allocation of out) {
@@ -3964,7 +3968,7 @@ main{padding:14px;overflow-x:hidden}
       const allocsByResourceId = new Map();
       for (const a of allocs) {
         const rid = String(a.resourceId || '').trim();
-        if (!rid) continue;
+        if (!rid || !resourcesById.has(rid)) continue;
         pushMapList(allocsByResourceId, rid, a);
       }
       for (const [rid, resourceAllocs] of allocsByResourceId.entries()) {
@@ -8587,8 +8591,9 @@ main{padding:14px;overflow-x:hidden}
       const rid = String(a?.resourceId || a?.responsavel_id || a?.resource_id || '').trim();
       if (rid) ids.add(rid);
     }
+    const hasExplicitAllocations = Array.isArray(demand.allocations) && demand.allocations.length > 0;
     const direct = String(demand.responsavel_id || demand.resourceId || demand.resource_id || '').trim();
-    if (direct) ids.add(direct);
+    if (!hasExplicitAllocations && direct) ids.add(direct);
     return [...ids];
   };
 
